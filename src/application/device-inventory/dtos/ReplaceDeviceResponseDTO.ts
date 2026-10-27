@@ -9,4 +9,6 @@ export interface ReplaceDeviceResponseDTO {
   wirelessConfigRemoved: boolean;
   credentialsTransferred: boolean;
   contractedServiceTransferred: boolean;
+  // Devices that hung off the retired unit and now hang off its successor.
+  downstreamDevicesMoved: number;
 }

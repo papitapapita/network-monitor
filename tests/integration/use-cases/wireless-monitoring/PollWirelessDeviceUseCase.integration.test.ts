@@ -9,6 +9,7 @@ import {
 } from 'application/wireless-monitoring/use-cases';
 import { OUT_OF_SERVER_REACH } from 'application/wireless-monitoring/interfaces';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
+import { UpstreamAssignment } from 'application/device-inventory/services';
 import { WirelessAlertEvaluator } from 'domain/wireless-monitoring/services';
 import { IAlertRule } from 'domain/wireless-monitoring/services/rules/IAlertRule';
 import { DistanceRule } from 'domain/wireless-monitoring/services/rules/DistanceRule';
@@ -91,7 +92,8 @@ describe('PollWirelessDeviceUseCase — integration', () => {
       new WirelessAlertEvaluator(rules),
       new WirelessDeviceRepositoryAdapter(
         deviceRepo,
-        new DeviceEligibilityService()
+        new DeviceEligibilityService(),
+        new UpstreamAssignment(deviceRepo)
       ),
       new DeviceReachAdapter(serverOnSite, deviceRepo),
       new ContractedCapacityAdapter(
@@ -262,11 +264,8 @@ describe('PollWirelessDeviceUseCase — integration', () => {
     };
 
     const parentOf = async (deviceId: string) =>
-      (
-        await prisma.wirelessPollingConfiguration.findUnique({
-          where: { deviceId }
-        })
-      )?.parentApDeviceId;
+      (await prisma.device.findUnique({ where: { id: deviceId } }))
+        ?.upstreamDeviceId;
 
     it('declares the AP whose MAC the radio reports', async () => {
       const apId = await seedApWithMac('192.168.90.30');
@@ -291,7 +290,7 @@ describe('PollWirelessDeviceUseCase — integration', () => {
       );
       const cpe = await seedDiagnosableDevice(prisma, deviceModelId, {
         ip: '192.168.90.34',
-        parentApDeviceId: declared
+        upstreamDeviceId: declared
       });
       collector.setResult({ remoteApMac: AP_WLAN_MAC });
       const { useCase } = build(true);
@@ -320,7 +319,7 @@ describe('PollWirelessDeviceUseCase — integration', () => {
       });
       const cpe = await seedDiagnosableDevice(prisma, deviceModelId, {
         ip: '192.168.90.42',
-        parentApDeviceId: declared
+        upstreamDeviceId: declared
       });
       collector.setResult({ remoteApMac: REPORTED_AP_MAC });
       return { declared, reported, cpe };
@@ -353,7 +352,10 @@ describe('PollWirelessDeviceUseCase — integration', () => {
           where: { deviceId: cpe }
         });
       expect(row?.parentApMismatchPolls).toBe(2);
-      expect(row?.parentApDeviceId).toBe(declared);
+      expect(
+        (await prisma.device.findUnique({ where: { id: cpe } }))
+          ?.upstreamDeviceId
+      ).toBe(declared);
       expect(await driftAlert(cpe)).toBeNull();
     });
 
@@ -394,9 +396,9 @@ describe('PollWirelessDeviceUseCase — integration', () => {
       const { useCase } = build(true);
       await pollTimes(useCase, cpe, 3);
 
-      await prisma.wirelessPollingConfiguration.update({
-        where: { deviceId: cpe },
-        data: { parentApDeviceId: reported, parentApMismatchPolls: 0 }
+      await prisma.device.update({
+        where: { id: cpe },
+        data: { upstreamDeviceId: reported }
       });
       await pollTimes(useCase, cpe, 1);
 

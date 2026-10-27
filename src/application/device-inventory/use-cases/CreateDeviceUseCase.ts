@@ -14,7 +14,10 @@ import { parseIso8601Date } from 'application/shared/utils';
 import { CreateDeviceRequestDTO, DeviceResponseDTO } from '../dtos';
 import { DeviceMapper } from '../mappers';
 import { NoAgentsQuery } from '../interfaces';
-import { AgentAssignmentPolicy } from '../services';
+import {
+  AgentAssignmentPolicy,
+  UpstreamAssignment
+} from '../services';
 import {
   DeviceStatus,
   DeviceCategory,
@@ -33,6 +36,9 @@ export class CreateDeviceUseCase extends UseCase<
     logger: ILogger,
     private readonly agentAssignment: AgentAssignmentPolicy = new AgentAssignmentPolicy(
       NoAgentsQuery
+    ),
+    private readonly upstreamAssignment: UpstreamAssignment = new UpstreamAssignment(
+      deviceRepository
     )
   ) {
     super(logger, 'CreateDeviceUseCase');
@@ -252,6 +258,22 @@ export class CreateDeviceUseCase extends UseCase<
     }
 
     const device = deviceResult.value;
+
+    // Judged once the device exists: the policy needs it to rule out a loop,
+    // although a brand-new device has nothing below it to close one.
+    if (data.upstreamDeviceId) {
+      const upstreamResult = await this.upstreamAssignment.resolve(
+        device,
+        data.upstreamDeviceId
+      );
+      if (upstreamResult.isFailure) {
+        return this.fail(upstreamResult.error);
+      }
+      const linkResult = device.setUpstream(upstreamResult.value);
+      if (linkResult.isFailure) {
+        return this.fail(linkResult.error);
+      }
+    }
 
     const saveResult = await this.deviceRepository.save(device);
     if (saveResult.isFailure) {

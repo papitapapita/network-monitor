@@ -23,4 +23,19 @@ export interface IDeviceRepository {
   findWirelessIneligibilityReason(
     deviceId: DeviceId
   ): Promise<Result<string | null>>;
+
+  // The device's declared upstream (DEV-180) — for a STATION, the AP it is
+  // meant to sit on.
+  findUpstreamId(
+    deviceId: DeviceId
+  ): Promise<Result<DeviceId | null>>;
+
+  // Fills an undeclared upstream with the AP the radio reports. Never
+  // overwrites one: a mismatch is drift for the operator to resolve, not
+  // something a poll decides. Device Inventory's link rules still apply, so
+  // an AP they refuse is left undeclared. Resolves true when it linked.
+  declareUpstreamIfUnset(
+    deviceId: DeviceId,
+    upstreamId: DeviceId
+  ): Promise<Result<boolean>>;
 }

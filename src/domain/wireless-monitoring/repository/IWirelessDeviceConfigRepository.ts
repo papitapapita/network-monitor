@@ -19,8 +19,8 @@ export interface IWirelessDeviceConfigRepository {
   // used by the polling scheduler to select devices due for a poll cycle
   findAllDue(now: Date): Promise<Result<WirelessDeviceConfig[]>>;
   findAll(): Promise<Result<WirelessDeviceConfig[]>>;
-  // STATION configs declaring apDeviceId as their parentApDeviceId
-  findByParentApDeviceId(
+  // STATION configs of the live devices whose upstream is apDeviceId
+  findStationsBelow(
     apDeviceId: DeviceId
   ): Promise<Result<WirelessDeviceConfig[]>>;
 }

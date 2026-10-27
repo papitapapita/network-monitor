@@ -2,6 +2,7 @@ import { Application, Router } from 'express';
 import { DependencyContainer } from '../../../infrastructure/di/container';
 import { loadAllowedOrigins } from '../../../infrastructure/di/allowedOrigins';
 import { createLocationRoutes } from './location.routes';
+import { createTopologyRoutes } from './topology.routes';
 import { createDeviceRoutes } from './device.routes';
 import { createDeviceModelRoutes } from './device-model.routes';
 import { createVendorRoutes } from './vendor.routes';
@@ -147,6 +148,12 @@ export function setupRoutes(
   apiRouter.use(
     '/devices',
     createDeviceRoutes(container.deviceController)
+  );
+
+  // Topology: /api/topology
+  apiRouter.use(
+    '/topology',
+    createTopologyRoutes(container.topologyController)
   );
 
   // Device credentials: /api/devices/:id/credentials

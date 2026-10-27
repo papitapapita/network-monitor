@@ -41,6 +41,7 @@ export type PrismaDeviceRecord = {
   deletedBy?: string | null;
   replacedAt?: Date | null;
   replacesDeviceId?: string | null;
+  upstreamDeviceId?: string | null;
   // Populated from the `replacedBy` back-relation, not a stored column. Reads
   // that don't ask for it leave the successor link null rather than wrong. A
   // unit replaced more than once has several successors; the repository orders
@@ -69,6 +70,7 @@ type DevicePersistenceData = {
   deletedBy: string | null;
   replacedAt: Date | null;
   replacesDeviceId: string | null;
+  upstreamDeviceId: string | null;
 };
 
 export class DeviceMapper {
@@ -132,6 +134,17 @@ export class DeviceMapper {
       replacesDeviceId = parsed.value;
     }
 
+    let upstreamDeviceId: DeviceId | null = null;
+    if (raw.upstreamDeviceId != null) {
+      const parsed = DeviceId.parse(raw.upstreamDeviceId);
+      if (parsed.isFailure) {
+        return Result.fail<Device>(
+          `Invalid upstream device ID: ${parsed.error}`
+        );
+      }
+      upstreamDeviceId = parsed.value;
+    }
+
     let replacedByDeviceId: DeviceId | null = null;
     const currentSuccessor = raw.replacedBy?.[0];
     if (currentSuccessor != null) {
@@ -173,7 +186,8 @@ export class DeviceMapper {
       deletedBy: raw.deletedBy ?? null,
       replacedAt: raw.replacedAt ?? null,
       replacesDeviceId,
-      replacedByDeviceId
+      replacedByDeviceId,
+      upstreamDeviceId
     });
 
     return Result.ok<Device>(device);
@@ -204,7 +218,8 @@ export class DeviceMapper {
       replacedAt: device.replacedAt,
       // replacedByDeviceId is deliberately absent: it is the back-reference of
       // this column on the successor's row, not a column of its own.
-      replacesDeviceId: device.replacesDeviceId?.toString() ?? null
+      replacesDeviceId: device.replacesDeviceId?.toString() ?? null,
+      upstreamDeviceId: device.upstreamDeviceId?.toString() ?? null
     };
   }
 

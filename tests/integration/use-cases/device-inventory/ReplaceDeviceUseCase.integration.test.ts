@@ -24,6 +24,7 @@ import {
   seedDeviceModel,
   seedWirelessDeviceModel,
   seedLocation,
+  seedNetworkDevice,
   seedAgent,
   cleanAgents,
   seedCustomer,
@@ -538,5 +539,55 @@ describe('ReplaceDeviceUseCase — integration', () => {
     expect(result.error).toMatch(
       /at least a serial number or MAC address/i
     );
+  });
+
+  describe('[DEV-185] topology handover', () => {
+    it("takes over the old unit's upstream and the devices below it", async () => {
+      const sw = await seedNetworkDevice(prisma, wiredModelId, {
+        name: 'Switch Torre',
+        ipAddress: '10.60.0.1'
+      });
+      const oldId = await createActiveDevice({
+        category: 'ACCESS_POINT',
+        upstreamDeviceId: sw
+      });
+      const cpe1 = await seedNetworkDevice(prisma, wiredModelId, {
+        name: 'CPE 1',
+        ipAddress: '10.60.0.21',
+        upstreamDeviceId: oldId
+      });
+      const cpe2 = await seedNetworkDevice(prisma, wiredModelId, {
+        name: 'CPE 2',
+        ipAddress: '10.60.0.22',
+        upstreamDeviceId: oldId
+      });
+
+      const result = await replaceUseCase.execute(
+        request({ id: oldId })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      const newId = result.value.newDevice.id;
+      expect(result.value.newDevice.upstreamDeviceId).toBe(sw);
+      expect(result.value.downstreamDevicesMoved).toBe(2);
+
+      const rows = await prisma.device.findMany({
+        where: { id: { in: [oldId, cpe1, cpe2] } }
+      });
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      expect(byId.get(oldId)!.upstreamDeviceId).toBeNull();
+      expect(byId.get(cpe1)!.upstreamDeviceId).toBe(newId);
+      expect(byId.get(cpe2)!.upstreamDeviceId).toBe(newId);
+    });
+
+    it('reports nothing moved when nothing hung off the old unit', async () => {
+      const oldId = await createActiveDevice();
+
+      const result = await replaceUseCase.execute(
+        request({ id: oldId })
+      );
+
+      expect(result.value.downstreamDevicesMoved).toBe(0);
+    });
   });
 });

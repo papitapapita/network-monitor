@@ -8,6 +8,7 @@ import {
 } from 'application/wireless-monitoring/use-cases';
 import { SetDeviceCredentialsUseCase } from 'application/device-inventory/use-cases/SetDeviceCredentialsUseCase';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
+import { UpstreamAssignment } from 'application/device-inventory/services';
 import {
   WirelessAlertEvaluator,
   LinkDiagnosisAnalyzer
@@ -78,7 +79,8 @@ export function buildLinkDiagnosis(
     ),
     new WirelessDeviceRepositoryAdapter(
       deviceRepo,
-      new DeviceEligibilityService()
+      new DeviceEligibilityService(),
+      new UpstreamAssignment(deviceRepo)
     ),
     new DeviceReachAdapter(serverOnSite, deviceRepo),
     new ContractedCapacityAdapter(
@@ -109,15 +111,21 @@ export async function seedDiagnosableDevice(
   opts: {
     ip: string;
     deviceType?: 'STATION' | 'ACCESS_POINT';
-    parentApDeviceId?: string;
+    upstreamDeviceId?: string;
     withCredentials?: boolean;
     withConfig?: boolean;
     monitoringEnabled?: boolean;
   }
 ): Promise<string> {
+  // An ACTIVE device always has a location (DEV-055); without one the
+  // aggregate refuses any later edit, such as declaring its AP (WLS-012).
+  const location = await prisma.location.create({
+    data: { name: `Sitio ${opts.ip}`, type: 'TOWER' }
+  });
   const device = await prisma.device.create({
     data: {
       name: `Radio ${opts.ip}`,
+      locationId: location.id,
       owner: 'COMPANY',
       status: 'ACTIVE',
       category:
@@ -126,7 +134,8 @@ export async function seedDiagnosableDevice(
           : 'WIRELESS_CPE',
       monitoringEnabled: opts.monitoringEnabled ?? true,
       ipAddress: opts.ip,
-      deviceModelId
+      deviceModelId,
+      upstreamDeviceId: opts.upstreamDeviceId ?? null
     }
   });
 
@@ -137,8 +146,7 @@ export async function seedDiagnosableDevice(
         ipAddress: opts.ip,
         enabled: true,
         intervalSecs: 3600,
-        deviceType: opts.deviceType ?? 'STATION',
-        parentApDeviceId: opts.parentApDeviceId ?? null
+        deviceType: opts.deviceType ?? 'STATION'
       }
     });
   }

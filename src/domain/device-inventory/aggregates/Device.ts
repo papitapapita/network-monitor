@@ -112,6 +112,10 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     return this.props.replacedByDeviceId;
   }
 
+  get upstreamDeviceId(): DeviceId | null {
+    return this.props.upstreamDeviceId;
+  }
+
   public static create(
     props: Omit<
       DeviceProps,
@@ -124,9 +128,13 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       | 'replacesDeviceId'
       | 'replacedByDeviceId'
       | 'agentId'
+      | 'upstreamDeviceId'
     > & {
       monitoringEnabled?: boolean;
       agentId?: AgentId | null;
+      // A replacement stands where its predecessor stood (DEV-185); any other
+      // new device is linked afterwards, once UpstreamLinkPolicy has judged it.
+      upstreamDeviceId?: DeviceId | null;
       // Set only by ReplaceDeviceUseCase — a unit created as the successor of
       // a retired one carries the link from birth, so the lineage is never in
       // a half-written state.
@@ -152,7 +160,11 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     const monitoringEnabled =
       props.monitoringEnabled ?? props.status.isCommissioning();
 
+    const id = DeviceId.create();
+
     const validationResult = Device.validate({
+      id,
+      upstreamDeviceId: props.upstreamDeviceId ?? null,
       status: props.status,
       serialNumber: props.serialNumber ?? null,
       macAddress: props.macAddress ?? null,
@@ -169,7 +181,6 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       return Result.fail<Device>(validationResult.error);
     }
 
-    const id = DeviceId.create();
     const now = new Date();
 
     const device = new Device(
@@ -191,7 +202,8 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
         deletedBy: null,
         replacedAt: props.replacedAt ?? null,
         replacesDeviceId: props.replacesDeviceId ?? null,
-        replacedByDeviceId: null
+        replacedByDeviceId: null,
+        upstreamDeviceId: props.upstreamDeviceId ?? null
       },
       id
     );
@@ -226,6 +238,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       | 'replacesDeviceId'
       | 'replacedByDeviceId'
       | 'agentId'
+      | 'upstreamDeviceId'
     > &
       Partial<
         Pick<
@@ -236,6 +249,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
           | 'replacesDeviceId'
           | 'replacedByDeviceId'
           | 'agentId'
+          | 'upstreamDeviceId'
         >
       >
   ): Device {
@@ -247,7 +261,8 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
         deletedBy: props.deletedBy ?? null,
         replacedAt: props.replacedAt ?? null,
         replacesDeviceId: props.replacesDeviceId ?? null,
-        replacedByDeviceId: props.replacedByDeviceId ?? null
+        replacedByDeviceId: props.replacedByDeviceId ?? null,
+        upstreamDeviceId: props.upstreamDeviceId ?? null
       },
       id
     );
@@ -331,6 +346,8 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     }
 
     const validationResult = Device.validate({
+      id: this.id,
+      upstreamDeviceId: next.upstreamDeviceId,
       status: next.status,
       serialNumber: next.serialNumber,
       macAddress: next.macAddress,
@@ -363,6 +380,10 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       this.props.agentId,
       next.agentId
     );
+    const upstreamChanged = !Device.sameDevice(
+      this.props.upstreamDeviceId,
+      next.upstreamDeviceId
+    );
 
     if (
       !modelChanged &&
@@ -370,6 +391,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       !locationChanged &&
       !monitoringChanged &&
       !agentChanged &&
+      !upstreamChanged &&
       !detailsProvided
     ) {
       return Result.ok<void>();
@@ -387,6 +409,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     this.props.status = next.status;
     this.props.locationId = next.locationId;
     this.props.agentId = next.agentId;
+    this.props.upstreamDeviceId = next.upstreamDeviceId;
     this.props.monitoringEnabled = monitoringEnabled;
 
     this.touch();
@@ -479,6 +502,14 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
   // (ADR 0002): the device only records which one reaches it.
   public assignAgent(agentId: AgentId | null): Result<void> {
     return this.applyChanges({ agentId });
+  }
+
+  // Whether the upstream may take it (DEV-182, DEV-183) is
+  // UpstreamLinkPolicy's check: it needs the rest of the graph.
+  public setUpstream(
+    upstreamDeviceId: DeviceId | null
+  ): Result<void> {
+    return this.applyChanges({ upstreamDeviceId });
   }
 
   // A data-entry correction, not a hardware swap. Restricted to INVENTORY
@@ -657,7 +688,11 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     const releasedIpAddress = this.props.ipAddress;
     const monitoringWasOn = this.props.monitoringEnabled;
 
+    // The retired unit leaves the network, so it leaves the topology too; its
+    // successor takes over the link (DEV-185).
     const validationResult = Device.validate({
+      id: this.id,
+      upstreamDeviceId: null,
       status: retiredStatus,
       serialNumber: this.props.serialNumber,
       macAddress: this.props.macAddress,
@@ -677,6 +712,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     this.props.status = retiredStatus;
     this.props.ipAddress = null;
     this.props.monitoringEnabled = false;
+    this.props.upstreamDeviceId = null;
     this.props.replacedAt = now;
     this.touch();
 
@@ -774,6 +810,8 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     ];
     const validations = pairs.map(({ device, incoming }) =>
       Device.validate({
+        id: device.id,
+        upstreamDeviceId: device.props.upstreamDeviceId,
         status: device.props.status,
         serialNumber: incoming.props.serialNumber,
         macAddress: incoming.props.macAddress,
@@ -892,6 +930,16 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     return a.equals(b);
   }
 
+  private static sameDevice(
+    a: DeviceId | null,
+    b: DeviceId | null
+  ): boolean {
+    if (a === null || b === null) {
+      return a === b;
+    }
+    return a.equals(b);
+  }
+
   private static sameAgent(
     a: AgentId | null,
     b: AgentId | null
@@ -915,6 +963,7 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     status: DeviceStatus;
     locationId: LocationId | null;
     agentId: AgentId | null;
+    upstreamDeviceId: DeviceId | null;
     monitoringEnabled: boolean;
   } {
     const pick = <T>(incoming: T | undefined, current: T): T =>
@@ -942,6 +991,10 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
       status: pick(changes.status, this.props.status),
       locationId: pick(changes.locationId, this.props.locationId),
       agentId: pick(changes.agentId, this.props.agentId),
+      upstreamDeviceId: pick(
+        changes.upstreamDeviceId,
+        this.props.upstreamDeviceId
+      ),
       monitoringEnabled: pick(
         changes.monitoringEnabled,
         this.props.monitoringEnabled
@@ -972,6 +1025,8 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
   // monitoring must route its prospective (not-yet-committed) state
   // through this method.
   private static validate(state: {
+    id: DeviceId;
+    upstreamDeviceId: DeviceId | null;
     status: DeviceStatus;
     serialNumber: SerialNumber | null;
     macAddress: MACAddress | null;
@@ -1025,6 +1080,12 @@ export class Device extends AggregateRoot<DeviceProps, DeviceId> {
     ) {
       return Result.fail<void>(
         'Monitoring can only be enabled for ACTIVE or COMMISSIONING devices'
+      );
+    }
+
+    if (state.upstreamDeviceId?.equals(state.id)) {
+      return Result.fail<void>(
+        'Cannot make a device its own upstream device'
       );
     }
 

@@ -9,6 +9,8 @@ export interface CreateDeviceRequestDTO {
   locationId?: string | null;
   // Omitted: the only agent, if there is exactly one. null: polled in-process.
   agentId?: string | null;
+  // The device this one hangs off on the network; omitted or null is a root.
+  upstreamDeviceId?: string | null;
   serialNumber?: string | null;
   macAddress?: string | null;
   ipAddress?: string | null;

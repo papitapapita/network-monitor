@@ -292,6 +292,37 @@ export async function seedDevice(
 }
 
 /**
+ * A live device on the network, optionally hanging off another (DEV-180).
+ * COMMISSIONING unless told otherwise: on the network, yet valid with no
+ * location, so the aggregate accepts later edits to it. Returns the id.
+ */
+export async function seedNetworkDevice(
+  prisma: PrismaClient,
+  deviceModelId: string,
+  opts: {
+    name: string;
+    ipAddress: string;
+    upstreamDeviceId?: string | null;
+    status?: 'ACTIVE' | 'COMMISSIONING' | 'INVENTORY' | 'DAMAGED';
+    monitoringEnabled?: boolean;
+  }
+): Promise<string> {
+  const device = await prisma.device.create({
+    data: {
+      name: opts.name,
+      owner: 'COMPANY',
+      status: opts.status ?? 'COMMISSIONING',
+      serialNumber: `SN-${opts.ipAddress}`,
+      ipAddress: opts.ipAddress,
+      monitoringEnabled: opts.monitoringEnabled ?? false,
+      upstreamDeviceId: opts.upstreamDeviceId ?? null,
+      deviceModelId
+    }
+  });
+  return device.id;
+}
+
+/**
  * Cleans the billing bounded context in FK-safe order:
  * bill_line_items (which reference bills) must go before bills, and
  * bills (which reference customers, Restrict) must go before cleanCustomers().

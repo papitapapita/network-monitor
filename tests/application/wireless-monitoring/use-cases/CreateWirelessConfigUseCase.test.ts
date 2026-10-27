@@ -86,7 +86,6 @@ function makeConfig(): WirelessDeviceConfig {
       linkCapacityKbps: null,
       clientsProvisionedLimit: null,
       provisionedLanSpeedMbps: null,
-      parentApDeviceId: null,
       parentApMismatchPolls: 0,
       lastPolledAt: null
     }
@@ -126,7 +125,9 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
     findByAgent: jest.fn(),
     findByFilters: jest.fn(),
     findByIdIncludingDeleted: jest.fn(),
-    findDeletedBefore: jest.fn()
+    findDeletedBefore: jest.fn(),
+    findUpstreamChain: jest.fn(),
+    moveDownstreamDevices: jest.fn()
   };
 }
 
@@ -138,7 +139,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
     findAllDue: jest.fn(),
-    findByParentApDeviceId: jest.fn(),
+    findStationsBelow: jest.fn(),
     findAll: jest.fn()
   };
 }

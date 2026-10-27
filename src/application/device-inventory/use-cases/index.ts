@@ -31,3 +31,5 @@ export * from './GetMapLocationsUseCase';
 export * from './DeleteLocationUseCase';
 export * from './AssignDevicesToAgentUseCase';
 export * from './RetireDeviceAfterCancellationUseCase';
+export * from './GetTopologyUseCase';
+export * from './GetDeviceDescendantsUseCase';

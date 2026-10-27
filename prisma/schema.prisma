@@ -237,6 +237,10 @@ model Device {
   replacedAt       DateTime? @map("replaced_at") @db.Timestamptz
   replacesDeviceId String?   @map("replaces_device_id") @db.Uuid
 
+  // Topology (DEV-180): the device this one hangs off on the network. Null
+  // is a root — the gateway, or a link nobody has declared yet.
+  upstreamDeviceId String? @map("upstream_device_id") @db.Uuid
+
   // Monitoring
   monitoringEnabled Boolean @default(true) @map("monitoring_enabled")
 
@@ -246,6 +250,8 @@ model Device {
   agent                        ProbeAgent?                     @relation(fields: [agentId], references: [id], onDelete: Restrict)
   replaces                     Device?                         @relation("DeviceReplacement", fields: [replacesDeviceId], references: [id], onDelete: SetNull)
   replacedBy                   Device[]                        @relation("DeviceReplacement")
+  upstream                     Device?                         @relation("DeviceUpstream", fields: [upstreamDeviceId], references: [id], onDelete: SetNull)
+  downstream                   Device[]                        @relation("DeviceUpstream")
   pollingConfiguration         PollingConfiguration?
   deviceState                  DeviceState?
   notificationPolicy           DeviceNotificationPolicy?
@@ -255,7 +261,6 @@ model Device {
   wirelessSnapshots            WirelessSnapshot[]
   wirelessAlertRecords         WirelessAlertRecord[]
   wirelessPollingConfiguration WirelessPollingConfiguration?
-  wirelessConfigsAsParentAp    WirelessPollingConfiguration[]  @relation("WirelessConfigParentAp")
   alertThresholdOverride       WirelessAlertThresholdOverride?
   contractedService            ContractedService?
   tickets                      Ticket[]
@@ -268,6 +273,7 @@ model Device {
   @@index([ipSortKey])
   @@index([replacesDeviceId])
   @@index([agentId])
+  @@index([upstreamDeviceId])
   @@map("devices")
 }
 
@@ -652,22 +658,16 @@ model WirelessPollingConfiguration {
   linkCapacityKbps        BigInt?            @map("link_capacity_kbps")
   clientsProvisionedLimit Int?               @map("clients_provisioned_limit")
   provisionedLanSpeedMbps Int?               @map("provisioned_lan_speed_mbps")
-  // STATION-only: the ACCESS_POINT this CPE is declared to sit on (WLS-162).
-  // SetNull rather than Cascade — deleting the AP shouldn't delete an
-  // unrelated CPE's polling config, just its declared link.
-  parentApDeviceId        String?            @map("parent_ap_device_id") @db.Uuid
-  // Consecutive polls the radio reported an AP other than the declared one
-  // (WLS-013).
+  // Consecutive polls the radio reported an AP other than the device's
+  // declared upstream (WLS-013).
   parentApMismatchPolls   Int                @default(0) @map("parent_ap_mismatch_polls")
   lastPolledAt            DateTime?          @map("last_polled_at") @db.Timestamptz
   createdAt               DateTime           @default(now()) @map("created_at") @db.Timestamptz
   updatedAt               DateTime           @updatedAt @map("updated_at") @db.Timestamptz
 
-  device         Device  @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  parentApDevice Device? @relation("WirelessConfigParentAp", fields: [parentApDeviceId], references: [id], onDelete: SetNull)
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@index([enabled])
-  @@index([parentApDeviceId])
   @@map("wireless_polling_configurations")
 }
 

@@ -105,8 +105,7 @@ export const createWirelessConfigSchema = z.object({
       .positive()
       .nullable()
       .optional(),
-    provisionedLanSpeedMbps: lanSpeedMbpsSchema,
-    parentApDeviceId: z.union([uuidSchema, z.null()]).optional()
+    provisionedLanSpeedMbps: lanSpeedMbpsSchema
   })
 });
 
@@ -137,8 +136,7 @@ export const updateWirelessConfigSchema = z.object({
         .positive()
         .nullable()
         .optional(),
-      provisionedLanSpeedMbps: lanSpeedMbpsSchema,
-      parentApDeviceId: z.union([uuidSchema, z.null()]).optional()
+      provisionedLanSpeedMbps: lanSpeedMbpsSchema
     })
     .refine((data) => Object.keys(data).length > 0, {
       message: 'At least one field must be provided'

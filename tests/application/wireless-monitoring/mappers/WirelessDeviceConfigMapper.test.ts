@@ -33,7 +33,6 @@ function makeConfig(
     linkCapacityKbps: number | null;
     clientsProvisionedLimit: number | null;
     provisionedLanSpeedMbps: number | null;
-    parentApDeviceId: DeviceId | null;
     lastPolledAt: Date | null;
   }> = {}
 ): WirelessDeviceConfig {
@@ -54,7 +53,6 @@ function makeConfig(
       overrides.clientsProvisionedLimit ?? null,
     provisionedLanSpeedMbps:
       overrides.provisionedLanSpeedMbps ?? null,
-    parentApDeviceId: overrides.parentApDeviceId ?? null,
     parentApMismatchPolls: 0,
     lastPolledAt: overrides.lastPolledAt ?? null
   });
@@ -170,23 +168,6 @@ describe('WirelessDeviceConfigMapper', () => {
       const dto = WirelessDeviceConfigMapper.toDTO(config);
 
       expect(dto.clientsProvisionedLimit).toBeNull();
-    });
-
-    it('should map parentApDeviceId to a string when present', () => {
-      const parentApDeviceId = DeviceId.create();
-      const config = makeConfig({ parentApDeviceId });
-
-      const dto = WirelessDeviceConfigMapper.toDTO(config);
-
-      expect(dto.parentApDeviceId).toBe(parentApDeviceId.toString());
-    });
-
-    it('should map parentApDeviceId to null when absent', () => {
-      const config = makeConfig({ parentApDeviceId: null });
-
-      const dto = WirelessDeviceConfigMapper.toDTO(config);
-
-      expect(dto.parentApDeviceId).toBeNull();
     });
 
     it('should map lastPolledAt to an ISO string when present', () => {
@@ -381,29 +362,6 @@ describe('WirelessDeviceConfigMapper', () => {
 
       expect(result.clientsProvisionedLimit).toBeNull();
     });
-
-    it('should pass parentApDeviceId through when provided', () => {
-      const dto: CreateWirelessConfigRequestDTO = {
-        deviceId: DEVICE_UUID,
-        parentApDeviceId: CONFIG_UUID
-      };
-
-      const result =
-        WirelessDeviceConfigMapper.extractCreateData(dto);
-
-      expect(result.parentApDeviceId).toBe(CONFIG_UUID);
-    });
-
-    it('should default parentApDeviceId to null when omitted', () => {
-      const dto: CreateWirelessConfigRequestDTO = {
-        deviceId: DEVICE_UUID
-      };
-
-      const result =
-        WirelessDeviceConfigMapper.extractCreateData(dto);
-
-      expect(result.parentApDeviceId).toBeNull();
-    });
   });
 
   // ===========================================================================
@@ -582,50 +540,14 @@ describe('WirelessDeviceConfigMapper', () => {
       expect('clientsProvisionedLimit' in result).toBe(false);
     });
 
-    it('should include parentApDeviceId when provided as a string', () => {
-      const dto: UpdateWirelessConfigRequestDTO = {
-        deviceId: DEVICE_UUID,
-        parentApDeviceId: CONFIG_UUID
-      };
-
-      const result =
-        WirelessDeviceConfigMapper.extractUpdateData(dto);
-
-      expect(result.parentApDeviceId).toBe(CONFIG_UUID);
-    });
-
-    it('should include parentApDeviceId when explicitly null (clearing the field)', () => {
-      const dto: UpdateWirelessConfigRequestDTO = {
-        deviceId: DEVICE_UUID,
-        parentApDeviceId: null
-      };
-
-      const result =
-        WirelessDeviceConfigMapper.extractUpdateData(dto);
-
-      expect(result.parentApDeviceId).toBeNull();
-    });
-
-    it('should not include parentApDeviceId key when omitted', () => {
-      const dto: UpdateWirelessConfigRequestDTO = {
-        deviceId: DEVICE_UUID
-      };
-
-      const result =
-        WirelessDeviceConfigMapper.extractUpdateData(dto);
-
-      expect('parentApDeviceId' in result).toBe(false);
-    });
-
-    it('should include all six fields when all are provided', () => {
+    it('should include all five fields when all are provided', () => {
       const dto: UpdateWirelessConfigRequestDTO = {
         deviceId: DEVICE_UUID,
         ipAddress: '10.0.0.1',
         intervalSecs: 180,
         enabled: false,
         linkCapacityKbps: 25000000,
-        clientsProvisionedLimit: 10,
-        parentApDeviceId: CONFIG_UUID
+        clientsProvisionedLimit: 10
       };
 
       const result =
@@ -636,8 +558,7 @@ describe('WirelessDeviceConfigMapper', () => {
         intervalSecs: 180,
         enabled: false,
         linkCapacityKbps: 25000000,
-        clientsProvisionedLimit: 10,
-        parentApDeviceId: CONFIG_UUID
+        clientsProvisionedLimit: 10
       });
     });
   });

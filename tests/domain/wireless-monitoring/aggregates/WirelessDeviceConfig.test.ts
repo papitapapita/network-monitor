@@ -22,7 +22,6 @@ function makeProps(
     linkCapacityKbps: null,
     clientsProvisionedLimit: null,
     provisionedLanSpeedMbps: null,
-    parentApDeviceId: null,
     parentApMismatchPolls: 0,
     lastPolledAt: null,
     ...overrides
@@ -188,51 +187,6 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
         expect(result.error).toContain('pollingInterval');
       });
     });
-
-    // -----------------------------------------------------------------------
-    describe('[WLS-162] parentApDeviceId', () => {
-      it('should allow parentApDeviceId on a STATION config', () => {
-        const parentApDeviceId = DeviceId.create();
-        const result = WirelessDeviceConfig.create(
-          makeProps({ deviceType: 'STATION', parentApDeviceId })
-        );
-
-        expect(result.isSuccess).toBe(true);
-        expect(result.value.parentApDeviceId).toBe(parentApDeviceId);
-      });
-
-      it('should default parentApDeviceId to null', () => {
-        const config = makeConfig();
-
-        expect(config.parentApDeviceId).toBeNull();
-      });
-
-      it('should fail when set on an ACCESS_POINT config', () => {
-        const result = WirelessDeviceConfig.create(
-          makeProps({
-            deviceType: 'ACCESS_POINT',
-            parentApDeviceId: DeviceId.create()
-          })
-        );
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('parentApDeviceId');
-      });
-
-      it('should fail when parentApDeviceId references the config own deviceId', () => {
-        const deviceId = DeviceId.create();
-        const result = WirelessDeviceConfig.create(
-          makeProps({
-            deviceId,
-            deviceType: 'STATION',
-            parentApDeviceId: deviceId
-          })
-        );
-
-        expect(result.isFailure).toBe(true);
-        expect(result.error).toContain('cannot reference itself');
-      });
-    });
   });
 
   // =========================================================================
@@ -297,7 +251,6 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
         linkCapacityKbps: 1_000_000,
         clientsProvisionedLimit: 50,
         provisionedLanSpeedMbps: null,
-        parentApDeviceId: null,
         parentApMismatchPolls: 0,
         lastPolledAt
       });
@@ -749,66 +702,6 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
   });
 
   // =========================================================================
-  describe('[WLS-162] updateParentApDeviceId(parentApDeviceId)', () => {
-    it('should set parentApDeviceId on a STATION config', () => {
-      const config = makeConfig({
-        deviceType: 'STATION',
-        parentApDeviceId: null
-      });
-      const parentApDeviceId = DeviceId.create();
-      const result = config.updateParentApDeviceId(parentApDeviceId);
-
-      expect(result.isSuccess).toBe(true);
-      expect(config.parentApDeviceId).toBe(parentApDeviceId);
-    });
-
-    it('should clear parentApDeviceId when given null', () => {
-      const config = makeConfig({
-        deviceType: 'STATION',
-        parentApDeviceId: DeviceId.create()
-      });
-      const result = config.updateParentApDeviceId(null);
-
-      expect(result.isSuccess).toBe(true);
-      expect(config.parentApDeviceId).toBeNull();
-    });
-
-    it('should fail when set on an ACCESS_POINT config', () => {
-      const config = makeConfig({
-        deviceType: 'ACCESS_POINT',
-        parentApDeviceId: null
-      });
-      const result = config.updateParentApDeviceId(DeviceId.create());
-
-      expect(result.isFailure).toBe(true);
-      expect(config.parentApDeviceId).toBeNull();
-    });
-
-    it('should fail when parentApDeviceId references the config own deviceId', () => {
-      const deviceId = DeviceId.create();
-      const config = makeConfig({
-        deviceId,
-        deviceType: 'STATION',
-        parentApDeviceId: null
-      });
-      const result = config.updateParentApDeviceId(deviceId);
-
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toContain('cannot reference itself');
-    });
-
-    it('should emit no domain events', () => {
-      const config = makeConfig({
-        deviceType: 'STATION',
-        parentApDeviceId: null
-      });
-      config.updateParentApDeviceId(DeviceId.create());
-
-      expect(config.domainEvents.length).toBe(0);
-    });
-  });
-
-  // =========================================================================
   describe('[WLS-089] captureLanSpeedBaselineIfUnset(observedMbps)', () => {
     it('should set the baseline when none is set yet', () => {
       const config = makeConfig({ provisionedLanSpeedMbps: null });
@@ -847,129 +740,67 @@ describe('[WLS-008] WirelessDeviceConfig', () => {
   });
 
   // =========================================================================
-  describe('[WLS-012] declareParentApIfUnset(reportedApDeviceId)', () => {
-    it('should declare the reported AP when none is declared', () => {
-      const config = makeConfig();
-      const apId = DeviceId.create();
-      config.declareParentApIfUnset(apId);
-
-      expect(config.parentApDeviceId).toBe(apId);
-    });
-
-    it('should not overwrite an already-declared AP', () => {
-      const declared = DeviceId.create();
-      const config = makeConfig({ parentApDeviceId: declared });
-      config.declareParentApIfUnset(DeviceId.create());
-
-      expect(config.parentApDeviceId).toBe(declared);
-    });
-
-    it('should not declare a parent on an ACCESS_POINT', () => {
-      const config = makeConfig({ deviceType: 'ACCESS_POINT' });
-      config.declareParentApIfUnset(DeviceId.create());
-
-      expect(config.parentApDeviceId).toBeNull();
-    });
-
-    it('should not declare the device as its own parent', () => {
-      const config = makeConfig();
-      config.declareParentApIfUnset(config.deviceId);
-
-      expect(config.parentApDeviceId).toBeNull();
-    });
-
-    it('should emit no domain events', () => {
-      const config = makeConfig();
-      config.declareParentApIfUnset(DeviceId.create());
-
-      expect(config.domainEvents.length).toBe(0);
-    });
-
-    it('should reset the mismatch streak when it declares a parent', () => {
-      const config = makeConfig({ parentApMismatchPolls: 4 });
-      config.declareParentApIfUnset(DeviceId.create());
-
-      expect(config.parentApMismatchPolls).toBe(0);
-    });
-  });
-
-  // =========================================================================
-  describe('[WLS-013] recordReportedParentAp(reportedApDeviceId)', () => {
+  describe('[WLS-013] recordReportedParentAp(reported, declared)', () => {
     it('should count a poll that reports an AP other than the declared one', () => {
-      const config = makeConfig({
-        parentApDeviceId: DeviceId.create()
-      });
-      config.recordReportedParentAp(DeviceId.create());
-      config.recordReportedParentAp(DeviceId.create());
+      const config = makeConfig();
+      const declared = DeviceId.create();
+      config.recordReportedParentAp(DeviceId.create(), declared);
+      config.recordReportedParentAp(DeviceId.create(), declared);
 
       expect(config.parentApMismatchPolls).toBe(2);
     });
 
     it('should reset the streak when the reported AP matches the declared one', () => {
       const declared = DeviceId.create();
-      const config = makeConfig({
-        parentApDeviceId: declared,
-        parentApMismatchPolls: 5
-      });
-      config.recordReportedParentAp(declared);
+      const config = makeConfig({ parentApMismatchPolls: 5 });
+      config.recordReportedParentAp(
+        DeviceId.parse(declared.toString()).value,
+        declared
+      );
 
       expect(config.parentApMismatchPolls).toBe(0);
     });
 
     it('should leave the streak alone when no AP is reported', () => {
-      const config = makeConfig({
-        parentApDeviceId: DeviceId.create(),
-        parentApMismatchPolls: 2
-      });
-      config.recordReportedParentAp(null);
+      const config = makeConfig({ parentApMismatchPolls: 2 });
+      config.recordReportedParentAp(null, DeviceId.create());
 
       expect(config.parentApMismatchPolls).toBe(2);
     });
 
-    it('should not count when no parent is declared', () => {
+    it('should not count when no upstream is declared', () => {
       const config = makeConfig({ parentApMismatchPolls: 2 });
-      config.recordReportedParentAp(DeviceId.create());
+      config.recordReportedParentAp(DeviceId.create(), null);
 
       expect(config.parentApMismatchPolls).toBe(0);
     });
 
     it('should not count the station reporting itself', () => {
-      const config = makeConfig({
-        parentApDeviceId: DeviceId.create()
-      });
-      config.recordReportedParentAp(config.deviceId);
+      const config = makeConfig();
+      config.recordReportedParentAp(
+        config.deviceId,
+        DeviceId.create()
+      );
 
       expect(config.parentApMismatchPolls).toBe(0);
     });
 
     it('should never count on an ACCESS_POINT', () => {
       const config = makeConfig({ deviceType: 'ACCESS_POINT' });
-      config.recordReportedParentAp(DeviceId.create());
-
-      expect(config.parentApMismatchPolls).toBe(0);
-    });
-
-    it('should reset the streak when the declared parent changes', () => {
-      const config = makeConfig({
-        parentApDeviceId: DeviceId.create(),
-        parentApMismatchPolls: 3
-      });
-      config.updateParentApDeviceId(DeviceId.create());
-
-      expect(config.parentApMismatchPolls).toBe(0);
-    });
-
-    it('should keep the streak when the declared parent is re-saved unchanged', () => {
-      const declared = DeviceId.create();
-      const config = makeConfig({
-        parentApDeviceId: declared,
-        parentApMismatchPolls: 3
-      });
-      config.updateParentApDeviceId(
-        DeviceId.parse(declared.toString()).value
+      config.recordReportedParentAp(
+        DeviceId.create(),
+        DeviceId.create()
       );
 
-      expect(config.parentApMismatchPolls).toBe(3);
+      expect(config.parentApMismatchPolls).toBe(0);
+    });
+
+    it('should reset the streak once the declared upstream is changed to the reported AP', () => {
+      const reported = DeviceId.create();
+      const config = makeConfig({ parentApMismatchPolls: 3 });
+      config.recordReportedParentAp(reported, reported);
+
+      expect(config.parentApMismatchPolls).toBe(0);
     });
   });
 

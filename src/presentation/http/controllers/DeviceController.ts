@@ -77,6 +77,7 @@ export class DeviceController {
         category: body.category ?? null,
         locationId: body.locationId ?? null,
         agentId: body.agentId,
+        upstreamDeviceId: body.upstreamDeviceId ?? null,
         serialNumber: body.serialNumber ?? null,
         macAddress: body.macAddress ?? null,
         ipAddress: body.ipAddress ?? null,

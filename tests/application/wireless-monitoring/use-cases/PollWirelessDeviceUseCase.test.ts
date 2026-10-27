@@ -85,7 +85,6 @@ function makePollingConfig(
     clientsProvisionedLimit?: number | null;
     provisionedLanSpeedMbps?: number | null;
     ipAddress?: IPAddress | null;
-    parentApDeviceId?: DeviceId | null;
     parentApMismatchPolls?: number;
   } = {}
 ): WirelessDeviceConfig {
@@ -114,7 +113,6 @@ function makePollingConfig(
         overrides.provisionedLanSpeedMbps !== undefined
           ? overrides.provisionedLanSpeedMbps
           : null,
-      parentApDeviceId: overrides.parentApDeviceId ?? null,
       parentApMismatchPolls: overrides.parentApMismatchPolls ?? 0,
       lastPolledAt: null
     }
@@ -186,7 +184,7 @@ function makeMocks() {
       findByDeviceId: jest.fn(),
       save: jest.fn(),
       findAllDue: jest.fn(),
-      findByParentApDeviceId: jest.fn(),
+      findStationsBelow: jest.fn(),
       findAll: jest.fn(),
       delete: jest.fn(),
       findById: jest.fn(),
@@ -243,7 +241,11 @@ function makeMocks() {
     // null = eligible; individual tests override to assert suppression
     findWirelessIneligibilityReason: jest
       .fn()
-      .mockResolvedValue(Result.ok(null))
+      .mockResolvedValue(Result.ok(null)),
+    findUpstreamId: jest.fn().mockResolvedValue(Result.ok(null)),
+    declareUpstreamIfUnset: jest
+      .fn()
+      .mockResolvedValue(Result.ok(false))
   };
 
   const deviceReach: jest.Mocked<IDeviceReach> = {
@@ -1802,7 +1804,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
     });
   });
 
-  describe('[WLS-012] parent AP declared from the first poll', () => {
+  describe('[WLS-012] [DEV-180] upstream declared from the first poll', () => {
     const apId = DeviceId.parse(
       '550e8400-e29b-41d4-a716-4466554400ff'
     ).value;
@@ -1823,10 +1825,9 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      expect(config.parentApDeviceId).toBe(apId);
       expect(
-        mocks.wirelessDeviceConfigRepo.save
-      ).toHaveBeenCalledWith(config);
+        mocks.deviceRepo.declareUpstreamIfUnset
+      ).toHaveBeenCalledWith(config.deviceId, apId);
     });
 
     it('should never overwrite an already-declared AP', async () => {
@@ -1834,33 +1835,35 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       const declared = DeviceId.parse(
         '550e8400-e29b-41d4-a716-4466554400aa'
       ).value;
-      const config = makePollingConfig({
-        parentApDeviceId: declared
-      });
-      useConfig(config);
+      useConfig(makePollingConfig());
+      mocks.deviceRepo.findUpstreamId.mockResolvedValue(
+        Result.ok(declared)
+      );
       mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
         Result.ok(apId)
       );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      expect(config.parentApDeviceId).toBe(declared);
+      expect(
+        mocks.deviceRepo.declareUpstreamIfUnset
+      ).not.toHaveBeenCalled();
     });
 
     it('should declare nothing when the MAC matches no device', async () => {
       configureHappyPath(mocks);
-      const config = makePollingConfig();
-      useConfig(config);
+      useConfig(makePollingConfig());
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      expect(config.parentApDeviceId).toBeNull();
+      expect(
+        mocks.deviceRepo.declareUpstreamIfUnset
+      ).not.toHaveBeenCalled();
     });
 
     it('should not match by IP — only an exact MAC is certain enough', async () => {
       configureHappyPath(mocks);
-      const config = makePollingConfig();
-      useConfig(config);
+      useConfig(makePollingConfig());
       mocks.deviceRepo.findIdByIpAddress.mockResolvedValue(
         Result.ok(apId)
       );
@@ -1870,22 +1873,41 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       expect(
         mocks.deviceRepo.findIdByIpAddress
       ).not.toHaveBeenCalled();
-      expect(config.parentApDeviceId).toBeNull();
+      expect(
+        mocks.deviceRepo.declareUpstreamIfUnset
+      ).not.toHaveBeenCalled();
     });
 
-    it('should never declare a parent on an ACCESS_POINT', async () => {
+    it('should never declare an upstream for an ACCESS_POINT', async () => {
       configureHappyPath(mocks);
-      const config = makePollingConfig({
-        deviceType: 'ACCESS_POINT'
-      });
-      useConfig(config);
+      useConfig(makePollingConfig({ deviceType: 'ACCESS_POINT' }));
       mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
         Result.ok(apId)
       );
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
-      expect(config.parentApDeviceId).toBeNull();
+      expect(mocks.deviceRepo.findUpstreamId).not.toHaveBeenCalled();
+      expect(
+        mocks.deviceRepo.declareUpstreamIfUnset
+      ).not.toHaveBeenCalled();
+    });
+
+    it('should keep polling when the declaration fails', async () => {
+      configureHappyPath(mocks);
+      useConfig(makePollingConfig());
+      mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.ok(apId)
+      );
+      mocks.deviceRepo.declareUpstreamIfUnset.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isSuccess).toBe(true);
     });
   });
 
@@ -1897,9 +1919,15 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       '550e8400-e29b-41d4-a716-4466554400ff'
     ).value;
 
-    function useConfig(config: WirelessDeviceConfig): void {
+    function useConfig(
+      config: WirelessDeviceConfig,
+      declared: DeviceId | null = declaredId
+    ): void {
       mocks.wirelessDeviceConfigRepo.findByDeviceId.mockResolvedValue(
         Result.ok(config)
+      );
+      mocks.deviceRepo.findUpstreamId.mockResolvedValue(
+        Result.ok(declared)
       );
     }
 
@@ -1932,9 +1960,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
 
     it('should count a poll whose radio reports another AP', async () => {
       configureHappyPath(mocks);
-      const config = makePollingConfig({
-        parentApDeviceId: declaredId
-      });
+      const config = makePollingConfig();
       useConfig(config);
       mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
         Result.ok(reportedId)
@@ -1943,7 +1969,6 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
       expect(config.parentApMismatchPolls).toBe(1);
-      expect(config.parentApDeviceId).toBe(declaredId);
       expect(
         mocks.wirelessDeviceConfigRepo.save
       ).toHaveBeenCalledWith(config);
@@ -1954,9 +1979,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       mocks.collector.collect.mockResolvedValue(
         Result.ok(makeHttpResult({ remoteApIp: '10.0.0.2' }))
       );
-      const config = makePollingConfig({
-        parentApDeviceId: declaredId
-      });
+      const config = makePollingConfig();
       useConfig(config);
       mocks.deviceRepo.findIdByIpAddress.mockResolvedValue(
         Result.ok(reportedId)
@@ -1974,7 +1997,6 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       configureHappyPath(mocks);
       useApNames();
       const config = makePollingConfig({
-        parentApDeviceId: declaredId,
         parentApMismatchPolls: 2
       });
       useConfig(config);
@@ -1997,7 +2019,6 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       configureHappyPath(mocks);
       useApNames();
       const config = makePollingConfig({
-        parentApDeviceId: declaredId,
         parentApMismatchPolls: 1
       });
       useConfig(config);
@@ -2017,7 +2038,6 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         Result.ok([activeDriftAlert()])
       );
       const config = makePollingConfig({
-        parentApDeviceId: declaredId,
         parentApMismatchPolls: 5
       });
       useConfig(config);
@@ -2043,7 +2063,6 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
         Result.ok(active)
       );
       const config = makePollingConfig({
-        parentApDeviceId: declaredId,
         parentApMismatchPolls: 5
       });
       useConfig(config);
@@ -2065,7 +2084,7 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       mocks.collector.collect.mockResolvedValue(
         Result.ok(makeHttpResult({ remoteApIp: '10.0.0.2' }))
       );
-      useConfig(makePollingConfig());
+      useConfig(makePollingConfig(), null);
 
       await useCase.execute({ deviceId: VALID_DEVICE_UUID });
 
@@ -2074,13 +2093,36 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       ).not.toHaveBeenCalled();
     });
 
+    it('should leave the streak and the alert alone when the declared AP cannot be read', async () => {
+      configureHappyPath(mocks);
+      const active = activeDriftAlert();
+      mocks.alertRecordRepo.findAllActiveByDevice.mockResolvedValue(
+        Result.ok([active])
+      );
+      const config = makePollingConfig({ parentApMismatchPolls: 5 });
+      useConfig(config);
+      mocks.deviceRepo.findUpstreamId.mockResolvedValue(
+        Result.fail('db down')
+      );
+      mocks.deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.ok(declaredId)
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(config.parentApMismatchPolls).toBe(5);
+      expect(active.isActive).toBe(true);
+    });
+
     it('should keep polling when the IP lookup fails', async () => {
       configureHappyPath(mocks);
       mocks.collector.collect.mockResolvedValue(
         Result.ok(makeHttpResult({ remoteApIp: '10.0.0.2' }))
       );
       const config = makePollingConfig({
-        parentApDeviceId: declaredId,
         parentApMismatchPolls: 2
       });
       useConfig(config);

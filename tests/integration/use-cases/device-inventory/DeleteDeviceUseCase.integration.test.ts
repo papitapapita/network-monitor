@@ -23,6 +23,7 @@ import {
   cleanTickets,
   seedDeviceModel,
   seedLocation,
+  seedNetworkDevice,
   seedCustomer,
   seedServicePlan,
   seedActiveContractedService,
@@ -356,5 +357,38 @@ describe('DeleteDeviceUseCase — integration', () => {
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/required/i);
+  });
+
+  describe('[DEV-184] devices below become roots', () => {
+    it('detaches the devices directly below and leaves the rest of the chain alone', async () => {
+      const ap = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'AP Torre Norte',
+        ipAddress: '10.0.3.2'
+      });
+      const cpe = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'CPE Juan',
+        ipAddress: '10.0.3.21',
+        upstreamDeviceId: ap
+      });
+      const behindCpe = await seedNetworkDevice(
+        prisma,
+        deviceModelId,
+        {
+          name: 'Router Juan',
+          ipAddress: '10.0.3.22',
+          upstreamDeviceId: cpe
+        }
+      );
+
+      const result = await deleteUseCase.execute({ id: ap });
+
+      expect(result.isSuccess).toBe(true);
+      const rows = await prisma.device.findMany({
+        where: { id: { in: [cpe, behindCpe] } }
+      });
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      expect(byId.get(cpe)!.upstreamDeviceId).toBeNull();
+      expect(byId.get(behindCpe)!.upstreamDeviceId).toBe(cpe);
+    });
   });
 });

@@ -1,13 +1,13 @@
 export type DeviceIdentitySuggestionField =
   | 'name'
   | 'macAddress'
-  | 'parentApDeviceId';
+  | 'upstreamDeviceId';
 
 export interface DeviceIdentitySuggestionDTO {
   field: DeviceIdentitySuggestionField;
   currentValue: string | null;
   suggestedValue: string;
-  // Display names for values that are ids (parentApDeviceId); null otherwise.
+  // Display names for values that are ids (upstreamDeviceId); null otherwise.
   currentLabel: string | null;
   suggestedLabel: string | null;
 }

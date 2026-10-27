@@ -63,7 +63,8 @@ export class PrismaDeviceRepository
           deletedAt: data.deletedAt,
           deletedBy: data.deletedBy,
           replacedAt: data.replacedAt,
-          replacesDeviceId: data.replacesDeviceId
+          replacesDeviceId: data.replacesDeviceId,
+          upstreamDeviceId: data.upstreamDeviceId
         }
       });
 
@@ -516,6 +517,72 @@ export class PrismaDeviceRepository
         error instanceof Error ? error.message : String(error);
       return Result.fail<Device[]>(
         `Database error finding devices by filters: ${errorMessage}`
+      );
+    }
+  }
+
+  public async findUpstreamChain(
+    id: DeviceId
+  ): Promise<Result<DeviceId[]>> {
+    try {
+      // The depth cap is a backstop, not a rule: UpstreamLinkPolicy refuses
+      // loops, but two concurrent edits can still close one, and this query
+      // must terminate regardless.
+      const rows = await this.prisma.$queryRaw<{ id: string }[]>`
+        WITH RECURSIVE chain(id, upstream_device_id, depth) AS (
+          SELECT d.id, d.upstream_device_id, 0
+          FROM devices d
+          WHERE d.id = ${id.toString()}::uuid
+          UNION ALL
+          SELECT u.id, u.upstream_device_id, c.depth + 1
+          FROM chain c
+          JOIN devices u ON u.id = c.upstream_device_id
+          WHERE u.deleted_at IS NULL AND c.depth < 64
+        )
+        SELECT id::text AS id FROM chain WHERE depth > 0 ORDER BY depth
+      `;
+
+      const ids: DeviceId[] = [];
+      for (const row of rows) {
+        const parsed = DeviceId.parse(row.id);
+        if (parsed.isFailure) {
+          return Result.fail<DeviceId[]>(
+            `Invalid upstream device ID: ${parsed.error}`
+          );
+        }
+        ids.push(parsed.value);
+      }
+      return Result.ok<DeviceId[]>(ids);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<DeviceId[]>(
+        `Database error reading the upstream chain: ${errorMessage}`
+      );
+    }
+  }
+
+  public async moveDownstreamDevices(
+    from: DeviceId,
+    to: DeviceId | null
+  ): Promise<Result<number>> {
+    try {
+      const { count } = await this.prisma.device.updateMany({
+        where: {
+          upstreamDeviceId: from.toString(),
+          ...PrismaDeviceRepository.LIVE
+        },
+        data: {
+          upstreamDeviceId: to?.toString() ?? null,
+          updatedAt: new Date()
+        }
+      });
+      return Result.ok<number>(count);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      return Result.fail<number>(
+        `Database error moving downstream devices: ${errorMessage}`
       );
     }
   }

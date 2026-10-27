@@ -504,6 +504,10 @@ interface DeviceDTO {
   replacedAt: string | null; // when this unit took over from its predecessor
   replacesDeviceId: string | null; // the unit this one replaced
   replacedByDeviceId: string | null; // the unit that replaced this one
+
+  // Topology (since 2026-10-28): the device this one hangs off on the network
+  // — a CPE's AP, an AP's switch. null = a root. See "Topology" below.
+  upstreamDeviceId: string | null;
 }
 
 interface VendorDTO {
@@ -702,6 +706,7 @@ Returns all locations that have coordinates, each with their nested devices. Int
   category?: DeviceCategory | null
   locationId?: string | null   // UUID
   agentId?: string | null      // UUID of a probe agent; see below
+  upstreamDeviceId?: string | null // UUID of the device it hangs off; see Topology
   serialNumber?: string | null // max 100 chars
   macAddress?: string | null   // format AA:BB:CC:DD:EE:FF or AA-BB-CC-DD-EE-FF
   ipAddress?: string | null    // IPv4 or IPv6
@@ -719,6 +724,7 @@ Returns all locations that have coordinates, each with their nested devices. Int
 - `ACTIVE` status → `ipAddress` and `locationId` required
 - `agentId` omitted → the device goes behind the only non-revoked agent; with no agents it stays `null`; with **two or more** the request is refused `400 agentId is required…` — show an agent picker whenever `GET /api/agents` lists more than one non-revoked agent. `agentId: null` always means "polled by the server". A revoked agent is `400`, an unknown one `404` (`DEV-164` … `DEV-166`)
 - `installedDate` must be ISO 8601 — `YYYY-MM-DD` or `YYYY-MM-DDThh:mm[:ss[.sss]]` with an optional `Z`/`±hh:mm` offset. Locale forms (`March 5, 2020`) and impossible dates (`2024-02-31`) are rejected, not reinterpreted
+- `upstreamDeviceId` follows the [link rules](#upstream-link-rules) — an unknown upstream is `404`, one off the network `400`; nothing is created when it is refused
 
 ```ts
 // Response
@@ -929,6 +935,7 @@ either, the operator turns polling back on explicitly.
   ownerType?: DeviceOwner
   locationId?: string | null
   agentId?: string | null        // null = polled by the server; revoked agent → 400
+  upstreamDeviceId?: string | null // null = a root; see Topology → link rules
   serialNumber?: string | null
   macAddress?: string | null
   ipAddress?: string | null
@@ -1044,6 +1051,7 @@ hanging off it goes with it.
 - **Open tickets** block the delete → `400` `"Cannot delete a device with <N> open ticket(s). Resolve or cancel them first."`. `RESOLVED` and `CANCELLED` tickets do not block
 - Monitoring is turned off automatically — see [stopping monitoring](#stopping-monitoring). There is no need to also send `monitoringEnabled: false`
 - The device's MAC and IP addresses are **released immediately** and can be reassigned to another device, without waiting for the grace period to lapse
+- Every device that hung off it (`upstreamDeviceId` = this device) **becomes a root** — its link is cleared, and restoring the deleted device does not put it back (DEV-184)
 - `400` if the id is not a valid UUID v4
 
 > **Frontend:** the two guards are the ones worth surfacing well — both are `400`
@@ -1175,6 +1183,7 @@ Requires the **`activate`** permission (ADMIN and OPERATOR).
     wirelessConfigRemoved: boolean
     credentialsTransferred: boolean
     contractedServiceTransferred: boolean
+    downstreamDevicesMoved: number // devices that hung off the old unit, now off the new one
   }
 }
 ```
@@ -1191,6 +1200,10 @@ Requires the **`activate`** permission (ADMIN and OPERATOR).
 5. Re-points the customer's `ContractedService` at the new unit
 6. Deletes the retired unit's wireless config **if the new model is not
    wireless** — reported as `wirelessConfigRemoved`
+7. Moves the topology (DEV-185): the new unit hangs off the old unit's
+   `upstreamDeviceId`, every device that hung off the old unit now hangs off
+   the new one (`downstreamDevicesMoved`), and the retired unit's own link is
+   cleared
 
 **Business rules:**
 
@@ -1279,6 +1292,118 @@ would otherwise trip the "MAC already assigned to another device" check.
 > History follows the **site**, not the box: readings taken before the swap now
 > sit on a record that describes the other hardware. That is deliberate — see
 > DEV-161.
+
+---
+
+## Topology `/api/topology`
+
+> **New (2026-10-28).** Every device can record the device it hangs off on the
+> network — its **upstream** (`DeviceDTO.upstreamDeviceId`): a CPE's AP, an
+> AP's switch, a switch's router. Following the links up from any device ends at
+> a root (`upstreamDeviceId: null` — the gateway, or a device nobody has linked
+> yet). The tree is the network map, and from the next release it is also what
+> keeps the devices behind a failed AP from paging one by one.
+>
+> The link is set with `upstreamDeviceId` on `POST /api/devices` and
+> `PATCH /api/devices/:id`. It replaces the wireless config's
+> `parentApDeviceId` — see the breaking change under Wireless Monitoring.
+
+### Upstream link rules
+
+| Request                                                    | Result                                                                                           |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `upstreamDeviceId: null`                                   | `200` — the device becomes a root                                                                |
+| the device's own id                                        | `400` `Cannot make a device its own upstream device` (DEV-181)                                   |
+| a device that already hangs (at any depth) below this one  | `400` `<upstream> is already downstream of <device> — linking them would form a loop` (DEV-182) |
+| an unknown or deleted device                               | `404` `Upstream device not found: <id>` (DEV-183)                                                |
+| a device that is not `ACTIVE` or `COMMISSIONING`           | `400` `The upstream device must be ACTIVE or COMMISSIONING, not <status>` (DEV-183)              |
+| a malformed UUID                                           | `400` (validation)                                                                               |
+
+- The status check applies when a link is **made**. Sending back the link a
+  device already has is never re-checked, so a form that PATCHes every field
+  still saves after the upstream went `DAMAGED`.
+- Any category can have an upstream and any category can be one.
+- A STATION radio with no upstream gets one by itself: on its first poll whose
+  reported AP MAC matches a device, that device becomes its upstream
+  (WLS-012). An upstream already set is never overwritten — a different AP
+  shows up as an identity suggestion (WLS-151) and, after three polls, a
+  `parent_ap_mismatch` warning (WLS-013).
+- Deleting a device makes the devices directly below it roots (DEV-184);
+  replacing one moves them onto the replacement (DEV-185).
+
+### `GET /api/topology` — The whole network
+
+**Status:** 200 | 401 · **Role:** any (`read`)
+
+```ts
+// Response
+{
+  success: true,
+  data: {
+    nodes: TopologyNodeDTO[]
+    total: number
+  }
+}
+
+interface TopologyNodeDTO {
+  id: string                       // device UUID
+  name: string
+  status: DeviceStatus
+  category: DeviceCategory | null
+  ipAddress: string | null
+  locationId: string | null
+  locationName: string | null
+  upstreamDeviceId: string | null  // always another node in `nodes`, or null
+  reachability: 'UP' | 'DOWN' | 'UNREACHABLE' | 'UNKNOWN'
+  downSince: string | null         // ISO 8601, only while DOWN or UNREACHABLE
+  childCount: number               // devices directly below this one
+}
+```
+
+- **Which devices:** every live `ACTIVE` or `COMMISSIONING` device, plus any live
+  device another one hangs off whatever its status (so a CPE under a `DAMAGED`
+  AP still has its parent in the list). `upstreamDeviceId` never points outside
+  `nodes`.
+- **`reachability`** (DEV-186):
+
+| Value         | Meaning                                                                                |
+| ------------- | -------------------------------------------------------------------------------------- |
+| `UP`          | last ping answered                                                                     |
+| `DOWN`        | down, and nothing above it is down — **this is where the fault is**                    |
+| `UNREACHABLE` | down, and a device above it is down too — probably cut off, not broken                 |
+| `UNKNOWN`     | not monitored, never polled yet, or behind an agent that is not reporting              |
+
+  An unmonitored or `UNKNOWN` device in the middle of a chain does not stop the
+  walk up: a CPE below an unmonitored switch below a `DOWN` router is
+  `UNREACHABLE`.
+- Unordered for drawing purposes (it comes sorted by IP); build the tree from
+  `upstreamDeviceId`.
+
+> **Frontend:** draw it as a collapsible tree or graph rooted at the nodes with
+> `upstreamDeviceId: null`. During an outage colour `DOWN` red and
+> `UNREACHABLE` grey — the red node is the one to send a technician to.
+> Locations carry coordinates (`GET /api/locations/map`), so a later version can
+> draw links between pins where `locationId` differs between a node and its
+> upstream; nothing extra is needed from the backend for that.
+
+### `GET /api/topology/:deviceId/descendants` — What hangs off one device
+
+**Status:** 200 | 400 | 401 | 404 · **Role:** any (`read`)
+
+```ts
+// Response — same shape as GET /api/topology
+{ success: true, data: { nodes: TopologyNodeDTO[], total: number } }
+```
+
+- `nodes[0]` is the device itself, followed by everything below it,
+  breadth-first.
+- `reachability` is still judged against the devices **above** it, so an AP
+  whose switch is down reads `UNREACHABLE` here too.
+- `404` `Device not found in the topology: <id>` — unknown, deleted, or not on
+  the network (e.g. `INVENTORY`) with nothing hanging off it
+- `400` — malformed UUID
+
+> **Frontend:** use it for an "affected devices" panel on an AP or switch page.
 
 ---
 
@@ -3133,7 +3258,6 @@ interface WirelessClientDTO {
   linkCapacityKbps?: number | null         // STATION only — fallback capacity in kbps, used only when no contracted plan covers the device
   clientsProvisionedLimit?: number | null  // ACCESS_POINT only — max expected clients
   provisionedLanSpeedMbps?: number | null  // one of 10/100/1000/2500/10000 — see note below; usually left unset
-  parentApDeviceId?: string | null         // STATION only — the ACCESS_POINT device this CPE is declared to sit on
 }
 
 // Response
@@ -3147,7 +3271,6 @@ interface WirelessClientDTO {
   linkCapacityKbps: number | null
   clientsProvisionedLimit: number | null
   provisionedLanSpeedMbps: number | null
-  parentApDeviceId: string | null
   lastPolledAt: string | null   // ISO 8601 — null until first poll
 }
 ```
@@ -3169,7 +3292,6 @@ there rather than assuming it.
 
 - `linkCapacityKbps` may only be set (non-null) when the derived type is `STATION` — returns 400 for an `ACCESS_POINT` category device.
 - `clientsProvisionedLimit` may only be set (non-null) when the derived type is `ACCESS_POINT` — returns 400 for a `WIRELESS_CPE` category device.
-- `parentApDeviceId` may only be set (non-null) when the derived type is `STATION`, and cannot equal the config's own device — returns 400 otherwise. It does not have to point at a device that already has its own wireless config.
 - `intervalSecs` must be **at least 60**. Polling AirOS faster than that overloads the embedded web server on the radio, so the floor is a hardware constraint, not a preference.
 - `provisionedLanSpeedMbps`, when set, must be one of `10`, `100`, `1000`, `2500`, `10000` — returns 400 for any other value (WLS-165). The auto-captured baseline (WLS-099) is not subject to this check; it always mirrors whatever the radio reports.
 
@@ -3179,7 +3301,7 @@ there rather than assuming it.
 
 > **`provisionedLanSpeedMbps` is usually not something you set (WLS-089/WLS-099).** It's the negotiated Ethernet speed (`10`, `100`, `1000`, `2500` or `10000` — WLS-165) this device's LAN port is expected to run at, and it auto-fills itself: the first poll that reports a speed for a device with no baseline yet stores that reading here, and every degradation warning after that compares against it instead of one fixed number shared by every device. Set it explicitly only to correct a baseline captured while the port was already degraded (e.g. right after this feature went live), or to pre-seed it before the first poll.
 
-> **`parentApDeviceId` is declared, not observed (WLS-162).** It's the operator's record of which AP this CPE is *meant* to sit on — separate from whatever the radio's own last poll reported it's actually talking to. Set it to drive `GET /api/devices/:id/wireless/clients/expected` on the AP side; leave it unset and that AP's expected roster simply won't include this device. A poll fills an unset value by itself when the AP MAC the radio reports exactly matches a device in inventory (WLS-012). It never overwrites a declared value: a mismatch shows up as a `parentApDeviceId` identity suggestion (WLS-151), and after three polls in a row also as a `parent_ap_mismatch` warning alert (WLS-013).
+> ⚠ **Breaking change (2026-10-28): `parentApDeviceId` is gone from the wireless config.** A CPE's AP is now the device's **`upstreamDeviceId`**, set with `PATCH /api/devices/:id` — see [Topology](#topology-apitopology). Every value stored before was copied across, so read it from `DeviceDTO.upstreamDeviceId` instead. This endpoint and `PATCH` no longer return the field, and any `parentApDeviceId` sent to them is ignored — a `PATCH` whose body held only that field now returns `400`, as an empty update. Move the AP picker from the wireless config form to the device form. The field still drives the same things: the AP's expected-clients roster, the first-poll auto-declaration (WLS-012), the drift suggestion (WLS-151) and the `parent_ap_mismatch` warning (WLS-013).
 
 > **Frontend:** set the device's `category` first (`PATCH /api/devices/:id`) — it decides which of the two fields this endpoint will accept, and creating this config **locks it**: the category cannot be changed again until the config is deleted. Sending `deviceType` in the body is now ignored by the schema.  
 > Returns 404 if the device does not exist.  
@@ -3212,7 +3334,6 @@ there rather than assuming it.
   linkCapacityKbps?: number | null        // kbps; STATION only (400 on an ACCESS_POINT); fallback when no contracted plan applies (WLS-166)
   clientsProvisionedLimit?: number | null // ACCESS_POINT only — returns 400 if config is STATION
   provisionedLanSpeedMbps?: number | null // one of 10/100/1000/2500/10000 — see the note under POST; null clears the auto-captured baseline
-  parentApDeviceId?: string | null        // STATION only — returns 400 if config is ACCESS_POINT; null clears the declared link
 }
 
 // Response — same shape as POST 201 above
@@ -3323,9 +3444,9 @@ limit?: number // 1–1000
 > config is `STATION`. Unlike `GET .../clients`, this does **not** require an
 > existing snapshot: an AP that has never been polled returns `collectedAt: null`
 > with every declared CPE reported as not connected, rather than 404.  
-> `expected` lists every `STATION` config whose `parentApDeviceId` points at
-> this device (see `parentApDeviceId` on the config endpoints above) — it is
-> empty if no CPE has declared this AP as its parent, regardless of who is
+> `expected` lists every `STATION` whose device's `upstreamDeviceId` is
+> this device (see [Topology](#topology-apitopology)) — it is
+> empty if no CPE hangs off this AP, regardless of who is
 > actually connected. Matching is by MAC address; a declared CPE with no MAC
 > on file in device-inventory always shows `connected: false`.  
 > **Frontend:** this is the view for "who's supposed to be here and isn't" —
@@ -3345,11 +3466,11 @@ limit?: number // 1–1000
   polled: boolean              // false if the device has never been polled
   collectedAt: string | null   // ISO 8601 from the latest snapshot
   suggestions: Array<{
-    field: 'name' | 'macAddress' | 'parentApDeviceId'
-    currentValue: string | null   // from device-inventory / the wireless config
+    field: 'name' | 'macAddress' | 'upstreamDeviceId' // was 'parentApDeviceId' before 2026-10-28
+    currentValue: string | null   // from device-inventory
     suggestedValue: string        // from the latest AirOS poll
-    currentLabel: string | null   // parentApDeviceId only: declared AP's name
-    suggestedLabel: string | null // parentApDeviceId only: reported AP's name
+    currentLabel: string | null   // upstreamDeviceId only: declared AP's name
+    suggestedLabel: string | null // upstreamDeviceId only: reported AP's name
   }>
 }
 ```
@@ -3364,13 +3485,14 @@ limit?: number // 1–1000
 > means calling `PATCH /api/devices/:id` with the suggested value — this
 > endpoint never writes to device-inventory itself.
 >
-> **Parent AP (WLS-151, STATION only).** A `parentApDeviceId` suggestion
+> **Parent AP (WLS-151, STATION only).** An `upstreamDeviceId` suggestion
 > appears when the AP from the latest poll differs from the declared one
 > (`currentValue: null` when none is declared). The AP is matched by the
 > MAC the radio reports and, failing that, by the AP IP it reports. Values
 > are device ids, so show `currentLabel`/`suggestedLabel`. Accepting one
-> means calling `PATCH /api/devices/:id/wireless/config` with
-> `{ parentApDeviceId: suggestedValue }`. Because a poll already declares the
+> means calling `PATCH /api/devices/:id` with
+> `{ upstreamDeviceId: suggestedValue }` — the same call as every other
+> suggestion now. Because a poll already declares the
 > AP when the MAC match is exact and none is declared (WLS-012), this
 > suggestion usually means drift or an IP-only match.
 >

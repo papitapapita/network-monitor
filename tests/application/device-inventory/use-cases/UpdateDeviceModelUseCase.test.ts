@@ -112,7 +112,9 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
     existsByIpAddress: jest.fn(),
     findByFilters: jest.fn(),
     findByIdIncludingDeleted: jest.fn(),
-    findDeletedBefore: jest.fn()
+    findDeletedBefore: jest.fn(),
+    findUpstreamChain: jest.fn(),
+    moveDownstreamDevices: jest.fn()
   } as any;
 }
 
@@ -124,7 +126,7 @@ function makeWirelessConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> 
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
     findAllDue: jest.fn(),
-    findByParentApDeviceId: jest.fn(),
+    findStationsBelow: jest.fn(),
     findAll: jest.fn()
   };
 }

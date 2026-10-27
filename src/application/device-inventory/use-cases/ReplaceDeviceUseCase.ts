@@ -156,6 +156,8 @@ export class ReplaceDeviceUseCase extends UseCase<
     }
 
     const releasedIpAddress = oldDevice.ipAddress;
+    // markReplaced clears the retired unit's link, so it is read first.
+    const inheritedUpstreamId = oldDevice.upstreamDeviceId;
 
     // Retire first. The old unit gives up its IP here, which is what lets the
     // new row claim it — both are live, so the partial unique index on
@@ -180,8 +182,10 @@ export class ReplaceDeviceUseCase extends UseCase<
       // Inherited: the replacement stands in the same place, serves the same
       // customer, and plays the same role as the unit it succeeds.
       locationId: oldDevice.locationId,
-      // Same place on the network, so the same agent reaches it.
+      // Same place on the network, so the same agent reaches it and it hangs
+      // off the same upstream (DEV-185).
       agentId: oldDevice.agentId,
+      upstreamDeviceId: inheritedUpstreamId,
       category: oldDevice.category,
       ownerType: oldDevice.ownerType,
       // Keyed off the inherited IP, not the retired unit's status — by this
@@ -217,6 +221,19 @@ export class ReplaceDeviceUseCase extends UseCase<
     }
 
     const newDevice = saveNewResult.value;
+
+    // DEV-185: what hung off the old unit now hangs off its successor.
+    const moveResult =
+      await this.deviceRepository.moveDownstreamDevices(
+        oldDevice.id,
+        newDevice.id
+      );
+    if (moveResult.isFailure) {
+      return this.fail<ReplaceDeviceResponseDTO>(
+        `Replacement created but the devices below the old unit could not be moved: ${moveResult.error}`
+      );
+    }
+    const downstreamDevicesMoved = moveResult.value;
 
     let credentialsTransferred = false;
     if (credentialsResult.value !== null) {
@@ -291,7 +308,8 @@ export class ReplaceDeviceUseCase extends UseCase<
       newDevice: DeviceMapper.toDTO(newDevice),
       wirelessConfigRemoved,
       credentialsTransferred,
-      contractedServiceTransferred
+      contractedServiceTransferred,
+      downstreamDevicesMoved
     });
   }
 

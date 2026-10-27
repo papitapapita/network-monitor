@@ -46,6 +46,10 @@ export interface DeviceProps {
   replacesDeviceId: DeviceId | null;
   replacedByDeviceId: DeviceId | null;
 
+  // Topology: the device this one hangs off on the network (DEV-180). null is
+  // a root — the gateway, or a link nobody has declared yet.
+  upstreamDeviceId: DeviceId | null;
+
   // Monitoring
   monitoringEnabled: boolean;
 }

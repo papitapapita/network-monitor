@@ -43,3 +43,4 @@ export * from './DeleteLocationRequestDTO';
 export * from './AssignDevicesToAgentRequestDTO';
 export * from './AssignDevicesToAgentResponseDTO';
 export * from './RetireDeviceAfterCancellationDTOs';
+export * from './TopologyDTO';

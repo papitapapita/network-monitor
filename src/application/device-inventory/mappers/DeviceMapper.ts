@@ -48,7 +48,8 @@ export class DeviceMapper {
         : null,
       replacedByDeviceId: device.replacedByDeviceId
         ? device.replacedByDeviceId.toString()
-        : null
+        : null,
+      upstreamDeviceId: device.upstreamDeviceId?.toString() ?? null
     };
   }
 
@@ -72,6 +73,7 @@ export class DeviceMapper {
       deviceModelId: dto.deviceModelId,
       locationId: dto.locationId ?? null,
       agentId: dto.agentId,
+      upstreamDeviceId: dto.upstreamDeviceId ?? null,
       name: dto.name,
       ownerType: dto.ownerType ?? null,
       status: dto.status ?? null,
@@ -94,6 +96,7 @@ export class DeviceMapper {
       ownerType?: string;
       locationId?: string | null;
       agentId?: string | null;
+      upstreamDeviceId?: string | null;
       serialNumber?: string | null;
       macAddress?: string | null;
       ipAddress?: string | null;
@@ -111,6 +114,8 @@ export class DeviceMapper {
     if (dto.locationId !== undefined)
       updates.locationId = dto.locationId;
     if (dto.agentId !== undefined) updates.agentId = dto.agentId;
+    if (dto.upstreamDeviceId !== undefined)
+      updates.upstreamDeviceId = dto.upstreamDeviceId;
     if (dto.serialNumber !== undefined)
       updates.serialNumber = dto.serialNumber;
     if (dto.macAddress !== undefined)

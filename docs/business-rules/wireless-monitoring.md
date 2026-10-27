@@ -244,42 +244,40 @@ payload before it becomes a misleading baseline for every future poll.
 
 ### WLS-162 — `parentApDeviceId` is a STATION-only, self-reference-free declared link
 
-**Type:** Invariant · **Status:** Active
+**Type:** Invariant · **Status:** Superseded by `DEV-180`
 **Layer:** Domain
-**Since:** 2026-09-05
+**Since:** 2026-09-05 · **Superseded:** 2026-10-28
 
-A configuration whose radio mode is `ACCESS_POINT` cannot carry a
-`parentApDeviceId`, at creation or on update — the mirror of WLS-004/WLS-005.
-A `STATION` config also cannot set `parentApDeviceId` to its own `deviceId`.
-Both checks live in `create` and `updateParentApDeviceId`; the create use case
-pre-checks the role restriction once more before the aggregate is built.
+Moved to [device-inventory.md](device-inventory.md) as **DEV-180** – **DEV-183**.
+A station's declared AP is now its device's upstream link
+(`Device.upstreamDeviceId`). Any device can have that link, not only a
+`STATION`, and it is checked for loops and for an upstream that is on the
+network. Migration `20261028120000` copied every declared parent AP across and
+dropped `wireless_polling_configurations.parent_ap_device_id`. The wireless
+config endpoints no longer accept or return `parentApDeviceId`.
 
-**Why:** This field is the operator's declared intent — "this CPE is meant to
-sit on this AP" — kept separate from `WirelessMetrics.remoteApDeviceId`, which
-is what the radio's own last poll actually reported. Only a station has a
-single upstream AP to declare; an access point serves many CPEs and has no
-"parent" of its own. The self-reference guard rules out a config nonsensically
-claiming to be downstream of itself. The field feeds
-[WLS-163](#wls-163--the-expected-clients-query-diffs-declared-stations-against-a-live-snapshot),
-which needs one well-formed roster per AP, not a graph.
-
-**Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts` (`create`, `updateParentApDeviceId`); pre-checked at `src/application/wireless-monitoring/use-cases/CreateWirelessConfigUseCase.ts`
-**Reached from:** `create`, `updateParentApDeviceId`
-**Message:** `parentApDeviceId can only be set for STATION devices` / `parentApDeviceId cannot reference itself`
-**Tests:** `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`, `tests/integration/wireless-config.routes.test.ts`
+**Why it was moved:** the link only described a CPE and its AP. Telling which
+devices are cut off when one of them fails needs the whole chain (AP behind a
+switch behind a backhaul), and where a device hangs on the network is an
+inventory fact. Wireless monitoring still owns what it does with the link: the
+first-poll declaration (WLS-012), drift (WLS-013), the expected-clients roster
+(WLS-163) and the diagnosis parent hop (WLS-184).
 
 ### WLS-012 — A station's parent AP is declared from its first poll when the radio's AP MAC is in inventory
 
 **Type:** Policy · **Status:** Active
-**Layer:** Domain (called from the poll use case)
-**Since:** 2026-10-07
+**Layer:** Application (through the device port, under Device Inventory's link rules)
+**Since:** 2026-10-07 · **Revised:** 2026-10-28
 
-When a `STATION` with no `parentApDeviceId` is polled, and the AP MAC its
-radio reports (`remoteApMac`) exactly matches a device's MAC in
-device-inventory, that device becomes the declared parent AP. The poll never
-replaces a parent that is already declared, whether an operator set it or an
-earlier poll did. The poll does nothing on an `ACCESS_POINT`, and it never
-declares the station as its own parent ([WLS-162](#wls-162--parentapdeviceid-is-a-station-only-self-reference-free-declared-link)).
+When a `STATION` whose device has no upstream (DEV-180) is polled, and the AP
+MAC its radio reports (`remoteApMac`) exactly matches a device's MAC in
+device-inventory, that device becomes the station's upstream. The poll never
+replaces an upstream that is already declared, whether an operator set it or an
+earlier poll did. The poll does nothing on an `ACCESS_POINT`. The link goes
+through Device Inventory's rules (DEV-181 – DEV-183), so an AP they refuse is
+left undeclared: the station itself, an AP that would close a loop, or an AP
+that is off the network. A failure to declare is logged and does not fail the
+poll.
 Only an exact MAC match counts. An AP found only by its reported IP is offered
 as a suggestion instead ([WLS-151](#wls-151--identity-suggestions-offer-the-ap-the-radio-reports-as-the-stations-parent-ap)).
 
@@ -298,9 +296,9 @@ drift for an operator to resolve (WLS-151), not something a poll should
 silently "fix". The operator is told about it when it persists
 ([WLS-013](#wls-013--a-station-reporting-an-ap-other-than-its-declared-one-for-three-polls-raises-a-warning)).
 
-**Enforced at:** `src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.ts` (`declareParentApIfUnset`), `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts`
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts` (`declaredUpstream`), `src/infrastructure/wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter.ts` (`declareUpstreamIfUnset`)
 **Reached from:** `PollWirelessDeviceUseCase.poll`
-**Tests:** `tests/domain/wireless-monitoring/aggregates/WirelessDeviceConfig.test.ts`, `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/PollWirelessDeviceUseCase.integration.test.ts`
+**Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/infrastructure/wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter.test.ts`, `tests/integration/use-cases/wireless-monitoring/PollWirelessDeviceUseCase.integration.test.ts`
 
 ### WLS-013 — A station reporting an AP other than its declared one for three polls raises a warning
 
@@ -308,7 +306,7 @@ silently "fix". The operator is told about it when it persists
 **Layer:** Domain (called from the poll use case)
 **Since:** 2026-10-13
 
-Each poll of a `STATION` with a declared `parentApDeviceId` works out the AP
+Each poll of a `STATION` whose device has a declared upstream (DEV-180) works out the AP
 the radio reports, the same way the identity suggestion does
 ([WLS-151](#wls-151--identity-suggestions-offer-the-ap-the-radio-reports-as-the-stations-parent-ap)):
 the device matched by the AP MAC, or else the device matched by the AP IP. If
@@ -322,9 +320,12 @@ It opens once and stays open while the mismatch lasts.
   alert if one is open.
 - A poll whose radio reports no AP, or an AP that matches no device in
   inventory, counts neither way. The count stays where it was.
-- Changing the declared parent resets the count. Accepting the suggestion
-  therefore closes the alert on the next poll. Removing the declared parent
-  closes it too.
+- Changing the device's upstream to the reported AP resets the count on the
+  next poll. Accepting the suggestion therefore closes the alert on the next
+  poll. Removing the upstream closes it too.
+- If the declared upstream cannot be read, the poll skips this rule. The count
+  and any open alert stay as they are, so a database hiccup never clears a
+  real warning.
 - The declared parent is never changed by this rule
   ([WLS-012](#wls-012--a-stations-parent-ap-is-declared-from-its-first-poll-when-the-radios-ap-mac-is-in-inventory)).
 - Unlike other wireless alerts, it opens no ticket. Its recovery is not
@@ -1969,8 +1970,7 @@ answer consistent with the data actually being returned.
 `GET /api/devices/:id/wireless/clients/expected` is AP-only — it fails with
 the same `NOT_AP:`-prefixed message as WLS-141 when the target's own
 _configuration_ (not its snapshot) is `STATION`. For each STATION config
-declaring this device as its [WLS-162](#wls-162--parentapdeviceid-is-a-station-only-self-reference-free-declared-link)
-`parentApDeviceId`, the device's MAC (from device-inventory, not from any
+whose device's upstream is this device (DEV-180), the device's MAC (from device-inventory, not from any
 wireless poll) is looked up and matched — case/separator-normalised — against
 the MAC of every client entry in the AP's latest snapshot. A match marks the
 CPE `connected: true` with its live stats attached; no match marks it missing.
@@ -1985,7 +1985,7 @@ failing — the roster is still meaningful before the first poll lands.
 
 **Why:** A live poll only ever reports who is connected right now — WLS-140
 already covers that. Knowing who is _supposed_ to be connected and isn't
-requires a declared topology (WLS-162) to diff against; without it, an AP
+requires a declared topology (DEV-180) to diff against; without it, an AP
 losing a subscriber's link looks identical to that subscriber never having
 been provisioned. Matching by device-inventory's MAC rather than a station's
 self-reported `remoteApMac` keeps the answer stable even if a CPE is
@@ -2040,7 +2040,7 @@ like WLS-163 is a read-only diff rather than a reconciliation.
 **Since:** 2026-10-07
 
 For a `STATION`, `GET /api/devices/:id/wireless/identity/suggestions` also
-returns a `parentApDeviceId` suggestion when the AP from the latest poll
+returns an `upstreamDeviceId` suggestion when the AP from the latest poll
 differs from the declared parent, including when no parent is declared. The
 reported AP is the device matched by the radio's AP MAC (the snapshot's
 `remoteApDeviceId`). If the MAC matches no device, it falls back to the device
@@ -2049,7 +2049,9 @@ suggestion when no device matches, when the match is the station itself, or
 when the matched device no longer exists. A failed IP lookup drops only this
 suggestion, not the response. `currentLabel`/`suggestedLabel` carry the device
 names, so the id values can be shown to a person. Nothing is written.
-Accepting a suggestion means updating the wireless config's `parentApDeviceId`.
+Accepting a suggestion means setting the device's `upstreamDeviceId` with
+`PATCH /api/devices/:id` (DEV-180). Before 2026-10-28 the field was
+`parentApDeviceId`, on the wireless config.
 
 **Why:** [WLS-012](#wls-012--a-stations-parent-ap-is-declared-from-its-first-poll-when-the-radios-ap-mac-is-in-inventory)
 fills in the parent AP automatically only when it is certain. This rule covers
@@ -2439,7 +2441,7 @@ for a server problem. _(inferred)_
 **Since:** 2026-09-26
 
 For a STATION, the second pinged hop is the IP in the wireless config of its
-declared `parentApDeviceId`. If there is no declared parent, or that parent has
+device's upstream (DEV-180). If there is no declared parent, or that parent has
 no IP, it is the `remoteApIp` from the station's latest snapshot. If neither
 exists there is no parent hop. An ACCESS_POINT never has one.
 

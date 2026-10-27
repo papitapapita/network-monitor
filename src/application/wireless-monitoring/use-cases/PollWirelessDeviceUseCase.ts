@@ -343,11 +343,10 @@ export class PollWirelessDeviceUseCase
       );
       if (apLookup.isSuccess) remoteApDeviceId = apLookup.value;
     }
-    // An exact MAC match is certain enough to declare the AP unattended;
-    // weaker matches only surface as identity suggestions.
-    if (remoteApDeviceId) {
-      config.declareParentApIfUnset(remoteApDeviceId);
-    }
+    const declaredResult = await this.declaredUpstream(
+      config,
+      remoteApDeviceId
+    );
 
     const metricsResult = CollectedMetricsMapper.toMetrics(collected);
     if (metricsResult.isFailure) {
@@ -357,13 +356,24 @@ export class PollWirelessDeviceUseCase
     }
     const metrics = metricsResult.value;
 
-    const driftDecision = await this.evaluateParentApDrift(
-      config,
-      remoteApDeviceId,
-      collected.remoteApIp,
-      activeAlertsMap,
-      ctx.deviceName
-    );
+    // Unknown is not "none": judging drift against a failed read would
+    // reset the streak and clear a real alert, so the poll skips it instead.
+    if (declaredResult.isFailure) {
+      this.logger.warn('Declared AP unavailable for wireless poll', {
+        deviceId: deviceId.toString(),
+        error: declaredResult.error
+      });
+    }
+    const driftDecision = declaredResult.isSuccess
+      ? await this.evaluateParentApDrift(
+          config,
+          declaredResult.value,
+          remoteApDeviceId,
+          collected.remoteApIp,
+          activeAlertsMap,
+          ctx.deviceName
+        )
+      : null;
     const evaluated = this.alertEvaluator.evaluate(
       metrics,
       activeAlertsMap,
@@ -699,15 +709,50 @@ export class PollWirelessDeviceUseCase
     return samples;
   }
 
+  // An exact MAC match is certain enough to declare the AP unattended;
+  // weaker matches only surface as identity suggestions.
+  private async declaredUpstream(
+    config: WirelessDeviceConfig,
+    macMatch: DeviceId | null
+  ): Promise<Result<DeviceId | null>> {
+    if (config.deviceType !== 'STATION') return Result.ok(null);
+
+    const upstreamResult = await this.deviceRepo.findUpstreamId(
+      config.deviceId
+    );
+    if (upstreamResult.isFailure) {
+      return Result.fail(
+        `Failed to read the declared AP: ${upstreamResult.error}`
+      );
+    }
+    if (upstreamResult.value !== null || macMatch === null) {
+      return Result.ok(upstreamResult.value);
+    }
+
+    const declareResult =
+      await this.deviceRepo.declareUpstreamIfUnset(
+        config.deviceId,
+        macMatch
+      );
+    if (declareResult.isFailure) {
+      this.logger.warn('Could not declare the reported AP', {
+        deviceId: config.deviceId.toString(),
+        error: declareResult.error
+      });
+      return Result.ok(null);
+    }
+    return Result.ok(declareResult.value ? macMatch : null);
+  }
+
   private async evaluateParentApDrift(
     config: WirelessDeviceConfig,
+    declared: DeviceId | null,
     macMatch: DeviceId | null,
     remoteApIp: string | null,
     activeAlerts: Map<string, WirelessAlertRecord>,
     deviceName: string
   ): Promise<AlertDecision | null> {
     if (config.deviceType !== 'STATION') return null;
-    const declared = config.parentApDeviceId;
 
     let reported: DeviceId | null = null;
     if (declared) {
@@ -723,7 +768,7 @@ export class PollWirelessDeviceUseCase
         });
       } else {
         reported = reportedResult.value;
-        config.recordReportedParentAp(reported);
+        config.recordReportedParentAp(reported, declared);
       }
     }
 
@@ -739,6 +784,7 @@ export class PollWirelessDeviceUseCase
         : null;
     return evaluateParentApDrift(
       config,
+      declared,
       alertActive,
       deviceName,
       apNames

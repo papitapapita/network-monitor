@@ -52,7 +52,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
     findAllDue: jest.fn(),
-    findByParentApDeviceId: jest.fn(),
+    findStationsBelow: jest.fn(),
     findAll: jest.fn()
   };
 }
@@ -73,7 +73,9 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
     findIdByMacAddress: jest.fn(),
     findIdByIpAddress: jest.fn().mockResolvedValue(Result.ok(null)),
     findBasicInfoById: jest.fn(),
-    findWirelessIneligibilityReason: jest.fn()
+    findWirelessIneligibilityReason: jest.fn(),
+    findUpstreamId: jest.fn(),
+    declareUpstreamIfUnset: jest.fn()
   };
 }
 
@@ -92,10 +94,6 @@ function makeConfig(
       linkCapacityKbps: null,
       clientsProvisionedLimit: null,
       provisionedLanSpeedMbps: null,
-      parentApDeviceId:
-        deviceType === 'STATION'
-          ? DeviceId.parse(AP_DEVICE_UUID).value
-          : null,
       parentApMismatchPolls: 0,
       lastPolledAt: null
     }
@@ -216,9 +214,7 @@ describe('GetApExpectedClientsUseCase', () => {
     configRepo.findByDeviceId.mockResolvedValue(
       Result.ok(makeConfig(AP_DEVICE_UUID, 'ACCESS_POINT'))
     );
-    configRepo.findByParentApDeviceId.mockResolvedValue(
-      Result.ok([])
-    );
+    configRepo.findStationsBelow.mockResolvedValue(Result.ok([]));
     snapshotRepo.findLatestByDevice.mockResolvedValue(
       Result.ok(makeSnapshot())
     );
@@ -279,7 +275,7 @@ describe('GetApExpectedClientsUseCase', () => {
   // ===========================================================================
   describe('executeImpl — never-polled AP', () => {
     it('should return collectedAt null and every expected CPE as not connected', async () => {
-      configRepo.findByParentApDeviceId.mockResolvedValue(
+      configRepo.findStationsBelow.mockResolvedValue(
         Result.ok([makeConfig(CPE_A_DEVICE_UUID, 'STATION')])
       );
       snapshotRepo.findLatestByDevice.mockResolvedValue(
@@ -304,7 +300,7 @@ describe('GetApExpectedClientsUseCase', () => {
   // ===========================================================================
   describe('[WLS-163] executeImpl — matching, missing, and unexpected clients', () => {
     it('should mark an expected CPE as connected when its MAC is live', async () => {
-      configRepo.findByParentApDeviceId.mockResolvedValue(
+      configRepo.findStationsBelow.mockResolvedValue(
         Result.ok([makeConfig(CPE_A_DEVICE_UUID, 'STATION')])
       );
       deviceRepo.findBasicInfoById.mockResolvedValue(
@@ -327,7 +323,7 @@ describe('GetApExpectedClientsUseCase', () => {
     });
 
     it('should mark an expected CPE as missing when its MAC is not live', async () => {
-      configRepo.findByParentApDeviceId.mockResolvedValue(
+      configRepo.findStationsBelow.mockResolvedValue(
         Result.ok([makeConfig(CPE_A_DEVICE_UUID, 'STATION')])
       );
       deviceRepo.findBasicInfoById.mockResolvedValue(
@@ -347,9 +343,7 @@ describe('GetApExpectedClientsUseCase', () => {
     });
 
     it('should list a live client matching no expected CPE as unexpectedConnected', async () => {
-      configRepo.findByParentApDeviceId.mockResolvedValue(
-        Result.ok([])
-      );
+      configRepo.findStationsBelow.mockResolvedValue(Result.ok([]));
       snapshotRepo.findLatestByDevice.mockResolvedValue(
         Result.ok(makeSnapshot([makeClient('11:22:33:44:55:66')]))
       );
@@ -365,7 +359,7 @@ describe('GetApExpectedClientsUseCase', () => {
     });
 
     it('should handle a mix of matched, missing, and unexpected clients', async () => {
-      configRepo.findByParentApDeviceId.mockResolvedValue(
+      configRepo.findStationsBelow.mockResolvedValue(
         Result.ok([
           makeConfig(CPE_A_DEVICE_UUID, 'STATION'),
           makeConfig(CPE_B_DEVICE_UUID, 'STATION')
@@ -413,7 +407,7 @@ describe('GetApExpectedClientsUseCase', () => {
     });
 
     it('should report connected: false with a null macAddress when the device has no MAC on file', async () => {
-      configRepo.findByParentApDeviceId.mockResolvedValue(
+      configRepo.findStationsBelow.mockResolvedValue(
         Result.ok([makeConfig(CPE_A_DEVICE_UUID, 'STATION')])
       );
       deviceRepo.findBasicInfoById.mockResolvedValue(

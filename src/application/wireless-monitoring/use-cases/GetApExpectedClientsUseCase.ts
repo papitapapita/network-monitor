@@ -70,7 +70,7 @@ export class GetApExpectedClientsUseCase extends UseCase<
     }
 
     const expectedConfigsResult =
-      await this.configRepo.findByParentApDeviceId(deviceId);
+      await this.configRepo.findStationsBelow(deviceId);
     if (expectedConfigsResult.isFailure) {
       return this.fail(expectedConfigsResult.error);
     }

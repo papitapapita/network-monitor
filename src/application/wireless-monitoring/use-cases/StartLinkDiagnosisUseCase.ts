@@ -202,14 +202,17 @@ export class StartLinkDiagnosisUseCase extends UseCase<
   ): Promise<LinkDiagnosisTarget['parent']> {
     if (config.deviceType !== 'STATION') return null;
 
-    if (config.parentApDeviceId) {
+    const declaredResult =
+      await this.deviceRepo.findUpstreamId(deviceId);
+    const declared = declaredResult.isSuccess
+      ? declaredResult.value
+      : null;
+    if (declared) {
       const parentConfig =
-        await this.wirelessDeviceConfigRepo.findByDeviceId(
-          config.parentApDeviceId
-        );
+        await this.wirelessDeviceConfigRepo.findByDeviceId(declared);
       if (parentConfig.isSuccess && parentConfig.value?.ipAddress) {
         return {
-          deviceId: config.parentApDeviceId.toString(),
+          deviceId: declared.toString(),
           ipAddress: parentConfig.value.ipAddress.value
         };
       }

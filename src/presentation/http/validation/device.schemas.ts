@@ -135,6 +135,12 @@ export const createDeviceSchema = z.object({
       .nullable()
       .optional(),
 
+    upstreamDeviceId: z
+      .string()
+      .regex(UUID_REGEX, 'upstreamDeviceId must be a valid UUID v4')
+      .nullable()
+      .optional(),
+
     // ===================================
     // OPTIONAL IDENTITY
     // ===================================
@@ -370,6 +376,12 @@ export const updateDeviceSchema = z.object({
     agentId: z
       .string()
       .regex(UUID_REGEX, 'agentId must be a valid UUID v4')
+      .nullable()
+      .optional(),
+
+    upstreamDeviceId: z
+      .string()
+      .regex(UUID_REGEX, 'upstreamDeviceId must be a valid UUID v4')
       .nullable()
       .optional(),
 

@@ -37,7 +37,6 @@ const buildDomainConfig = (): WirelessDeviceConfig => {
     linkCapacityKbps: 100_000_000,
     clientsProvisionedLimit: 10,
     provisionedLanSpeedMbps: null,
-    parentApDeviceId: null,
     parentApMismatchPolls: 0,
     lastPolledAt: new Date('2024-01-01T12:00:00Z')
   });
@@ -53,7 +52,6 @@ const makePrismaRow = () => ({
   linkCapacityKbps: 100_000_000n,
   clientsProvisionedLimit: 10,
   provisionedLanSpeedMbps: null,
-  parentApDeviceId: null,
   parentApMismatchPolls: 0,
   lastPolledAt: new Date('2024-01-01T12:00:00Z')
 });
@@ -343,19 +341,22 @@ describe('[WLS-020] [WLS-021] PrismaWirelessDeviceConfigRepository', () => {
     });
   });
 
-  describe('findByParentApDeviceId', () => {
-    it('should call findMany with the parentApDeviceId filter', async () => {
+  describe('findStationsBelow', () => {
+    it('[DEV-180] should select the STATION configs of live devices hanging off the AP', async () => {
       prismaMock.wirelessPollingConfiguration.findMany.mockResolvedValue(
         []
       );
       const apDeviceId = DeviceId.parse(DEVICE_UUID).value;
 
-      await repository.findByParentApDeviceId(apDeviceId);
+      await repository.findStationsBelow(apDeviceId);
 
       expect(
         prismaMock.wirelessPollingConfiguration.findMany
       ).toHaveBeenCalledWith({
-        where: { parentApDeviceId: DEVICE_UUID }
+        where: {
+          deviceType: 'STATION',
+          device: { upstreamDeviceId: DEVICE_UUID, deletedAt: null }
+        }
       });
     });
 
@@ -365,8 +366,7 @@ describe('[WLS-020] [WLS-021] PrismaWirelessDeviceConfigRepository', () => {
       );
       const apDeviceId = DeviceId.parse(DEVICE_UUID).value;
 
-      const result =
-        await repository.findByParentApDeviceId(apDeviceId);
+      const result = await repository.findStationsBelow(apDeviceId);
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).toHaveLength(1);
@@ -379,8 +379,7 @@ describe('[WLS-020] [WLS-021] PrismaWirelessDeviceConfigRepository', () => {
       );
       const apDeviceId = DeviceId.parse(DEVICE_UUID).value;
 
-      const result =
-        await repository.findByParentApDeviceId(apDeviceId);
+      const result = await repository.findStationsBelow(apDeviceId);
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).toHaveLength(0);
@@ -392,12 +391,11 @@ describe('[WLS-020] [WLS-021] PrismaWirelessDeviceConfigRepository', () => {
       );
       const apDeviceId = DeviceId.parse(DEVICE_UUID).value;
 
-      const result =
-        await repository.findByParentApDeviceId(apDeviceId);
+      const result = await repository.findStationsBelow(apDeviceId);
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain(
-        'Database error finding wireless polling configs by parent AP'
+        'Database error finding the stations below an AP'
       );
     });
   });

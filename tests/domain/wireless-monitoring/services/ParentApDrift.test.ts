@@ -12,6 +12,7 @@ import { DeviceId } from '../../../../src/domain/shared/ids';
 import { PollingInterval } from '../../../../src/domain/wireless-monitoring/value-objects';
 
 const NAMES = { declared: 'AP-Sur', reported: 'AP-Norte' };
+const DECLARED = DeviceId.create();
 
 function makeConfig(
   overrides: Partial<WirelessDeviceConfigProps> = {}
@@ -27,7 +28,6 @@ function makeConfig(
       linkCapacityKbps: null,
       clientsProvisionedLimit: null,
       provisionedLanSpeedMbps: null,
-      parentApDeviceId: DeviceId.create(),
       parentApMismatchPolls: 0,
       lastPolledAt: null,
       ...overrides
@@ -43,6 +43,7 @@ describe('[WLS-013] evaluateParentApDrift', () => {
 
     const decision = evaluateParentApDrift(
       config,
+      DECLARED,
       false,
       'CPE-Juan',
       NAMES
@@ -65,7 +66,13 @@ describe('[WLS-013] evaluateParentApDrift', () => {
     });
 
     expect(
-      evaluateParentApDrift(config, false, 'CPE-Juan', NAMES)
+      evaluateParentApDrift(
+        config,
+        DECLARED,
+        false,
+        'CPE-Juan',
+        NAMES
+      )
     ).toBeNull();
   });
 
@@ -73,7 +80,7 @@ describe('[WLS-013] evaluateParentApDrift', () => {
     const config = makeConfig({ parentApMismatchPolls: 10 });
 
     expect(
-      evaluateParentApDrift(config, true, 'CPE-Juan', NAMES)
+      evaluateParentApDrift(config, DECLARED, true, 'CPE-Juan', NAMES)
     ).toBeNull();
   });
 
@@ -83,7 +90,7 @@ describe('[WLS-013] evaluateParentApDrift', () => {
     });
 
     expect(
-      evaluateParentApDrift(config, false, 'CPE-Juan', null)
+      evaluateParentApDrift(config, DECLARED, false, 'CPE-Juan', null)
     ).toBeNull();
   });
 
@@ -92,6 +99,7 @@ describe('[WLS-013] evaluateParentApDrift', () => {
 
     const decision = evaluateParentApDrift(
       config,
+      DECLARED,
       true,
       'CPE-Juan',
       null
@@ -102,14 +110,14 @@ describe('[WLS-013] evaluateParentApDrift', () => {
     expect(decision?.severity).toBe('WARNING');
   });
 
-  it('should clear an active alert once no parent is declared', () => {
+  it('should clear an active alert once no upstream is declared', () => {
     const config = makeConfig({
-      parentApDeviceId: null,
       parentApMismatchPolls: 5
     });
 
     expect(
-      evaluateParentApDrift(config, true, 'CPE-Juan', null)?.action
+      evaluateParentApDrift(config, null, true, 'CPE-Juan', null)
+        ?.action
     ).toBe('CLEAR');
   });
 
@@ -117,7 +125,7 @@ describe('[WLS-013] evaluateParentApDrift', () => {
     const config = makeConfig({ parentApMismatchPolls: 1 });
 
     expect(
-      evaluateParentApDrift(config, true, 'CPE-Juan', null)
+      evaluateParentApDrift(config, DECLARED, true, 'CPE-Juan', null)
     ).toBeNull();
   });
 });

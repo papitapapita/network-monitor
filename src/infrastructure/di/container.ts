@@ -125,6 +125,7 @@ import {
   PrismaLocationRepository,
   PrismaDeviceRepository,
   PrismaDeviceListQuery,
+  PrismaTopologyQuery,
   PrismaDeviceModelRepository,
   PrismaVendorRepository,
   PrismaPollingConfigurationRepository,
@@ -143,6 +144,7 @@ import {
 import {
   LocationController,
   DeviceController,
+  TopologyController,
   DeviceModelController,
   VendorController,
   PollingController,
@@ -303,6 +305,8 @@ import {
   RevealDeviceCredentialsUseCase,
   DeleteDeviceCredentialsUseCase,
   GetMapLocationsUseCase,
+  GetTopologyUseCase,
+  GetDeviceDescendantsUseCase,
   DeleteLocationUseCase
 } from 'application/device-inventory/use-cases';
 import { PingService } from '../monitoring/ping';
@@ -503,7 +507,10 @@ import {
   ScanNetworkSegmentUseCase,
   AssignDevicesToAgentUseCase
 } from '../../application/device-inventory/use-cases';
-import { AgentAssignmentPolicy } from '../../application/device-inventory/services';
+import {
+  AgentAssignmentPolicy,
+  UpstreamAssignment
+} from '../../application/device-inventory/services';
 import {
   ExecutePollingCycleUseCase,
   IngestPingResultsUseCase,
@@ -618,6 +625,7 @@ export class DependencyContainer {
   // Controllers
   public locationController: LocationController;
   public deviceController: DeviceController;
+  public topologyController: TopologyController;
   public deviceModelController: DeviceModelController;
   public vendorController: VendorController;
   public pollingController: PollingController;
@@ -1465,6 +1473,16 @@ export class DependencyContainer {
       this.logger
     );
 
+    const topologyQuery = new PrismaTopologyQuery(
+      this.prisma,
+      this.serverOnSite
+    );
+    this.topologyController = new TopologyController(
+      new GetTopologyUseCase(topologyQuery, this.logger),
+      new GetDeviceDescendantsUseCase(topologyQuery, this.logger),
+      this.logger
+    );
+
     // Initialize controllers
     this.locationController = new LocationController(
       createLocationUseCase,
@@ -2081,7 +2099,8 @@ export class DependencyContainer {
     ]);
     const wirelessDeviceRepo = new WirelessDeviceRepositoryAdapter(
       this.deviceRepository,
-      deviceEligibilityService
+      deviceEligibilityService,
+      new UpstreamAssignment(this.deviceRepository)
     );
     const deviceReach = new DeviceReachAdapter(
       this.serverOnSite,

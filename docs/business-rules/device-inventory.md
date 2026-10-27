@@ -17,6 +17,7 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 | `DEV-120` – `DEV-139` | Device Credentials                         |
 | `DEV-140` – `DEV-159` | Cross-cutting (access, listing, discovery) |
 | `DEV-160` – `DEV-179` | Device (continued — first block is full)   |
+| `DEV-180` – `DEV-199` | Topology                                   |
 
 Rationales marked _(inferred)_ were reconstructed from the code, not stated by
 the business. They are the ones to read critically.
@@ -36,12 +37,12 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Domain**                            |    45 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162, DEV-164, DEV-169 |
-| **Application**                       |    52 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-134, DEV-135, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172, DEV-173 |
-| **Application + Domain**              |     7 | DEV-031, DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160                                                                                                                                                                                                                                                                                                                               |
+| **Domain**                            |    47 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162, DEV-164, DEV-169, DEV-180, DEV-181 |
+| **Application**                       |    53 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-134, DEV-135, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172, DEV-173, DEV-184 |
+| **Application + Domain**              |    10 | DEV-031, DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160, DEV-182, DEV-183, DEV-185 |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
 | **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
-| **Infrastructure + Application**      |     4 | DEV-072, DEV-084, DEV-148, DEV-149                                                                                                                                                                                                                                                                                                                                                       |
+| **Infrastructure + Application**      |     5 | DEV-072, DEV-084, DEV-148, DEV-149, DEV-186 |
 | **Presentation**                      |     3 | DEV-140, DEV-146, DEV-170                                                                                                                                                                                                                                                                                                                                                                         |
 
 **Half the book sits outside the domain, and most of it belongs there.** The
@@ -3050,6 +3051,177 @@ whose owner was never filled in, needs a person.
 **Enforced at:** `src/application/device-inventory/use-cases/RetireDeviceAfterCancellationUseCase.ts`
 **Reached from:** `ContractedServiceCancelledEvent` → `ContractedServiceCancelledDeviceHandler`
 **Tests:** `tests/application/device-inventory/use-cases/RetireDeviceAfterCancellationUseCase.test.ts`, `tests/integration/use-cases/device-inventory/RetireDeviceAfterCancellationUseCase.integration.test.ts`, `tests/integration/contracted-service.routes.test.ts`
+
+## Topology
+
+Where each device hangs on the network. Each device stores one link to the
+device it hangs off, its *upstream*. Following the links upwards from any
+device reaches a root, and that tree is the map of the network. It is also
+what slice 2 of the topology plan reads to keep the devices behind a failed AP
+from paging one by one.
+
+### DEV-180 — A device hangs off at most one upstream device; none makes it a root
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-10-28
+
+`Device.upstreamDeviceId` names the device this one is connected through: a
+CPE's AP, an AP's switch, a switch's router. `null` makes the device a root —
+the gateway, or simply a device nobody has linked yet. Any category can have
+an upstream, and any category can be one. The link is set on create
+(`upstreamDeviceId`) or with `PATCH /api/devices/:id`, and `null` clears it.
+It raises no event of its own. Like the IP and location, it belongs to the
+record and not to the box, so a hardware swap (DEV-161) leaves it where it is.
+
+It replaces the STATION-only `parentApDeviceId` that lived on the wireless
+polling config (WLS-162). Migration `20261028120000` copied every declared
+parent AP onto its station's device and dropped the old column. Wireless
+monitoring now reads the declared AP from here, through its own device port,
+and can still fill an empty link with the AP the radio reports by MAC (WLS-012).
+
+**Why:** A link that only covered a CPE and its AP could not express an AP
+behind a switch behind a backhaul, and that chain is what decides which
+devices are cut off when one of them fails. Where a device sits on the network
+is an inventory fact, like its IP and location, so it lives on `Device` instead
+of on a context that only knows radios.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`upstreamDeviceId`, `setUpstream`)
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/use-cases/UpdateDeviceUseCase.test.ts`, `tests/application/device-inventory/use-cases/CreateDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
+
+### DEV-181 — A device cannot be its own upstream
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-10-28
+
+The aggregate's single `validate()` refuses a link to itself (`400`).
+
+**Why:** A loop of one is still a loop: nothing walking up from that device
+would ever reach a root.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`validate`), `src/application/device-inventory/services/UpstreamAssignment.ts`
+**Message:** `Cannot make a device its own upstream device`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/services/UpstreamAssignment.test.ts`, `tests/integration/device.routes.test.ts`
+
+### DEV-182 — A link that would form a loop is refused
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Application + Domain
+**Since:** 2026-10-28
+
+The chain above the proposed upstream is read first. If the device being linked
+is already somewhere in that chain, the link is refused (`400`), however many
+hops up the loop would close.
+
+**Why:** The map and alert suppression both walk upwards until they reach a
+root. A loop has no root. No single aggregate can see the chain, so the check
+is a domain service (`UpstreamLinkPolicy`) that the application layer feeds
+with the chain from the repository. Two edits saved at the same moment could
+still close a loop between them. Every walk over the graph is therefore capped
+(`findUpstreamChain` stops at 64 hops) or remembers where it has been
+(`TopologyTree`), so such data can make the map look wrong but cannot hang it.
+
+**Enforced at:** `src/domain/device-inventory/services/UpstreamLinkPolicy.ts`, `src/application/device-inventory/services/UpstreamAssignment.ts`
+**Message:** `<upstream> is already downstream of <device> — linking them would form a loop`
+**Tests:** `tests/domain/device-inventory/services/UpstreamLinkPolicy.test.ts`, `tests/application/device-inventory/services/UpstreamAssignment.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`, `tests/integration/device.routes.test.ts`
+
+### DEV-183 — The upstream must be a live device on the network
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application + Domain
+**Since:** 2026-10-28
+
+The upstream has to exist and not be in the recycle bin (`404` otherwise). It
+also has to be `ACTIVE` or `COMMISSIONING` (`400` otherwise). This is checked
+when a link is *made*. A link that already exists survives its upstream later
+leaving the network, and sending that same link back unchanged is not
+re-checked. That way an edit to some other field of a device whose AP has since
+gone `DAMAGED` still saves.
+
+**Why:** A link says where a working device hangs. A unit on the shelf is not on
+the network, so nothing can hang off it. Re-checking an unchanged link would
+block every edit to a CPE until somebody fixed its AP first.
+
+**Enforced at:** `src/domain/device-inventory/services/UpstreamLinkPolicy.ts`, `src/application/device-inventory/services/UpstreamAssignment.ts`, `src/application/device-inventory/use-cases/UpdateDeviceUseCase.ts`
+**Message:** `Upstream device not found: <id>`, `The upstream device must be ACTIVE or COMMISSIONING, not <status>`
+**Tests:** `tests/domain/device-inventory/services/UpstreamLinkPolicy.test.ts`, `tests/application/device-inventory/use-cases/UpdateDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDeviceUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/CreateDeviceUseCase.integration.test.ts`
+
+### DEV-184 — Deleting a device makes the devices directly below it roots
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-28
+
+When a device is soft-deleted (DEV-070), every live device whose upstream it was
+loses that link. The deleted device keeps its own upstream, and the chain below
+the detached devices is untouched. Restoring the device does not re-attach
+them. A permanent purge clears whatever is left through the foreign key
+(`ON DELETE SET NULL`).
+
+**Why:** A link to a tombstone points at something no read path can see. A root
+is the safe default: until someone links it again, the device alerts on its own
+instead of being hidden behind a device that no longer exists.
+
+**Enforced at:** `src/application/device-inventory/use-cases/DeleteDeviceUseCase.ts`, `src/infrastructure/persistence/PrismaDeviceRepository.ts` (`moveDownstreamDevices`)
+**Tests:** `tests/application/device-inventory/use-cases/DeleteDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/DeleteDeviceUseCase.integration.test.ts`
+
+### DEV-185 — A replacement takes over the old unit's place in the topology
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application + Domain
+**Since:** 2026-10-28
+
+Replacing a device (DEV-078) moves the topology along with the IP:
+
+- The new unit hangs off the old unit's upstream.
+- Every device that hung off the old unit now hangs off the new one.
+- The retired unit loses its own link.
+
+The response reports how many devices moved (`downstreamDevicesMoved`). A
+hardware swap (DEV-161) moves nothing, because both records stay where they
+are.
+
+**Why:** A replacement stands in the same place on the network as the unit it
+succeeds. If the CPEs below were left pointing at a unit on the shelf, an
+outage of the new AP would page once per CPE, which is exactly what the
+topology exists to stop.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/Device.ts` (`markReplaced`), `src/application/device-inventory/use-cases/ReplaceDeviceUseCase.ts`
+**Tests:** `tests/domain/device-inventory/aggregates/Device.test.ts`, `tests/application/device-inventory/use-cases/ReplaceDeviceUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ReplaceDeviceUseCase.integration.test.ts`
+
+### DEV-186 — The topology map shows every device on the network, and which are cut off
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure + Application
+**Since:** 2026-10-28
+
+`GET /api/topology` returns every live `ACTIVE` or `COMMISSIONING` device. It
+also returns any live device another device hangs off, whatever its status, so
+no link points outside the result. Each node carries:
+
+- its upstream;
+- how many devices hang directly off it;
+- its `reachability`:
+
+| Reachability  | Meaning                                                                    |
+| ------------- | -------------------------------------------------------------------------- |
+| `UP` / `DOWN` | the last monitoring result                                                 |
+| `UNREACHABLE` | `DOWN`, and some device above it is `DOWN` too — most likely not its fault |
+| `UNKNOWN`     | not monitored, never polled, or behind an agent that is not reporting      |
+
+When walking up, a device that is not monitored or is `UNKNOWN` is skipped
+rather than ending the walk. `GET /api/topology/:deviceId/descendants` returns
+one device and everything below it. Reachability there is still judged against
+the devices above that subtree.
+
+**Why:** Showing the device that failed in red and its subtree in grey is the
+first thing an operator needs during an outage. An unmonitored switch in the
+middle says nothing about whether the path is up, so it must not hide a failure
+above it.
+
+**Enforced at:** `src/infrastructure/persistence/PrismaTopologyQuery.ts`, `src/application/device-inventory/services/TopologyTree.ts`
+**Tests:** `tests/application/device-inventory/services/TopologyTree.test.ts`, `tests/application/device-inventory/use-cases/GetTopologyUseCase.test.ts`, `tests/application/device-inventory/use-cases/GetDeviceDescendantsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/GetTopologyUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/GetDeviceDescendantsUseCase.integration.test.ts`, `tests/integration/topology.routes.test.ts`
 
 ---
 

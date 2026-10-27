@@ -50,7 +50,6 @@ function makeConfig(
     deviceId: string;
     ip: string | null;
     deviceType: 'STATION' | 'ACCESS_POINT';
-    parentApDeviceId: string | null;
     linkCapacityKbps: number | null;
   }> = {}
 ): WirelessDeviceConfig {
@@ -67,9 +66,6 @@ function makeConfig(
       linkCapacityKbps: overrides.linkCapacityKbps ?? null,
       clientsProvisionedLimit: null,
       provisionedLanSpeedMbps: 100,
-      parentApDeviceId: overrides.parentApDeviceId
-        ? DeviceId.parse(overrides.parentApDeviceId).value
-        : null,
       parentApMismatchPolls: 0,
       lastPolledAt: null
     }
@@ -121,7 +117,11 @@ function setup() {
   const deviceRepo = {
     findWirelessIneligibilityReason: jest
       .fn()
-      .mockResolvedValue(Result.ok(null))
+      .mockResolvedValue(Result.ok(null)),
+    findUpstreamId: jest.fn().mockResolvedValue(Result.ok(null)),
+    declareUpstreamIfUnset: jest
+      .fn()
+      .mockResolvedValue(Result.ok(false))
   };
   const deviceReach = {
     isOutOfReach: jest.fn().mockResolvedValue(Result.ok(false)),
@@ -281,8 +281,16 @@ describe('StartLinkDiagnosisUseCase', () => {
 
   describe('[WLS-184] parent hop', () => {
     it('should ping the declared parent AP at its configured IP', async () => {
-      const { useCase, configRepo, startedTarget, snapshotRepo } =
-        setup();
+      const {
+        useCase,
+        configRepo,
+        deviceRepo,
+        startedTarget,
+        snapshotRepo
+      } = setup();
+      deviceRepo.findUpstreamId.mockResolvedValue(
+        Result.ok(DeviceId.parse(PARENT_UUID).value)
+      );
       configRepo.findByDeviceId.mockImplementation(
         async (id: DeviceId) =>
           Result.ok(
@@ -292,7 +300,7 @@ describe('StartLinkDiagnosisUseCase', () => {
                   ip: '10.0.0.1',
                   deviceType: 'ACCESS_POINT'
                 })
-              : makeConfig({ parentApDeviceId: PARENT_UUID })
+              : makeConfig()
           )
       );
 
@@ -323,14 +331,22 @@ describe('StartLinkDiagnosisUseCase', () => {
     });
 
     it('should fall back when the declared parent has no IP', async () => {
-      const { useCase, configRepo, snapshotRepo, startedTarget } =
-        setup();
+      const {
+        useCase,
+        configRepo,
+        deviceRepo,
+        snapshotRepo,
+        startedTarget
+      } = setup();
+      deviceRepo.findUpstreamId.mockResolvedValue(
+        Result.ok(DeviceId.parse(PARENT_UUID).value)
+      );
       configRepo.findByDeviceId.mockImplementation(
         async (id: DeviceId) =>
           Result.ok(
             id.toString() === PARENT_UUID
               ? makeConfig({ deviceId: PARENT_UUID, ip: null })
-              : makeConfig({ parentApDeviceId: PARENT_UUID })
+              : makeConfig()
           )
       );
       snapshotRepo.findLatestByDevice.mockResolvedValue(

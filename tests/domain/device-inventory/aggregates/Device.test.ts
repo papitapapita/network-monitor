@@ -40,6 +40,7 @@ type CreateDeviceProps = Omit<
   | 'replacesDeviceId'
   | 'replacedByDeviceId'
   | 'agentId'
+  | 'upstreamDeviceId'
 >;
 
 /**
@@ -3304,6 +3305,116 @@ describe('Device', () => {
 
       expect(a.agentId).toBe(agentA);
       expect(b.agentId).toBe(agentB);
+    });
+  });
+
+  describe('[DEV-180] [DEV-181] upstream link', () => {
+    function makeOnNetwork(): Device {
+      return makeDevice({
+        status: DeviceStatus.createActive(),
+        locationId: LocationId.create(),
+        ipAddress: IPAddress.create('10.0.3.21').value,
+        monitoringEnabled: true
+      });
+    }
+
+    it('is a root (null) unless created with an upstream', () => {
+      expect(makeDevice().upstreamDeviceId).toBeNull();
+    });
+
+    it('records the upstream it was created with', () => {
+      const upstreamDeviceId = DeviceId.create();
+
+      const device = Device.create({
+        ...makeProps(),
+        upstreamDeviceId
+      }).value;
+
+      expect(device.upstreamDeviceId).toBe(upstreamDeviceId);
+    });
+
+    it('treats a row with no upstream column as a root', () => {
+      const { upstreamDeviceId: _unused, ...legacy } = {
+        ...makeProps(),
+        upstreamDeviceId: null,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      expect(
+        Device.reconstitute(DeviceId.create(), legacy)
+          .upstreamDeviceId
+      ).toBeNull();
+    });
+
+    it('links to an upstream and back to a root', () => {
+      const device = makeOnNetwork();
+      const upstreamId = DeviceId.create();
+
+      expect(device.setUpstream(upstreamId).isSuccess).toBe(true);
+      expect(device.upstreamDeviceId).toBe(upstreamId);
+
+      expect(device.setUpstream(null).isSuccess).toBe(true);
+      expect(device.upstreamDeviceId).toBeNull();
+    });
+
+    it('[DEV-181] refuses to be its own upstream', () => {
+      const device = makeOnNetwork();
+
+      const result = device.setUpstream(
+        DeviceId.parse(device.id.toString()).value
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('its own upstream');
+      expect(device.upstreamDeviceId).toBeNull();
+    });
+
+    it('advances updatedAt only when the link actually changes', () => {
+      const upstreamDeviceId = DeviceId.create();
+      const device = Device.create({
+        ...makeProps(),
+        upstreamDeviceId
+      }).value;
+      const before = device.updatedAt;
+
+      device.setUpstream(
+        DeviceId.parse(upstreamDeviceId.toString()).value
+      );
+
+      expect(device.updatedAt).toBe(before);
+    });
+
+    it('raises no domain event of its own', () => {
+      const device = makeOnNetwork();
+      device.clearEvents();
+
+      device.setUpstream(DeviceId.create());
+
+      expect(device.domainEvents).toHaveLength(0);
+    });
+
+    it('refuses a deleted device', () => {
+      const device = makeDevice();
+      device.softDelete('user-1');
+
+      expect(device.setUpstream(DeviceId.create()).isFailure).toBe(
+        true
+      );
+    });
+
+    it('[DEV-185] leaves the topology when it is retired by a replacement', () => {
+      const device = makeDevice({
+        status: DeviceStatus.createActive(),
+        locationId: LocationId.create(),
+        ipAddress: IPAddress.create('10.0.3.22').value,
+        serialNumber: SerialNumber.create('SN-UP-1').value
+      });
+      device.setUpstream(DeviceId.create());
+
+      device.markReplaced(DeviceStatus.createDamaged());
+
+      expect(device.upstreamDeviceId).toBeNull();
     });
   });
 });

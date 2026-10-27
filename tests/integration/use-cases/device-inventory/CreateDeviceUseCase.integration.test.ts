@@ -16,6 +16,7 @@ import {
   seedAgent,
   seedDeviceModel,
   seedLocation,
+  seedNetworkDevice,
   GHOST_ID
 } from '../../helpers/db';
 
@@ -374,6 +375,62 @@ describe('CreateDeviceUseCase — integration', () => {
       const result = await withAgents.execute(request(GHOST_ID));
 
       expect(result.error).toContain('Agent not found');
+    });
+  });
+
+  describe('[DEV-180] upstream link', () => {
+    it('creates the device hanging off the given upstream', async () => {
+      const ap = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'AP Torre Norte',
+        ipAddress: '10.0.3.2'
+      });
+
+      const result = await useCase.execute({
+        deviceModelId,
+        name: 'CPE Juan',
+        ownerType: 'CLIENT',
+        serialNumber: 'SN-CPE-1',
+        upstreamDeviceId: ap
+      });
+
+      expect(result.value.upstreamDeviceId).toBe(ap);
+      const row = await prisma.device.findUnique({
+        where: { id: result.value.id }
+      });
+      expect(row!.upstreamDeviceId).toBe(ap);
+    });
+
+    it('[DEV-183] refuses an upstream off the network and creates nothing', async () => {
+      const shelved = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'AP en bodega',
+        ipAddress: '10.0.3.3',
+        status: 'INVENTORY'
+      });
+
+      const result = await useCase.execute({
+        deviceModelId,
+        name: 'CPE Juan',
+        ownerType: 'CLIENT',
+        serialNumber: 'SN-CPE-1',
+        upstreamDeviceId: shelved
+      });
+
+      expect(result.error).toContain(
+        'must be ACTIVE or COMMISSIONING'
+      );
+      expect(await prisma.device.count()).toBe(1);
+    });
+
+    it('refuses an unknown upstream', async () => {
+      const result = await useCase.execute({
+        deviceModelId,
+        name: 'CPE Juan',
+        ownerType: 'CLIENT',
+        serialNumber: 'SN-CPE-1',
+        upstreamDeviceId: GHOST_ID
+      });
+
+      expect(result.error).toContain('Upstream device not found');
     });
   });
 });

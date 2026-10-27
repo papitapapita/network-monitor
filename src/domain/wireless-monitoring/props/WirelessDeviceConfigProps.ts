@@ -19,11 +19,8 @@ export interface WirelessDeviceConfigProps {
   // captured while the port was already degraded.
   provisionedLanSpeedMbps: number | null;
   lastPolledAt: Date | null;
-  // STATION-only: the ACCESS_POINT this CPE is declared to sit on. Distinct
-  // from WirelessMetrics.remoteApDeviceId (what the radio currently reports)
-  // — this is the operator's intent, used to detect drift between the two.
-  parentApDeviceId: DeviceId | null;
-  // Consecutive polls whose radio reported an AP other than the declared
-  // parent (WLS-013).
+  // Consecutive polls whose radio reported an AP other than the device's
+  // declared upstream (WLS-013). The declaration itself is Device
+  // Inventory's (DEV-180); this context only counts the disagreement.
   parentApMismatchPolls: number;
 }

@@ -15,7 +15,6 @@ type PrismaWirelessDeviceConfigRow = {
   linkCapacityKbps: bigint | null;
   clientsProvisionedLimit: number | null;
   provisionedLanSpeedMbps: number | null;
-  parentApDeviceId: string | null;
   parentApMismatchPolls: number;
   lastPolledAt: Date | null;
 };
@@ -30,7 +29,6 @@ type PersistenceData = {
   linkCapacityKbps: bigint | null;
   clientsProvisionedLimit: number | null;
   provisionedLanSpeedMbps: number | null;
-  parentApDeviceId: string | null;
   parentApMismatchPolls: number;
   lastPolledAt: Date | null;
 };
@@ -50,16 +48,6 @@ export class WirelessDeviceConfigPrismaMapper {
       ? IPAddress.reconstitute(raw.ipAddress)
       : null;
 
-    let parentApDeviceId: DeviceId | null = null;
-    if (raw.parentApDeviceId) {
-      const parsed = DeviceId.parse(raw.parentApDeviceId);
-      if (parsed.isFailure)
-        throw new Error(
-          `Invalid parent AP device ID: ${parsed.error}`
-        );
-      parentApDeviceId = parsed.value;
-    }
-
     const props: WirelessDeviceConfigProps = {
       deviceId: deviceId.value,
       ipAddress,
@@ -72,7 +60,6 @@ export class WirelessDeviceConfigPrismaMapper {
           : null,
       clientsProvisionedLimit: raw.clientsProvisionedLimit,
       provisionedLanSpeedMbps: raw.provisionedLanSpeedMbps,
-      parentApDeviceId,
       parentApMismatchPolls: raw.parentApMismatchPolls,
       lastPolledAt: raw.lastPolledAt
     };
@@ -96,7 +83,6 @@ export class WirelessDeviceConfigPrismaMapper {
           : null,
       clientsProvisionedLimit: config.clientsProvisionedLimit,
       provisionedLanSpeedMbps: config.provisionedLanSpeedMbps,
-      parentApDeviceId: config.parentApDeviceId?.toString() ?? null,
       parentApMismatchPolls: config.parentApMismatchPolls,
       lastPolledAt: config.lastPolledAt
     };

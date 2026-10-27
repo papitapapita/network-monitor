@@ -54,7 +54,6 @@ function makeConfig(
       linkCapacityKbps: null,
       clientsProvisionedLimit: null,
       provisionedLanSpeedMbps: null,
-      parentApDeviceId: null,
       parentApMismatchPolls: 0,
       lastPolledAt: null
     }
@@ -69,7 +68,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
     findAllDue: jest.fn(),
-    findByParentApDeviceId: jest.fn(),
+    findStationsBelow: jest.fn(),
     findAll: jest.fn()
   };
 }

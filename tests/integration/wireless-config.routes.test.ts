@@ -200,23 +200,14 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
       expect(res.body.clientsProvisionedLimit).toBe(50);
     });
 
-    it('201 — accepts parentApDeviceId on a derived STATION device', async () => {
+    it('[DEV-180] 201 — ignores parentApDeviceId; the upstream link lives on the device', async () => {
       const res = await request(app)
         .post(`/api/devices/${plainDeviceId}/wireless/config`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ parentApDeviceId: apDeviceId });
 
       expect(res.status).toBe(201);
-      expect(res.body.parentApDeviceId).toBe(apDeviceId);
-    });
-
-    it('400 — rejects parentApDeviceId on a derived ACCESS_POINT device', async () => {
-      const res = await request(app)
-        .post(`/api/devices/${apDeviceId}/wireless/config`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ parentApDeviceId: plainDeviceId });
-
-      expect(res.status).toBe(400);
+      expect(res.body).not.toHaveProperty('parentApDeviceId');
     });
 
     it('409 — returns 409 when a config already exists for the device', async () => {
@@ -377,29 +368,13 @@ describe('[WLS-001] [WLS-003] [WLS-009] [WLS-010] Wireless Config Routes — /ap
       expect(res.body.ipAddress).toBe('172.16.0.1');
     });
 
-    it('200 — updates parentApDeviceId and reflects it in the response', async () => {
+    it('[DEV-180] 400 — a body of only parentApDeviceId has nothing to update', async () => {
       const res = await request(app)
         .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ parentApDeviceId: apDeviceId });
 
-      expect(res.status).toBe(200);
-      expect(res.body.parentApDeviceId).toBe(apDeviceId);
-    });
-
-    it('200 — clears parentApDeviceId when given null', async () => {
-      await request(app)
-        .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ parentApDeviceId: apDeviceId });
-
-      const res = await request(app)
-        .patch(`/api/devices/${configuredDeviceId}/wireless/config`)
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({ parentApDeviceId: null });
-
-      expect(res.status).toBe(200);
-      expect(res.body.parentApDeviceId).toBeNull();
+      expect(res.status).toBe(400);
     });
 
     it('[WLS-089] 200 — updates provisionedLanSpeedMbps and reflects it in the response', async () => {

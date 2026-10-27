@@ -79,6 +79,19 @@ export class DeleteDeviceUseCase extends UseCase<
       return this.fail<void>(saveResult.error!);
     }
 
+    // DEV-184: the devices below become roots. Left pointing at a tombstone,
+    // they would hang off something no read path can see.
+    const detachResult =
+      await this.deviceRepository.moveDownstreamDevices(
+        deviceId,
+        null
+      );
+    if (detachResult.isFailure) {
+      return this.fail<void>(
+        `Device deleted but the devices below it could not be detached: ${detachResult.error}`
+      );
+    }
+
     return this.ok(undefined);
   }
 

@@ -126,7 +126,6 @@ function makeConfig(
       linkCapacityKbps,
       clientsProvisionedLimit: null,
       provisionedLanSpeedMbps: null,
-      parentApDeviceId: null,
       parentApMismatchPolls: 0,
       lastPolledAt: null
     }
@@ -159,7 +158,7 @@ describe('[WLS-146] GetFleetWirelessThroughputUseCase', () => {
       exists: jest.fn(),
       findByDeviceId: jest.fn(),
       findAllDue: jest.fn(),
-      findByParentApDeviceId: jest.fn(),
+      findStationsBelow: jest.fn(),
       findAll: jest.fn()
     };
 

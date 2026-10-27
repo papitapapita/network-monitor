@@ -19,7 +19,10 @@ import { parseIso8601Date } from 'application/shared/utils';
 import { DeviceResponseDTO, UpdateDeviceRequestDTO } from '../dtos';
 import { DeviceMapper } from '../mappers';
 import { NoAgentsQuery } from '../interfaces';
-import { AgentAssignmentPolicy } from '../services';
+import {
+  AgentAssignmentPolicy,
+  UpstreamAssignment
+} from '../services';
 import {
   DeviceStatus,
   DeviceCategory,
@@ -39,6 +42,9 @@ export class UpdateDeviceUseCase extends UseCase<
     logger: ILogger,
     private readonly agentAssignment: AgentAssignmentPolicy = new AgentAssignmentPolicy(
       NoAgentsQuery
+    ),
+    private readonly upstreamAssignment: UpstreamAssignment = new UpstreamAssignment(
+      deviceRepository
     )
   ) {
     super(logger, 'UpdateDeviceUseCase');
@@ -350,6 +356,32 @@ export class UpdateDeviceUseCase extends UseCase<
 
     if (data.monitoringEnabled !== undefined) {
       updateFields.monitoringEnabled = data.monitoringEnabled;
+    }
+
+    if (data.upstreamDeviceId !== undefined) {
+      // Like the agent: echoing back the link a device already has is not a
+      // re-link, so an upstream that has since gone DAMAGED doesn't block an
+      // unrelated edit.
+      const unchanged =
+        data.upstreamDeviceId === null
+          ? device.upstreamDeviceId === null
+          : device.upstreamDeviceId?.toString() ===
+            data.upstreamDeviceId.trim();
+      if (!unchanged) {
+        if (data.upstreamDeviceId === null) {
+          updateFields.upstreamDeviceId = null;
+        } else {
+          const upstreamResult =
+            await this.upstreamAssignment.resolve(
+              device,
+              data.upstreamDeviceId
+            );
+          if (upstreamResult.isFailure) {
+            return this.fail(upstreamResult.error);
+          }
+          updateFields.upstreamDeviceId = upstreamResult.value;
+        }
+      }
     }
 
     // One call, one validation of the whole candidate state — so no field in

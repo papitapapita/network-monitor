@@ -1,5 +1,6 @@
 import {
   AgentId,
+  DeviceId,
   DeviceModelId,
   LocationId
 } from 'domain/shared/ids';
@@ -29,4 +30,8 @@ export interface DeviceChanges {
   locationId?: LocationId | null;
   agentId?: AgentId | null;
   monitoringEnabled?: boolean;
+  // Whether the link may exist at all (DEV-182, DEV-183) needs the rest of
+  // the graph and is UpstreamLinkPolicy's call; the aggregate only refuses a
+  // link to itself.
+  upstreamDeviceId?: DeviceId | null;
 }

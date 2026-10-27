@@ -5,6 +5,7 @@ import { PrismaWirelessSnapshotRepository } from 'infrastructure/wireless-monito
 import { WirelessDeviceRepositoryAdapter } from 'infrastructure/wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
+import { UpstreamAssignment } from 'application/device-inventory/services';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import {
   cleanDatabase,
@@ -36,17 +37,22 @@ async function seedConfig(
   prisma: PrismaClient,
   deviceId: string,
   deviceType: 'STATION' | 'ACCESS_POINT',
-  parentApDeviceId: string | null = null
+  upstreamDeviceId: string | null = null
 ): Promise<void> {
   await prisma.wirelessPollingConfiguration.create({
     data: {
       deviceId,
       deviceType,
       enabled: true,
-      intervalSecs: 3600,
-      parentApDeviceId
+      intervalSecs: 3600
     }
   });
+  if (upstreamDeviceId) {
+    await prisma.device.update({
+      where: { id: deviceId },
+      data: { upstreamDeviceId: upstreamDeviceId }
+    });
+  }
 }
 
 async function seedSnapshot(
@@ -75,7 +81,8 @@ describe('GetApExpectedClientsUseCase — integration', () => {
     deviceModelId = await seedWirelessDeviceModel(prisma);
     const deviceRepo = new WirelessDeviceRepositoryAdapter(
       new PrismaDeviceRepository(prisma),
-      new DeviceEligibilityService()
+      new DeviceEligibilityService(),
+      new UpstreamAssignment(new PrismaDeviceRepository(prisma))
     );
     useCase = new GetApExpectedClientsUseCase(
       new PrismaWirelessDeviceConfigRepository(prisma),

@@ -73,7 +73,6 @@ function makeConfig(
         overrides.provisionedLanSpeedMbps !== undefined
           ? overrides.provisionedLanSpeedMbps
           : null,
-      parentApDeviceId: null,
       parentApMismatchPolls: 0,
       lastPolledAt: null
     }
@@ -88,7 +87,7 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
     findAllDue: jest.fn(),
-    findByParentApDeviceId: jest.fn(),
+    findStationsBelow: jest.fn(),
     findAll: jest.fn()
   };
 }
@@ -101,7 +100,11 @@ function makeDeviceRepo(ineligibleReason: string | null = null) {
     findBasicInfoById: jest.fn().mockResolvedValue(Result.ok(null)),
     findWirelessIneligibilityReason: jest
       .fn()
-      .mockResolvedValue(Result.ok(ineligibleReason))
+      .mockResolvedValue(Result.ok(ineligibleReason)),
+    findUpstreamId: jest.fn().mockResolvedValue(Result.ok(null)),
+    declareUpstreamIfUnset: jest
+      .fn()
+      .mockResolvedValue(Result.ok(false))
   };
 }
 

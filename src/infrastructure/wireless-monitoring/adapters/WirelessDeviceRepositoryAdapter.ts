@@ -2,6 +2,7 @@ import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import { IPAddress, MACAddress } from 'domain/shared/value-objects';
 import { IDeviceEligibilityService } from 'domain/device-inventory/services';
+import { UpstreamAssignment } from 'application/device-inventory/services';
 import {
   IDeviceRepository,
   DeviceBasicInfo
@@ -13,8 +14,42 @@ export class WirelessDeviceRepositoryAdapter
 {
   constructor(
     private readonly deviceRepo: PrismaDeviceRepository,
-    private readonly eligibility: IDeviceEligibilityService
+    private readonly eligibility: IDeviceEligibilityService,
+    private readonly upstreamAssignment: UpstreamAssignment
   ) {}
+
+  async findUpstreamId(
+    deviceId: DeviceId
+  ): Promise<Result<DeviceId | null>> {
+    const result = await this.deviceRepo.findById(deviceId);
+    if (result.isFailure) return Result.fail(result.error!);
+    return Result.ok(result.value?.upstreamDeviceId ?? null);
+  }
+
+  async declareUpstreamIfUnset(
+    deviceId: DeviceId,
+    upstreamId: DeviceId
+  ): Promise<Result<boolean>> {
+    const result = await this.deviceRepo.findById(deviceId);
+    if (result.isFailure) return Result.fail(result.error!);
+    const device = result.value;
+    if (!device || device.upstreamDeviceId !== null) {
+      return Result.ok(false);
+    }
+
+    const checked = await this.upstreamAssignment.check(
+      device,
+      upstreamId
+    );
+    if (checked.isFailure) return Result.ok(false);
+
+    const linkResult = device.setUpstream(checked.value);
+    if (linkResult.isFailure) return Result.ok(false);
+
+    const saveResult = await this.deviceRepo.save(device);
+    if (saveResult.isFailure) return Result.fail(saveResult.error!);
+    return Result.ok(true);
+  }
 
   async findWirelessIneligibilityReason(
     deviceId: DeviceId

@@ -12,6 +12,7 @@ export * from './PrismaMutedAlertTypeRepository';
 export * from './PrismaNotificationSettingsRepository';
 export * from './PrismaVendorSettingsRepository';
 export * from './PrismaDeviceListQuery';
+export * from './PrismaTopologyQuery';
 export * from './PrismaAlertListQuery';
 export * from './PrismaPollingStatusListQuery';
 export * from './PrismaPushSubscriptionRepository';

@@ -12,6 +12,15 @@ import { Result } from '../../../../src/domain/shared/core';
 import { Device } from '../../../../src/domain/device-inventory/aggregates';
 import { CreateDeviceRequestDTO } from '../../../../src/application/device-inventory/dtos';
 import { makeAgentPolicy } from '../agentFixtures';
+import {
+  DeviceName,
+  DeviceStatus,
+  SerialNumber
+} from '../../../../src/domain/device-inventory/value-objects';
+import {
+  DeviceModelId,
+  LocationId
+} from '../../../../src/domain/shared/ids';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -56,7 +65,9 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     findByAgent: jest.fn(),
     findByFilters: jest.fn(),
     findByIdIncludingDeleted: jest.fn(),
-    findDeletedBefore: jest.fn()
+    findDeletedBefore: jest.fn(),
+    findUpstreamChain: jest.fn().mockResolvedValue(Result.ok([])),
+    moveDownstreamDevices: jest.fn().mockResolvedValue(Result.ok(0))
   };
 }
 
@@ -778,6 +789,73 @@ describe('CreateDeviceUseCase', () => {
       const result = await useCase.execute(makeMinimalRequest());
 
       expect(result.value.agentId).toBeNull();
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-180] upstream link', () => {
+    function makeUpstream(
+      status = DeviceStatus.createActive()
+    ): Device {
+      return Device.create({
+        deviceModelId: DeviceModelId.create(),
+        name: DeviceName.create('AP Torre Norte').value,
+        status,
+        ownerType: null,
+        category: null,
+        locationId: LocationId.create(),
+        serialNumber: SerialNumber.create('SN-AP').value,
+        macAddress: null,
+        ipAddress: IPAddress.create('10.0.3.2').value,
+        description: null,
+        installedDate: null,
+        monitoringEnabled: false
+      }).value;
+    }
+
+    it('is a root when no upstream is given', async () => {
+      const result = await useCase.execute(makeMinimalRequest());
+
+      expect(result.value.upstreamDeviceId).toBeNull();
+      expect(repo.findById).not.toHaveBeenCalled();
+    });
+
+    it('creates the device hanging off the given upstream', async () => {
+      const ap = makeUpstream();
+      repo.findById.mockResolvedValue(Result.ok(ap));
+
+      const result = await useCase.execute(
+        makeMinimalRequest({ upstreamDeviceId: ap.id.toString() })
+      );
+
+      expect(result.value.upstreamDeviceId).toBe(ap.id.toString());
+    });
+
+    it('[DEV-183] refuses an upstream that is not on the network and saves nothing', async () => {
+      const ap = makeUpstream(DeviceStatus.createCommissioning());
+      ap.changeStatus(DeviceStatus.createInventory());
+      repo.findById.mockResolvedValue(Result.ok(ap));
+
+      const result = await useCase.execute(
+        makeMinimalRequest({ upstreamDeviceId: ap.id.toString() })
+      );
+
+      expect(result.error).toContain(
+        'must be ACTIVE or COMMISSIONING'
+      );
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('refuses an unknown upstream', async () => {
+      repo.findById.mockResolvedValue(Result.ok(null));
+
+      const result = await useCase.execute(
+        makeMinimalRequest({
+          upstreamDeviceId: '550e8400-e29b-41d4-a716-446655440099'
+        })
+      );
+
+      expect(result.error).toContain('Upstream device not found');
     });
   });
 });

@@ -81,4 +81,14 @@ export interface IDeviceRepository {
   existsByIpAddress(ipAddress: IPAddress): Promise<Result<boolean>>;
 
   findByFilters(filters: DeviceFilters): Promise<Result<Device[]>>;
+
+  // Topology (DEV-180). Every live device above this one, nearest first;
+  // empty for a root.
+  findUpstreamChain(id: DeviceId): Promise<Result<DeviceId[]>>;
+  // Re-points every live device directly below `from` at `to`, or detaches
+  // them when `to` is null (DEV-184, DEV-185). Returns how many moved.
+  moveDownstreamDevices(
+    from: DeviceId,
+    to: DeviceId | null
+  ): Promise<Result<number>>;
 }

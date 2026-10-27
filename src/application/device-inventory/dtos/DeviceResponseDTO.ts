@@ -20,4 +20,5 @@ export interface DeviceResponseDTO {
   replacedAt: string | null;
   replacesDeviceId: string | null;
   replacedByDeviceId: string | null;
+  upstreamDeviceId: string | null;
 }

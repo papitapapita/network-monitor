@@ -102,7 +102,6 @@ function makeConfig(
       linkCapacityKbps,
       clientsProvisionedLimit: null,
       provisionedLanSpeedMbps: null,
-      parentApDeviceId: null,
       parentApMismatchPolls: 0,
       lastPolledAt: null
     }

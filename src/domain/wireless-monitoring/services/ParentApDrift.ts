@@ -1,3 +1,4 @@
+import { DeviceId } from 'domain/shared/ids';
 import { WirelessDeviceConfig } from '../aggregates';
 import { AlertDecision } from './IWirelessAlertEvaluator';
 
@@ -13,14 +14,16 @@ export interface ParentApNames {
 
 // Kept out of IWirelessAlertEvaluator: it compares against the declared
 // topology, not against metric thresholds.
+// `declared` is the device's upstream in Device Inventory (DEV-180).
 export function evaluateParentApDrift(
   config: WirelessDeviceConfig,
+  declared: DeviceId | null,
   alertActive: boolean,
   deviceName: string,
   apNames: ParentApNames | null
 ): AlertDecision | null {
   const mismatchPersists =
-    config.parentApDeviceId !== null &&
+    declared !== null &&
     config.parentApMismatchPolls >= PARENT_AP_MISMATCH_POLLS;
 
   if (!alertActive && mismatchPersists && apNames) {
@@ -35,8 +38,7 @@ export function evaluateParentApDrift(
   }
 
   const resolved =
-    config.parentApDeviceId === null ||
-    config.parentApMismatchPolls === 0;
+    declared === null || config.parentApMismatchPolls === 0;
   if (alertActive && resolved) {
     return {
       metric: PARENT_AP_MISMATCH_METRIC,

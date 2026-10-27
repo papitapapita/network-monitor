@@ -6,5 +6,4 @@ export interface CreateWirelessConfigRequestDTO {
   linkCapacityKbps?: number | null;
   clientsProvisionedLimit?: number | null;
   provisionedLanSpeedMbps?: number | null;
-  parentApDeviceId?: string | null;
 }

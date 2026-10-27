@@ -19,6 +19,7 @@ import {
   seedDeviceModel,
   seedWirelessDeviceModel,
   seedLocation,
+  seedNetworkDevice,
   waitForPollingConfig,
   GHOST_ID
 } from '../../helpers/db';
@@ -546,6 +547,110 @@ describe('UpdateDeviceUseCase — integration', () => {
       expect(result.error).toContain('is revoked');
       const row = await prisma.device.findUnique({ where: { id } });
       expect(row!.agentId).toBeNull();
+    });
+  });
+
+  describe('[DEV-180] upstream link', () => {
+    const upstreamOf = async (id: string) =>
+      (await prisma.device.findUnique({ where: { id } }))!
+        .upstreamDeviceId;
+
+    it('links the device to an upstream on the network', async () => {
+      const ap = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'AP Torre Norte',
+        ipAddress: '10.0.3.2'
+      });
+      const id = await createDevice();
+
+      const result = await updateUseCase.execute({
+        id,
+        upstreamDeviceId: ap
+      });
+
+      expect(result.value.upstreamDeviceId).toBe(ap);
+      expect(await upstreamOf(id)).toBe(ap);
+    });
+
+    it('clears the link with null', async () => {
+      const ap = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'AP Torre Norte',
+        ipAddress: '10.0.3.2'
+      });
+      const id = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'CPE',
+        ipAddress: '10.0.3.21',
+        upstreamDeviceId: ap
+      });
+
+      const result = await updateUseCase.execute({
+        id,
+        upstreamDeviceId: null
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(await upstreamOf(id)).toBeNull();
+    });
+
+    it('[DEV-182] refuses a link that would close a loop further up the chain', async () => {
+      const router = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'Router',
+        ipAddress: '10.0.0.1'
+      });
+      const sw = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'Switch',
+        ipAddress: '10.0.1.1',
+        upstreamDeviceId: router
+      });
+      const ap = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'AP',
+        ipAddress: '10.0.3.2',
+        upstreamDeviceId: sw
+      });
+
+      const result = await updateUseCase.execute({
+        id: router,
+        upstreamDeviceId: ap
+      });
+
+      expect(result.error).toContain('loop');
+      expect(await upstreamOf(router)).toBeNull();
+    });
+
+    it('[DEV-183] refuses an upstream that is not on the network', async () => {
+      const shelved = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'AP en bodega',
+        ipAddress: '10.0.3.3',
+        status: 'DAMAGED'
+      });
+      const id = await createDevice();
+
+      const result = await updateUseCase.execute({
+        id,
+        upstreamDeviceId: shelved
+      });
+
+      expect(result.error).toContain(
+        'must be ACTIVE or COMMISSIONING'
+      );
+    });
+
+    it('[DEV-183] refuses a deleted upstream as not found', async () => {
+      const ap = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'AP',
+        ipAddress: '10.0.3.2'
+      });
+      await prisma.device.update({
+        where: { id: ap },
+        data: { deletedAt: new Date() }
+      });
+      const id = await createDevice();
+
+      const result = await updateUseCase.execute({
+        id,
+        upstreamDeviceId: ap
+      });
+
+      expect(result.error).toContain('Upstream device not found');
     });
   });
 });

@@ -87,7 +87,9 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
     findByAgent: jest.fn(),
     findByFilters: jest.fn(),
     findByIdIncludingDeleted: jest.fn(),
-    findDeletedBefore: jest.fn()
+    findDeletedBefore: jest.fn(),
+    findUpstreamChain: jest.fn(),
+    moveDownstreamDevices: jest.fn()
   };
 }
 

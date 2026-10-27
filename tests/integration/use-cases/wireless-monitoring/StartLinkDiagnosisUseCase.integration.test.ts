@@ -111,7 +111,7 @@ describe('StartLinkDiagnosisUseCase — integration', () => {
         deviceType: 'ACCESS_POINT'
       });
       const deviceId = await seed('192.168.80.12', {
-        parentApDeviceId: apId
+        upstreamDeviceId: apId
       });
 
       const result = await stack.start.execute({ deviceId });

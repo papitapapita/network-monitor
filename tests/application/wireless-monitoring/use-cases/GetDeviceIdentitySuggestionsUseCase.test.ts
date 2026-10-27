@@ -63,14 +63,12 @@ function makeConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
     exists: jest.fn(),
     findByDeviceId: jest.fn().mockResolvedValue(Result.ok(null)),
     findAllDue: jest.fn(),
-    findByParentApDeviceId: jest.fn(),
+    findStationsBelow: jest.fn(),
     findAll: jest.fn()
   };
 }
 
-function makeStationConfig(
-  parentApUuid: string | null
-): WirelessDeviceConfig {
+function makeStationConfig(): WirelessDeviceConfig {
   return WirelessDeviceConfig.reconstitute(
     WirelessDeviceConfigId.create(),
     {
@@ -82,9 +80,6 @@ function makeStationConfig(
       linkCapacityKbps: null,
       clientsProvisionedLimit: null,
       provisionedLanSpeedMbps: null,
-      parentApDeviceId: parentApUuid
-        ? DeviceId.parse(parentApUuid).value
-        : null,
       parentApMismatchPolls: 0,
       lastPolledAt: null
     }
@@ -96,7 +91,9 @@ function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
     findIdByMacAddress: jest.fn(),
     findIdByIpAddress: jest.fn().mockResolvedValue(Result.ok(null)),
     findBasicInfoById: jest.fn(),
-    findWirelessIneligibilityReason: jest.fn()
+    findWirelessIneligibilityReason: jest.fn(),
+    findUpstreamId: jest.fn().mockResolvedValue(Result.ok(null)),
+    declareUpstreamIfUnset: jest.fn()
   };
 }
 
@@ -469,12 +466,15 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
     function parentApSuggestion(
       suggestions: { field: string }[]
     ): unknown {
-      return suggestions.find((s) => s.field === 'parentApDeviceId');
+      return suggestions.find((s) => s.field === 'upstreamDeviceId');
     }
 
     it('should suggest the reported AP when it differs from the declared one', async () => {
+      deviceRepo.findUpstreamId.mockResolvedValue(
+        Result.ok(DeviceId.parse(AP_UUID).value)
+      );
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeStationConfig(AP_UUID))
+        Result.ok(makeStationConfig())
       );
       snapshotRepo.findLatestByDevice.mockResolvedValue(
         Result.ok(makeSnapshot({}, OTHER_AP_UUID))
@@ -483,7 +483,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
       const result = await useCase.execute({ deviceId: DEVICE_UUID });
 
       expect(parentApSuggestion(result.value.suggestions)).toEqual({
-        field: 'parentApDeviceId',
+        field: 'upstreamDeviceId',
         currentValue: AP_UUID,
         suggestedValue: OTHER_AP_UUID,
         currentLabel: 'AP Torre Norte',
@@ -492,8 +492,11 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
     });
 
     it('should not suggest when the reported AP is the declared one', async () => {
+      deviceRepo.findUpstreamId.mockResolvedValue(
+        Result.ok(DeviceId.parse(AP_UUID).value)
+      );
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeStationConfig(AP_UUID))
+        Result.ok(makeStationConfig())
       );
       snapshotRepo.findLatestByDevice.mockResolvedValue(
         Result.ok(makeSnapshot({}, AP_UUID))
@@ -508,7 +511,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
 
     it('should suggest an AP found only by its reported IP', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeStationConfig(null))
+        Result.ok(makeStationConfig())
       );
       snapshotRepo.findLatestByDevice.mockResolvedValue(
         Result.ok(makeSnapshot({ remoteApIp: '10.0.0.2' }))
@@ -523,7 +526,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
         '10.0.0.2'
       );
       expect(parentApSuggestion(result.value.suggestions)).toEqual({
-        field: 'parentApDeviceId',
+        field: 'upstreamDeviceId',
         currentValue: null,
         suggestedValue: AP_UUID,
         currentLabel: null,
@@ -533,7 +536,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
 
     it('should prefer the MAC match over the IP match', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeStationConfig(null))
+        Result.ok(makeStationConfig())
       );
       snapshotRepo.findLatestByDevice.mockResolvedValue(
         Result.ok(makeSnapshot({ remoteApIp: '10.0.0.2' }, AP_UUID))
@@ -551,7 +554,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
 
     it('should not suggest when no inventory device matches the reported AP', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeStationConfig(null))
+        Result.ok(makeStationConfig())
       );
       snapshotRepo.findLatestByDevice.mockResolvedValue(
         Result.ok(makeSnapshot({ remoteApIp: '10.0.0.2' }))
@@ -566,7 +569,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
 
     it('should not suggest the device itself as its own AP', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeStationConfig(null))
+        Result.ok(makeStationConfig())
       );
       snapshotRepo.findLatestByDevice.mockResolvedValue(
         Result.ok(makeSnapshot({ remoteApIp: '10.0.0.2' }))
@@ -584,7 +587,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
 
     it('should not suggest an AP that no longer exists in inventory', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeStationConfig(null))
+        Result.ok(makeStationConfig())
       );
       snapshotRepo.findLatestByDevice.mockResolvedValue(
         Result.ok(
@@ -614,7 +617,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
 
     it('should skip the AP suggestion, not fail, when the IP lookup errors', async () => {
       configRepo.findByDeviceId.mockResolvedValue(
-        Result.ok(makeStationConfig(null))
+        Result.ok(makeStationConfig())
       );
       snapshotRepo.findLatestByDevice.mockResolvedValue(
         Result.ok(makeSnapshot({ remoteApIp: '10.0.0.2' }))

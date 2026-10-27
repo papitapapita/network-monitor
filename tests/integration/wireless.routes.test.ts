@@ -365,7 +365,8 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
           status: 'ACTIVE',
           monitoringEnabled: true,
           macAddress: 'AA:BB:CC:DD:EE:01',
-          deviceModelId
+          deviceModelId,
+          upstreamDeviceId: apDeviceId
         }
       });
       await prisma.wirelessPollingConfiguration.create({
@@ -373,8 +374,7 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
           deviceId: cpeDevice.id,
           enabled: true,
           intervalSecs: 3600,
-          deviceType: 'STATION',
-          parentApDeviceId: apDeviceId
+          deviceType: 'STATION'
         }
       });
 

@@ -14,6 +14,7 @@ import {
   seedServicePlan,
   seedActiveContractedService,
   seedTicket,
+  seedNetworkDevice,
   seedAgent,
   cleanAgents,
   GHOST_ID,
@@ -429,6 +430,110 @@ describe('Device Routes — /api/devices', () => {
   // ─────────────────────────────────────────────────────────────
   // PATCH /api/devices/:id
   // ─────────────────────────────────────────────────────────────
+
+  describe('[DEV-180] upstreamDeviceId', () => {
+    async function createDevice(
+      extra: Record<string, unknown> = {}
+    ): Promise<request.Response> {
+      return request(app)
+        .post('/api/devices')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          deviceModelId,
+          name: 'CPE Juan',
+          ownerType: 'CLIENT',
+          serialNumber: `SN-${Math.random()}`,
+          ...extra
+        });
+    }
+
+    it('201 — creates a device hanging off an upstream', async () => {
+      const ap = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'AP Torre Norte',
+        ipAddress: '10.0.3.2'
+      });
+
+      const res = await createDevice({ upstreamDeviceId: ap });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.upstreamDeviceId).toBe(ap);
+    });
+
+    it('200 — links and unlinks through PATCH', async () => {
+      const ap = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'AP Torre Norte',
+        ipAddress: '10.0.3.2'
+      });
+      const id = (await createDevice()).body.data.id as string;
+
+      const linked = await request(app)
+        .patch(`/api/devices/${id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ upstreamDeviceId: ap });
+      const unlinked = await request(app)
+        .patch(`/api/devices/${id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ upstreamDeviceId: null });
+
+      expect(linked.status).toBe(200);
+      expect(linked.body.data.upstreamDeviceId).toBe(ap);
+      expect(unlinked.status).toBe(200);
+      expect(unlinked.body.data.upstreamDeviceId).toBeNull();
+    });
+
+    it('400 — a malformed upstreamDeviceId', async () => {
+      const id = (await createDevice()).body.data.id as string;
+
+      const res = await request(app)
+        .patch(`/api/devices/${id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ upstreamDeviceId: 'nope' });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('[DEV-181] 400 — the device as its own upstream', async () => {
+      const id = (await createDevice()).body.data.id as string;
+
+      const res = await request(app)
+        .patch(`/api/devices/${id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ upstreamDeviceId: id });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('[DEV-182] 400 — a link that would close a loop', async () => {
+      const ap = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'AP',
+        ipAddress: '10.0.3.2'
+      });
+      const cpe = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'CPE',
+        ipAddress: '10.0.3.21',
+        upstreamDeviceId: ap
+      });
+
+      const res = await request(app)
+        .patch(`/api/devices/${ap}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ upstreamDeviceId: cpe });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain('loop');
+    });
+
+    it('404 — an unknown upstream', async () => {
+      const id = (await createDevice()).body.data.id as string;
+
+      const res = await request(app)
+        .patch(`/api/devices/${id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ upstreamDeviceId: GHOST_ID });
+
+      expect(res.status).toBe(404);
+    });
+  });
 
   describe('PATCH /api/devices/:id', () => {
     it('200 — updates name and status', async () => {

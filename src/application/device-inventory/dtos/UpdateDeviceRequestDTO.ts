@@ -13,6 +13,8 @@ export interface UpdateDeviceRequestDTO {
   locationId?: string | null;
   // null moves the device back to in-process polling.
   agentId?: string | null;
+  // null makes the device a root of the topology.
+  upstreamDeviceId?: string | null;
   serialNumber?: string | null;
   macAddress?: string | null;
   ipAddress?: string | null;

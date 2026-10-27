@@ -5,6 +5,7 @@ import { PrismaWirelessDeviceConfigRepository } from 'infrastructure/wireless-mo
 import { WirelessDeviceRepositoryAdapter } from 'infrastructure/wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
+import { UpstreamAssignment } from 'application/device-inventory/services';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import {
   cleanDatabase,
@@ -65,11 +66,17 @@ async function seedSnapshot(
 async function seedStationConfig(
   prisma: PrismaClient,
   deviceId: string,
-  parentApDeviceId: string | null
+  upstreamDeviceId: string | null
 ): Promise<void> {
   await prisma.wirelessPollingConfiguration.create({
-    data: { deviceId, deviceType: 'STATION', parentApDeviceId }
+    data: { deviceId, deviceType: 'STATION' }
   });
+  if (upstreamDeviceId) {
+    await prisma.device.update({
+      where: { id: deviceId },
+      data: { upstreamDeviceId: upstreamDeviceId }
+    });
+  }
 }
 
 describe('GetDeviceIdentitySuggestionsUseCase — integration', () => {
@@ -82,7 +89,8 @@ describe('GetDeviceIdentitySuggestionsUseCase — integration', () => {
     deviceModelId = await seedWirelessDeviceModel(prisma);
     const deviceRepo = new WirelessDeviceRepositoryAdapter(
       new PrismaDeviceRepository(prisma),
-      new DeviceEligibilityService()
+      new DeviceEligibilityService(),
+      new UpstreamAssignment(new PrismaDeviceRepository(prisma))
     );
     useCase = new GetDeviceIdentitySuggestionsUseCase(
       new PrismaWirelessSnapshotRepository(prisma),
@@ -237,7 +245,7 @@ describe('GetDeviceIdentitySuggestionsUseCase — integration', () => {
 
       expect(result.value.suggestions).toEqual([
         {
-          field: 'parentApDeviceId',
+          field: 'upstreamDeviceId',
           currentValue: declaredAp,
           suggestedValue: reportedAp,
           currentLabel: 'AP Torre Norte',
@@ -265,7 +273,7 @@ describe('GetDeviceIdentitySuggestionsUseCase — integration', () => {
 
       expect(result.value.suggestions).toEqual([
         {
-          field: 'parentApDeviceId',
+          field: 'upstreamDeviceId',
           currentValue: null,
           suggestedValue: ap,
           currentLabel: null,

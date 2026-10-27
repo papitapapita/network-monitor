@@ -63,7 +63,9 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     findByAgent: jest.fn(),
     findByFilters: jest.fn(),
     findByIdIncludingDeleted: jest.fn(),
-    findDeletedBefore: jest.fn()
+    findDeletedBefore: jest.fn(),
+    findUpstreamChain: jest.fn().mockResolvedValue(Result.ok([])),
+    moveDownstreamDevices: jest.fn().mockResolvedValue(Result.ok(0))
   };
 }
 
@@ -399,6 +401,46 @@ describe('DeleteDeviceUseCase', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(result.value).toBeUndefined();
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-184] devices below become roots', () => {
+    it('should detach the devices directly below the deleted one', async () => {
+      await useCase.execute(makeRequest());
+
+      expect(repo.moveDownstreamDevices).toHaveBeenCalledTimes(1);
+      const [from, to] = repo.moveDownstreamDevices.mock.calls[0];
+      expect(from.toString()).toBe(VALID_DEVICE_ID);
+      expect(to).toBeNull();
+    });
+
+    it('should detach only after the tombstone is saved', async () => {
+      await useCase.execute(makeRequest());
+
+      expect(repo.save.mock.invocationCallOrder[0]).toBeLessThan(
+        repo.moveDownstreamDevices.mock.invocationCallOrder[0]
+      );
+    });
+
+    it('should not detach anything when the delete is refused', async () => {
+      ticketRepo.countAll.mockResolvedValue(Result.ok(1));
+
+      await useCase.execute(makeRequest());
+
+      expect(repo.moveDownstreamDevices).not.toHaveBeenCalled();
+    });
+
+    it('should report a failed detach', async () => {
+      repo.moveDownstreamDevices.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.error).toContain(
+        'the devices below it could not be detached'
+      );
     });
   });
 });

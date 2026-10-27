@@ -156,7 +156,17 @@ export class GetDeviceIdentitySuggestionsUseCase extends UseCase<
     const reported = reportedResult.value;
     if (!reported || reported.equals(config.deviceId)) return null;
 
-    const declared = config.parentApDeviceId;
+    const declaredResult = await this.deviceRepo.findUpstreamId(
+      config.deviceId
+    );
+    if (declaredResult.isFailure) {
+      this.logger.warn('Declared AP unavailable', {
+        deviceId: config.deviceId.toString(),
+        error: declaredResult.error
+      });
+      return null;
+    }
+    const declared = declaredResult.value;
     if (declared?.equals(reported)) return null;
 
     const reportedInfo =
@@ -173,7 +183,7 @@ export class GetDeviceIdentitySuggestionsUseCase extends UseCase<
     }
 
     return {
-      field: 'parentApDeviceId',
+      field: 'upstreamDeviceId',
       currentValue: declared?.toString() ?? null,
       suggestedValue: reported.toString(),
       currentLabel,

@@ -71,7 +71,9 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     findByAgent: jest.fn(),
     findByFilters: jest.fn(),
     findByIdIncludingDeleted: jest.fn(),
-    findDeletedBefore: jest.fn()
+    findDeletedBefore: jest.fn(),
+    findUpstreamChain: jest.fn().mockResolvedValue(Result.ok([])),
+    moveDownstreamDevices: jest.fn().mockResolvedValue(Result.ok(0))
   };
 }
 
@@ -117,7 +119,7 @@ function makeWirelessRepo(): jest.Mocked<IWirelessDeviceConfigRepository> {
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
     findAllDue: jest.fn(),
-    findByParentApDeviceId: jest.fn(),
+    findStationsBelow: jest.fn(),
     findAll: jest.fn()
   };
 }
@@ -644,6 +646,46 @@ describe('ReplaceDeviceUseCase', () => {
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Write conflict');
       expect(repo.save).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-185] executeImpl — topology handover', () => {
+    it("should hang the replacement off the retired unit's upstream", async () => {
+      const upstream = DeviceId.create();
+      const old = makeOldDevice();
+      old.setUpstream(upstream);
+      repo.findById.mockResolvedValue(Result.ok(old));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.value.newDevice.upstreamDeviceId).toBe(
+        upstream.toString()
+      );
+      expect(result.value.retiredDevice.upstreamDeviceId).toBeNull();
+    });
+
+    it('should move the devices below the retired unit onto the replacement', async () => {
+      repo.moveDownstreamDevices.mockResolvedValue(Result.ok(7));
+
+      const result = await useCase.execute(makeRequest());
+
+      const [from, to] = repo.moveDownstreamDevices.mock.calls[0];
+      expect(from.toString()).toBe(OLD_DEVICE_ID);
+      expect(to?.toString()).toBe(result.value.newDevice.id);
+      expect(result.value.downstreamDevicesMoved).toBe(7);
+    });
+
+    it('should fail loudly when the devices below cannot be moved', async () => {
+      repo.moveDownstreamDevices.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.error).toContain(
+        'the devices below the old unit could not be moved'
+      );
     });
   });
 });

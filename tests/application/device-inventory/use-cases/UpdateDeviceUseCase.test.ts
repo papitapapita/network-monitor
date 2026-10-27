@@ -104,7 +104,9 @@ function makeRepo(): jest.Mocked<IDeviceRepository> {
     findByAgent: jest.fn(),
     findByFilters: jest.fn(),
     findByIdIncludingDeleted: jest.fn(),
-    findDeletedBefore: jest.fn()
+    findDeletedBefore: jest.fn(),
+    findUpstreamChain: jest.fn().mockResolvedValue(Result.ok([])),
+    moveDownstreamDevices: jest.fn().mockResolvedValue(Result.ok(0))
   };
 }
 
@@ -116,7 +118,7 @@ function makeWirelessConfigRepo(): jest.Mocked<IWirelessDeviceConfigRepository> 
     exists: jest.fn(),
     findByDeviceId: jest.fn(),
     findAllDue: jest.fn(),
-    findByParentApDeviceId: jest.fn(),
+    findStationsBelow: jest.fn(),
     findAll: jest.fn()
   };
 }
@@ -193,7 +195,6 @@ function makeWirelessConfig(): WirelessDeviceConfig {
       linkCapacityKbps: null,
       clientsProvisionedLimit: null,
       provisionedLanSpeedMbps: null,
-      parentApDeviceId: null,
       parentApMismatchPolls: 0,
       lastPolledAt: null
     }
@@ -1280,6 +1281,135 @@ describe('UpdateDeviceUseCase', () => {
       );
 
       expect(result.value.agentId).toBe(agentId);
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-180] upstream link', () => {
+    const UPSTREAM_ID = '550e8400-e29b-41d4-a716-446655440010';
+
+    function makeUpstream(
+      status: string = DeviceStatus.ACTIVE
+    ): Device {
+      return Device.reconstitute(DeviceId.parse(UPSTREAM_ID).value, {
+        deviceModelId: DeviceModelId.parse(VALID_DEVICE_MODEL).value,
+        locationId: LocationId.parse(VALID_LOCATION_ID).value,
+        status: DeviceStatus.reconstitute(status),
+        category: null,
+        ownerType: DeviceOwnerType.COMPANY,
+        name: DeviceName.reconstitute('AP Torre Norte'),
+        serialNumber: SerialNumber.create('SN-AP').value,
+        macAddress: null,
+        ipAddress: IPAddress.create('10.0.3.2').value,
+        description: null,
+        installedDate: null,
+        createdAt: NOW,
+        updatedAt: NOW,
+        monitoringEnabled: true
+      });
+    }
+
+    function withDevices(
+      device: Device,
+      upstream: Device | null
+    ): void {
+      repo.findById.mockImplementation(async (id) =>
+        Result.ok(
+          id.toString() === VALID_DEVICE_ID
+            ? device
+            : id.toString() === UPSTREAM_ID
+              ? upstream
+              : null
+        )
+      );
+    }
+
+    it('links the device to an upstream on the network', async () => {
+      withDevices(makePersistedDevice(), makeUpstream());
+
+      const result = await useCase.execute(
+        makeRequest({ upstreamDeviceId: UPSTREAM_ID })
+      );
+
+      expect(result.value.upstreamDeviceId).toBe(UPSTREAM_ID);
+      expect(repo.save).toHaveBeenCalled();
+    });
+
+    it('clears the link with null', async () => {
+      const device = makePersistedDevice();
+      device.setUpstream(DeviceId.parse(UPSTREAM_ID).value);
+      withDevices(device, makeUpstream());
+
+      const result = await useCase.execute(
+        makeRequest({ upstreamDeviceId: null })
+      );
+
+      expect(result.value.upstreamDeviceId).toBeNull();
+    });
+
+    it('refuses an unknown upstream with a not-found error', async () => {
+      withDevices(makePersistedDevice(), null);
+
+      const result = await useCase.execute(
+        makeRequest({ upstreamDeviceId: UPSTREAM_ID })
+      );
+
+      expect(result.error).toContain('Upstream device not found');
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('[DEV-181] refuses the device itself', async () => {
+      const result = await useCase.execute(
+        makeRequest({ upstreamDeviceId: VALID_DEVICE_ID })
+      );
+
+      expect(result.error).toContain('its own upstream');
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('[DEV-182] refuses a link that would close a loop', async () => {
+      withDevices(makePersistedDevice(), makeUpstream());
+      repo.findUpstreamChain.mockResolvedValue(
+        Result.ok([DeviceId.parse(VALID_DEVICE_ID).value])
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ upstreamDeviceId: UPSTREAM_ID })
+      );
+
+      expect(result.error).toContain('loop');
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('[DEV-183] refuses an upstream that is not on the network', async () => {
+      withDevices(
+        makePersistedDevice(),
+        makeUpstream(DeviceStatus.DAMAGED)
+      );
+
+      const result = await useCase.execute(
+        makeRequest({ upstreamDeviceId: UPSTREAM_ID })
+      );
+
+      expect(result.error).toContain(
+        'must be ACTIVE or COMMISSIONING'
+      );
+    });
+
+    it('accepts the unchanged upstream even after it left the network', async () => {
+      const device = makePersistedDevice();
+      device.setUpstream(DeviceId.parse(UPSTREAM_ID).value);
+      withDevices(device, makeUpstream(DeviceStatus.DAMAGED));
+
+      const result = await useCase.execute(
+        makeRequest({
+          upstreamDeviceId: UPSTREAM_ID,
+          name: 'Renamed'
+        })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(repo.findUpstreamChain).not.toHaveBeenCalled();
     });
   });
 });
