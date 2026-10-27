@@ -14,7 +14,7 @@ const SHELL_SAFE = /^[A-Za-z0-9 ._-]{1,32}$/;
 // AirOS has no documented HTTP call for changing one setting, so the name is
 // changed over SSH the way its own shell does (WLS-224): the running
 // configuration in /tmp/system.cfg is edited, cfgmtd saves it to flash, and
-// `hostname` applies it now. Nothing restarts, so the link stays up.
+// writing the kernel hostname applies it now. Nothing restarts, so the link stays up.
 export class AirOsHostnameWriter implements IRadioHostnameWriter {
   constructor(private readonly ssh: SshCommandClient) {}
 
@@ -32,10 +32,12 @@ export class AirOsHostnameWriter implements IRadioHostnameWriter {
     const command = [
       `sed -i 's/^resolv\\.host\\.1\\.name=.*/${line}/' /tmp/system.cfg`,
       // The line is missing on a radio whose name was never set; sed then
-      // changes nothing, and nothing must be saved.
-      `grep -qxF '${line}' /tmp/system.cfg`,
+      // changes nothing, and nothing must be saved. Compared in the shell
+      // because old BusyBox grep (AirOS 6) has no -x.
+      `[ "$(grep '^resolv\\.host\\.1\\.name=' /tmp/system.cfg)" = '${line}' ]`,
       'cfgmtd -w -p /etc/ >/dev/null 2>&1',
-      `hostname '${hostname}'`,
+      // AirOS 6 ships no hostname applet; the kernel file works everywhere.
+      `echo '${hostname}' > /proc/sys/kernel/hostname`,
       `echo ${DONE}`
     ].join(' && ');
 

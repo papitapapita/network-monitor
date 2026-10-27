@@ -2895,7 +2895,8 @@ next poll.
 The name is changed over SSH, on the device's `sshPort`, with its HTTP login.
 `resolv.host.1.name` is edited in the running configuration
 (`/tmp/system.cfg`), the configuration is saved to flash with `cfgmtd`, and the
-name is applied with `hostname`. Nothing restarts. If the radio has no
+name is applied by writing it to `/proc/sys/kernel/hostname` (AirOS 6 has no
+`hostname` command, and its BusyBox `grep` has no `-x`). Nothing restarts. If the radio has no
 `resolv.host.1.name` line, nothing is saved. The change counts only if the
 radio confirms it, and otherwise the request fails with what the radio printed.
 Each rename is logged with the user, the device and the new name.

@@ -41,9 +41,9 @@ describe('[WLS-224] AirOsHostnameWriter', () => {
     ]);
     expect(command).toBe(
       "sed -i 's/^resolv\\.host\\.1\\.name=.*/resolv.host.1.name=AP Norte 2/' /tmp/system.cfg" +
-        " && grep -qxF 'resolv.host.1.name=AP Norte 2' /tmp/system.cfg" +
+        " && [ \"$(grep '^resolv\\.host\\.1\\.name=' /tmp/system.cfg)\" = 'resolv.host.1.name=AP Norte 2' ]" +
         ' && cfgmtd -w -p /etc/ >/dev/null 2>&1' +
-        " && hostname 'AP Norte 2'" +
+        " && echo 'AP Norte 2' > /proc/sys/kernel/hostname" +
         ' && echo NMS-RENAMED'
     );
   });
