@@ -31,7 +31,9 @@ export const DEFAULT_CLOUDFLARE_SPEED_TEST_OPTIONS: CloudflareSpeedTesterOptions
     uploadSeconds: 10,
     connections: 4,
     warmUpMs: 2_000,
-    downloadRequestBytes: 25_000_000,
+    // Cloudflare answers 429 for an hour to an address that asks for 10 MB
+    // or more at a time too often; smaller requests are not limited.
+    downloadRequestBytes: 8_000_000,
     uploadRequestBytes: 10_000_000,
     progressIntervalMs: 1_000,
     latencyTimeoutMs: 5_000
@@ -160,7 +162,7 @@ export class CloudflareSpeedTester implements IInternetSpeedTester {
     const elapsed = performance.now() - startedAt;
     await response.arrayBuffer();
     if (!response.ok) {
-      throw new Error(`the server answered ${response.status}`);
+      throw refusal(response);
     }
     return {
       latencyMs: Math.max(
@@ -180,7 +182,7 @@ export class CloudflareSpeedTester implements IInternetSpeedTester {
       { signal, cache: 'no-store' }
     );
     if (!response.ok || !response.body) {
-      throw new Error(`the server answered ${response.status}`);
+      throw refusal(response);
     }
     for await (const chunk of response.body) {
       count(chunk.byteLength);
@@ -219,7 +221,7 @@ export class CloudflareSpeedTester implements IInternetSpeedTester {
     } as RequestInit);
     await response.arrayBuffer();
     if (!response.ok) {
-      throw new Error(`the server answered ${response.status}`);
+      throw refusal(response);
     }
   }
 
@@ -306,6 +308,20 @@ const PHASE_NAMES: Record<SpeedTestPhase, string> = {
   DOWNLOAD: 'Download',
   UPLOAD: 'Upload'
 };
+
+function refusal(response: Response): Error {
+  if (response.status !== 429) {
+    return new Error(`the server answered ${response.status}`);
+  }
+  const seconds = Number(response.headers.get('retry-after'));
+  const wait =
+    Number.isFinite(seconds) && seconds > 0
+      ? `try again in ${Math.ceil(seconds / 60)} min`
+      : 'try again later';
+  return new Error(
+    `Cloudflare is limiting tests from this connection, ${wait}`
+  );
+}
 
 function mbps(bytes: number, ms: number): number {
   return ms <= 0 ? 0 : (bytes * 8) / (ms / 1000) / 1_000_000;

@@ -816,6 +816,10 @@ the next. Download, then upload: 4 connections transfer back to back for 10
 seconds each, and the speed is the data moved after the first 2 seconds,
 over the time after them. While running, the speed over the last second is
 reported every second. A whole test takes about 25 seconds.
+Each download request asks for 8 MB: Cloudflare blocks an address for about
+an hour, with `429`, once it asks for 10 MB or more at a time too often.
+A `429` is reported as `"Cloudflare is limiting tests from this connection,
+try again in N min"`, the wait taken from its `Retry-After`.
 
 **Why:** The first requests pay for setting up the encrypted connection and
 would overstate latency; the median ignores a stray slow sample. One TCP

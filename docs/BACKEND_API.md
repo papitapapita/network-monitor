@@ -2554,7 +2554,7 @@ interface SpeedTestResultDTO {
   latencyMs: number | null; // median of the samples
   jitterMs: number | null;
   serverLocation: string | null; // Cloudflare data center code, e.g. "BOG", "MIA"
-  error: string | null; // FAILED only, e.g. "Upload failed: the server answered 503"
+  error: string | null; // FAILED only, e.g. "Upload failed: the server answered 503" or "Download failed: Cloudflare is limiting tests from this connection, try again in 59 min"
   startedByEmail: string;
   startedAt: string;
   finishedAt: string;

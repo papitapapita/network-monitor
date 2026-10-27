@@ -18,10 +18,12 @@ interface FakeServerBehaviour {
 function startFakeCloudflare(behaviour: FakeServerBehaviour) {
   const sockets = new Set<import('net').Socket>();
   let uploaded = 0;
+  const downloads: number[] = [];
   const server = http.createServer((req, res) => {
     const url = new URL(req.url!, 'http://localhost');
     if (url.pathname === '/__down') {
       const bytes = Number(url.searchParams.get('bytes'));
+      downloads.push(bytes);
       const status =
         bytes === 0 ? behaviour.emptyStatus : behaviour.downStatus;
       res.writeHead(status, {
@@ -60,7 +62,8 @@ function startFakeCloudflare(behaviour: FakeServerBehaviour) {
         sockets.forEach((socket) => socket.destroy());
         server.close(() => resolve());
       }),
-    uploaded: () => uploaded
+    uploaded: () => uploaded,
+    downloads: () => downloads
   };
 }
 
@@ -216,7 +219,7 @@ describe('CloudflareSpeedTester', () => {
   });
 
   it('reports a download the server refuses', async () => {
-    behaviour.downStatus = 429;
+    behaviour.downStatus = 500;
 
     const measurement = await tester().measure(
       () => undefined,
@@ -225,8 +228,48 @@ describe('CloudflareSpeedTester', () => {
 
     expect(measurement.downloadMbps).toBeNull();
     expect(measurement.error).toBe(
-      'Download failed: the server answered 429'
+      'Download failed: the server answered 500'
     );
+  });
+
+  it('says when Cloudflare will allow another test', async () => {
+    behaviour.downStatus = 429;
+    behaviour.headers = { 'retry-after': '3485' };
+
+    const measurement = await tester().measure(
+      () => undefined,
+      new AbortController().signal
+    );
+
+    expect(measurement.error).toBe(
+      'Download failed: Cloudflare is limiting tests from this connection, try again in 59 min'
+    );
+  });
+
+  it('says to try later when Cloudflare gives no wait', async () => {
+    behaviour.downStatus = 429;
+
+    const measurement = await tester().measure(
+      () => undefined,
+      new AbortController().signal
+    );
+
+    expect(measurement.error).toBe(
+      'Download failed: Cloudflare is limiting tests from this connection, try again later'
+    );
+  });
+
+  it('asks for less than 10 MB per download request by default', async () => {
+    const { downloadRequestBytes, ...withDefaultSize } = FAST;
+
+    await new CloudflareSpeedTester({
+      ...withDefaultSize,
+      baseUrl
+    }).measure(() => undefined, new AbortController().signal);
+
+    const sizes = fake.downloads().filter((bytes) => bytes > 0);
+    expect(sizes.length).toBeGreaterThan(0);
+    expect(sizes.every((bytes) => bytes < 10_000_000)).toBe(true);
   });
 
   it('reports a server it cannot reach', async () => {
