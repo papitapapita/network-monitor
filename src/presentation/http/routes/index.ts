@@ -23,6 +23,7 @@ import { createAlertThresholdRoutes } from './alert-threshold.routes';
 import { createWirelessStreamRoutes } from './wireless-stream.routes';
 import { createWirelessDiagnosisRoutes } from './wireless-diagnosis.routes';
 import { createNetworkSweepRoutes } from './network-sweep.routes';
+import { createPingToolRoutes } from './ping-tool.routes';
 import {
   createSpeedTestRoutes,
   createSpeedTestStreamRoutes
@@ -131,6 +132,15 @@ export function setupRoutes(
     '/',
     createNetworkSweepRoutes(
       container.networkSweepController,
+      container.tokenService,
+      container.sessionValidator,
+      container.getLogger()
+    )
+  );
+  apiRouter.use(
+    '/',
+    createPingToolRoutes(
+      container.pingToolController,
       container.tokenService,
       container.sessionValidator,
       container.getLogger()

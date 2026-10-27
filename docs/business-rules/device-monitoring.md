@@ -16,6 +16,7 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 | `MON-060` – `MON-079` | Live router traffic                  |
 | `MON-080` – `MON-099` | Network sweep                        |
 | `MON-100` – `MON-119` | Internet speed test                  |
+| `MON-120` – `MON-139` | Ping tool                            |
 
 This file covers the reachability lifecycle only. The rules that decide **which**
 devices may be monitored at all live with the device itself — see DEV-057
@@ -873,3 +874,93 @@ worse than none. Running it from the on-site agent is possible later.
 **Reached from:** `GET /api/network/speed-test/stream`
 **Message:** `This server is not on the ISP's network, so its speed test would not measure it`
 **Tests:** `tests/application/device-monitoring/use-cases/SpeedTestUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/RunSpeedTestUseCase.integration.test.ts`
+
+## Ping tool
+
+A ping of any address, from the app, like a terminal's `ping`: from this
+server or from an on-site agent. Nothing is stored.
+
+### MON-120 — The ping tool pings any address once a second and changes nothing
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-27
+
+`GET /api/network/ping/stream` pings one IPv4 or IPv6 address (not a host
+name) 4 times by default, at most 100, one ping a second, and streams each
+answer as it comes: `REPLY` with its time, `NO_REPLY`, or `ERROR` when the
+ping could not be sent at all. It ends with the totals: sent, received, loss
+and minimum, average and maximum time. Pings that could not be sent count
+neither as sent nor as lost. The address need not belong to any device.
+Nothing is written: no ping history, no device state, no alert. Operators
+and administrators may use it (`create`, the same as a manual poll); a
+viewer may not. Closing the stream stops it.
+
+**Why:** Staff need to check addresses that are not devices: a customer's
+router, a new antenna before it is added, the provider's gateway, `8.8.8.8`.
+Like the network sweep (`MON-080`), a one-off check must not move the
+monitored state. A ping that could not be sent says nothing about the
+address, so it must not look like loss. Only addresses are accepted, so
+nothing typed is ever handed to the ping program as anything else.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/RunPingToolUseCase.ts`, `src/presentation/http/validation/ping-tool.schemas.ts`, `src/presentation/http/routes/ping-tool.routes.ts`
+**Reached from:** `GET /api/network/ping/stream` via `PingToolController.stream`
+**Tests:** `tests/application/device-monitoring/use-cases/RunPingToolUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/RunPingToolUseCase.integration.test.ts`, `tests/integration/ping-tool.routes.test.ts`
+
+### MON-121 — A ping can be sent from an agent; without one, from the server
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-27
+
+With `agentId`, every ping is sent by that agent, which must be enrolled and
+not revoked; otherwise the answer is `404` `"Agent not found"`. Each ping is
+its own single-attempt request to the agent, waiting the agent's usual 5
+seconds for a reply. If the agent is not connected or is too old to answer,
+the first ping reports it as `ERROR` and the run ends there, with the reason
+in `stoppedEarly`. An agent that does not answer one ping in time is
+reported as `ERROR` for that ping, and the run goes on. Without `agentId` the
+server pings, waiting 2 seconds for each reply.
+
+**Why:** The agent sees the customer's network from inside, which is often
+the question ("can the tower reach the client?"). One attempt per request
+keeps each line one real ping, as in a terminal. A missing agent fails
+every ping the same way, so it is said once rather than a hundred times. Any
+agent version that answers manual polls (`0.3.0` and later) can do this, so
+none needs updating.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/RunPingToolUseCase.ts` (`pingFromAgent`, `pingFromServer`), `src/infrastructure/monitoring/ping-tool/PrismaPingToolAgentQuery.ts`
+**Message:** `Agent not found`
+**Tests:** `tests/application/device-monitoring/use-cases/RunPingToolUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/RunPingToolUseCase.integration.test.ts`, `tests/integration/ping-tool.routes.test.ts`
+
+### MON-122 — At most 10 ping runs at once
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-27
+
+While 10 runs are going, from anyone and from any source, another is refused
+with `409` `"Too many pings are running, try again in a moment"`. A run
+frees its place as soon as it ends, however it ended.
+
+**Why:** Several staff may troubleshoot at once, so one run at a time would
+be too strict. A cap still keeps a forgotten or scripted stream from piling
+up ping processes on the server or requests on an agent.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/RunPingToolUseCase.ts` (`running`, `DEFAULT_PING_TOOL_OPTIONS`)
+**Message:** `Too many pings are running, try again in a moment`
+**Tests:** `tests/application/device-monitoring/use-cases/RunPingToolUseCase.test.ts`
+
+### MON-123 — Off site, the ping tool needs an agent
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-27
+
+When the server is hosted off site (`SERVER_ON_SITE=false`), a ping without
+`agentId` is refused with `409`
+`"This server is not on the ISP's network: choose an agent to ping from"`.
+Pinging through an agent works the same as on site.
+
+**Why:** Off site the server cannot reach the ISP's private addresses, so its
+answer would be a misleading `NO_REPLY` (`MON-023`).
+
+**Enforced at:** `src/application/device-monitoring/use-cases/RunPingToolUseCase.ts`
+**Message:** `This server is not on the ISP's network: choose an agent to ping from`
+**Tests:** `tests/application/device-monitoring/use-cases/RunPingToolUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/RunPingToolUseCase.integration.test.ts`

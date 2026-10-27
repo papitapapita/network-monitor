@@ -12,3 +12,4 @@ export * from './WatchRouterTrafficUseCase';
 export * from './RunNetworkSweepUseCase';
 export * from './RunSpeedTestUseCase';
 export * from './ListSpeedTestsUseCase';
+export * from './RunPingToolUseCase';

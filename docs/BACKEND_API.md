@@ -2491,6 +2491,119 @@ devices not checked"): after an outage, a dead agent is the news.
 
 ---
 
+### `GET /api/network/ping/stream` — Ping Tool (SSE)
+
+**Status:** 200 (`text/event-stream`) | 400 | 401 | 403 | 404 | 409 | 500  
+**Roles:** `VENDOR`, `ADMIN`, `OPERATOR` (`create`, same as a manual poll) · **Since:** 2026-10-27
+
+Pings **any IP address** now, once a second, from the server or from an
+agent, and streams each answer like a terminal's `ping` (MON-120 … MON-123).
+
+- **Any address**, device or not: a customer's router, the provider's
+  gateway, `8.8.8.8`. IPv4 or IPv6 only, no host names.
+- **It changes nothing and nothing is stored.** No ping history, no device
+  status, no alert.
+- **From where:** without `agentId`, the server pings (2 s wait per reply).
+  With `agentId`, that agent pings (5 s wait), so the result is what the
+  agent's network sees. List agents with `GET /api/agents`. On an install
+  hosted off site (`serverOnSite: false`) an agent is required: preselect one
+  and hide the "server" option.
+- **Agent problems:** if the agent is offline or too old, the first ping
+  comes back `ERROR` with the reason, and the run ends (`stoppedEarly` in
+  `ping-done`). A single slow agent answer is an `ERROR` for that ping only.
+- **How many:** `count` pings, 4 by default, at most 100. Closing the stream
+  (`es.close()`) stops it, so a "Stop" button can let the user ping up to 100
+  and stop whenever they like.
+- At most 10 runs at once across the install (`409`).
+- Same authentication as the other streams: the session cookie, `?token=` or a
+  Bearer header.
+
+**Query params**
+
+| Param     | Type             | Meaning                            |
+| --------- | ---------------- | ---------------------------------- |
+| `ip`      | IPv4/IPv6        | **Required.** The address to ping  |
+| `agentId` | UUID             | Ping from this agent; omit: server |
+| `count`   | integer, 1 – 100 | How many pings (default 4)         |
+| `token`   | string           | The JWT, for EventSource           |
+
+**Events**, in this order. **This stream ends by itself**: call `es.close()`
+on `ping-done`, or EventSource reconnects and pings again.
+
+| Order        | Event        | Payload              |
+| ------------ | ------------ | -------------------- |
+| First        | `ping-start` | `PingToolStartDTO`   |
+| One per ping | `ping-reply` | `PingToolReplyDTO`   |
+| Last         | `ping-done`  | `PingToolSummaryDTO` |
+
+```ts
+type PingToolOutcome = 'REPLY' | 'NO_REPLY' | 'ERROR';
+
+interface PingToolStartDTO {
+  ipAddress: string;
+  source: 'SERVER' | 'AGENT';
+  agentId: string | null;
+  agentName: string | null;
+  count: number;
+  startedAt: string; // ISO 8601
+}
+
+interface PingToolReplyDTO {
+  seq: number; // 1-based
+  outcome: PingToolOutcome; // ERROR: the ping could not be sent — not a lost packet
+  latencyMs: number | null; // REPLY only
+  detail: string | null; // ERROR only, e.g. "The agent is not connected"
+  at: string;
+}
+
+interface PingToolSummaryDTO {
+  ipAddress: string;
+  sent: number; // ERROR pings are not counted
+  received: number;
+  errors: number;
+  lossPercent: number | null; // null when nothing could be sent
+  minMs: number | null;
+  avgMs: number | null;
+  maxMs: number | null;
+  startedAt: string;
+  finishedAt: string;
+  stoppedEarly: string | null; // why an agent problem ended the run early
+  cancelled: false; // always false on the wire: a stopped run sends no ping-done
+}
+```
+
+```js
+const params = new URLSearchParams({ token: jwt, ip, count: '10' });
+if (agentId) params.set('agentId', agentId);
+const es = new EventSource(`/api/network/ping/stream?${params}`);
+es.addEventListener('ping-reply', (e) => {
+  const r = JSON.parse(e.data);
+  // "Respuesta de 10.0.0.1: tiempo=7 ms" / "Tiempo agotado" / r.detail
+});
+es.addEventListener('ping-done', (e) => {
+  es.close(); // required — otherwise EventSource reconnects and pings again
+  const s = JSON.parse(e.data);
+});
+es.onerror = () => es.close(); // a refusal (400, 404, 409) comes as JSON, which EventSource reports as an error
+```
+
+Errors before the stream opens come as JSON with a status code:
+
+| Status | `error`                                                                 | Show                       |
+| ------ | ----------------------------------------------------------------------- | -------------------------- |
+| `400`  | `ip must be a valid IPv4 or IPv6 address` / count / agentId messages    | under the field            |
+| `404`  | `Agent not found`                                                       | refresh the agent list     |
+| `409`  | `This server is not on the ISP's network: choose an agent to ping from` | ask for an agent           |
+| `409`  | `Too many pings are running, try again in a moment`                     | the message, retry shortly |
+| `403`  | (VIEWER)                                                                | hide the tool for viewers  |
+
+**Frontend:** a "Ping" tool: an IP field, a "from" picker (Servidor + the
+active agents), a count, Start/Stop. Print lines as they arrive, terminal
+style, and the totals at the end. Offer it from a device's page too, with its
+IP and agent filled in.
+
+---
+
 ### `GET /api/network/speed-test/stream` — Internet Speed Test (SSE)
 
 **Status:** 200 (`text/event-stream`) | 401 | 403 | 409 | 500  

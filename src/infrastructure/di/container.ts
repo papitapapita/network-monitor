@@ -168,6 +168,7 @@ import {
   WirelessStreamController,
   NetworkSweepController,
   SpeedTestController,
+  PingToolController,
   LinkDiagnosisController,
   AlertThresholdsController,
   CredentialsController,
@@ -342,11 +343,13 @@ import {
 import {
   RunNetworkSweepUseCase,
   RunSpeedTestUseCase,
+  RunPingToolUseCase,
   ListSpeedTestsUseCase,
   WatchRouterTrafficUseCase
 } from 'application/device-monitoring/use-cases';
 import { PrismaNetworkSweepTargetsQuery } from '../monitoring/network-sweep';
 import { CloudflareSpeedTester } from '../monitoring/speed-test';
+import { PrismaPingToolAgentQuery } from '../monitoring/ping-tool';
 import {
   TelegramNotificationService,
   WhatsAppNotificationService,
@@ -685,6 +688,7 @@ export class DependencyContainer {
   public wirelessStreamController: WirelessStreamController;
   public networkSweepController: NetworkSweepController;
   public speedTestController: SpeedTestController;
+  public pingToolController: PingToolController;
   public linkDiagnosisController: LinkDiagnosisController;
   public alertThresholdsController: AlertThresholdsController;
   public credentialsController: CredentialsController;
@@ -1623,6 +1627,17 @@ export class DependencyContainer {
         new PrismaNetworkSweepTargetsQuery(this.prisma),
         new PingCycleProbe(pingService, 0, 1_000),
         new AgentChannelSweepProbe(connectedAgents),
+        this.logger,
+        this.serverOnSite
+      ),
+      this.logger
+    );
+    // MON-120..MON-123: ping any address, from here or from an agent.
+    this.pingToolController = new PingToolController(
+      new RunPingToolUseCase(
+        pingService,
+        new AgentChannelPingProbe(connectedAgents),
+        new PrismaPingToolAgentQuery(this.prisma),
         this.logger,
         this.serverOnSite
       ),

@@ -17,3 +17,9 @@ export const NETWORK_SWEEP_DONE_EVENT = 'sweep-done';
 export const SPEED_TEST_START_EVENT = 'speed-test-start';
 export const SPEED_TEST_PROGRESS_EVENT = 'speed-test-progress';
 export const SPEED_TEST_DONE_EVENT = 'speed-test-done';
+
+// One ping run per stream: where it pings from, a frame per ping, then the
+// totals (MON-120).
+export const PING_TOOL_START_EVENT = 'ping-start';
+export const PING_TOOL_REPLY_EVENT = 'ping-reply';
+export const PING_TOOL_DONE_EVENT = 'ping-done';
