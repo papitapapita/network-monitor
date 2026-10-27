@@ -1,15 +1,34 @@
 export type DeviceIdentitySuggestionField =
   | 'name'
   | 'macAddress'
-  | 'upstreamDeviceId';
+  | 'upstreamDeviceId'
+  | 'deviceModel';
+
+// UPDATE: edit the inventory record. REPLACE: the radio is a new unit, so
+// register it through the replace flow (DEV-078). SWAP: the radio is another
+// inventory unit that traded places with this one (swap-hardware, `swapWith`).
+// Ordered by recommendation, first is best.
+export type DeviceIdentitySuggestionAction =
+  | 'UPDATE'
+  | 'REPLACE'
+  | 'SWAP';
+
+export interface SwapCandidateDTO {
+  deviceId: string;
+  name: string;
+}
 
 export interface DeviceIdentitySuggestionDTO {
   field: DeviceIdentitySuggestionField;
   currentValue: string | null;
-  suggestedValue: string;
-  // Display names for values that are ids (upstreamDeviceId); null otherwise.
+  // Null only for deviceModel when the reported model is not in the catalog.
+  suggestedValue: string | null;
+  // Display names for values that are ids (upstreamDeviceId, deviceModel);
+  // null otherwise.
   currentLabel: string | null;
   suggestedLabel: string | null;
+  actions: DeviceIdentitySuggestionAction[];
+  swapWith: SwapCandidateDTO | null;
 }
 
 export interface DeviceIdentitySuggestionsResponseDTO {

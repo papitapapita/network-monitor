@@ -4,6 +4,8 @@ import { PrismaWirelessSnapshotRepository } from 'infrastructure/wireless-monito
 import { PrismaWirelessDeviceConfigRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository';
 import { WirelessDeviceRepositoryAdapter } from 'infrastructure/wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
+import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
+import { DeviceHardwareAdapter } from 'infrastructure/wireless-monitoring/adapters/DeviceHardwareAdapter';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
 import { UpstreamAssignment } from 'application/device-inventory/services';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
@@ -22,13 +24,14 @@ async function seedDevice(
     name?: string;
     macAddress?: string | null;
     ipAddress?: string | null;
+    status?: 'ACTIVE' | 'INVENTORY';
   } = {}
 ): Promise<string> {
   const device = await prisma.device.create({
     data: {
       name: overrides.name ?? 'Identity Suggestions Test Device',
       owner: 'COMPANY',
-      status: 'ACTIVE',
+      status: overrides.status ?? 'ACTIVE',
       monitoringEnabled: true,
       macAddress: overrides.macAddress ?? null,
       ipAddress: overrides.ipAddress ?? null,
@@ -44,6 +47,7 @@ async function seedSnapshot(
   overrides: {
     deviceName?: string | null;
     macAddress?: string | null;
+    deviceModel?: string | null;
     deviceType?: 'ACCESS_POINT' | 'STATION';
     remoteApIp?: string | null;
     remoteApDeviceId?: string | null;
@@ -58,9 +62,30 @@ async function seedSnapshot(
       collectedAt: new Date('2024-01-01T00:00:00Z'),
       collectionMethod: 'http_api',
       deviceName: overrides.deviceName ?? null,
-      macAddress: overrides.macAddress ?? null
+      macAddress: overrides.macAddress ?? null,
+      deviceModel: overrides.deviceModel ?? null
     }
   });
+}
+
+async function seedUbiquitiModel(
+  prisma: PrismaClient,
+  model: string
+): Promise<string> {
+  const vendor = await prisma.vendor.findUniqueOrThrow({
+    where: { slug: 'ubiquiti' }
+  });
+  const created = await prisma.deviceModel.upsert({
+    where: { vendorId_model: { vendorId: vendor.id, model } },
+    update: {},
+    create: {
+      vendorId: vendor.id,
+      model,
+      deviceType: 'ANTENNA',
+      isWireless: true
+    }
+  });
+  return created.id;
 }
 
 async function seedStationConfig(
@@ -96,6 +121,10 @@ describe('GetDeviceIdentitySuggestionsUseCase — integration', () => {
       new PrismaWirelessSnapshotRepository(prisma),
       new PrismaWirelessDeviceConfigRepository(prisma),
       deviceRepo,
+      new DeviceHardwareAdapter(
+        new PrismaDeviceRepository(prisma),
+        new PrismaDeviceModelRepository(prisma)
+      ),
       new WinstonLogger()
     );
   });
@@ -171,7 +200,9 @@ describe('GetDeviceIdentitySuggestionsUseCase — integration', () => {
       currentValue: 'AP Roof1',
       suggestedValue: 'AP Roof2',
       currentLabel: null,
-      suggestedLabel: null
+      suggestedLabel: null,
+      actions: ['UPDATE'],
+      swapWith: null
     });
   });
 
@@ -195,7 +226,9 @@ describe('GetDeviceIdentitySuggestionsUseCase — integration', () => {
       currentValue: 'AA:BB:CC:DD:EE:01',
       suggestedValue: 'AA:BB:CC:DD:EE:99',
       currentLabel: null,
-      suggestedLabel: null
+      suggestedLabel: null,
+      actions: ['REPLACE', 'UPDATE'],
+      swapWith: null
     });
   });
 
@@ -219,7 +252,118 @@ describe('GetDeviceIdentitySuggestionsUseCase — integration', () => {
       currentValue: null,
       suggestedValue: 'AA:BB:CC:DD:EE:01',
       currentLabel: null,
-      suggestedLabel: null
+      suggestedLabel: null,
+      actions: ['UPDATE'],
+      swapWith: null
+    });
+  });
+
+  describe('hardware model (WLS-152)', () => {
+    it('suggests nothing when the reported model matches the inventory model', async () => {
+      const deviceId = await seedDevice(prisma, deviceModelId, {
+        name: 'AP Roof1'
+      });
+      await seedSnapshot(prisma, deviceId, {
+        deviceName: 'AP Roof1',
+        deviceModel: 'litebeam-5ac'
+      });
+
+      const result = await useCase.execute({ deviceId });
+
+      expect(result.value.suggestions).toHaveLength(0);
+    });
+
+    it('suggests replacing an in-service unit with the matching catalog model', async () => {
+      const powerBeamId = await seedUbiquitiModel(
+        prisma,
+        'PowerBeam 5AC ISO'
+      );
+      const deviceId = await seedDevice(prisma, deviceModelId, {
+        name: 'AP Roof1'
+      });
+      await seedSnapshot(prisma, deviceId, {
+        deviceName: 'AP Roof1',
+        deviceModel: 'PowerBeam 5AC ISO'
+      });
+
+      const result = await useCase.execute({ deviceId });
+
+      expect(result.value.suggestions).toEqual([
+        {
+          field: 'deviceModel',
+          currentValue: deviceModelId,
+          suggestedValue: powerBeamId,
+          currentLabel: 'LiteBeam 5AC',
+          suggestedLabel: 'PowerBeam 5AC ISO',
+          actions: ['REPLACE'],
+          swapWith: null
+        }
+      ]);
+    });
+
+    it('suggests an in-place update while the unit is in INVENTORY', async () => {
+      await seedUbiquitiModel(prisma, 'PowerBeam 5AC ISO');
+      const deviceId = await seedDevice(prisma, deviceModelId, {
+        name: 'AP Roof1',
+        status: 'INVENTORY'
+      });
+      await seedSnapshot(prisma, deviceId, {
+        deviceName: 'AP Roof1',
+        deviceModel: 'PowerBeam 5AC ISO'
+      });
+
+      const result = await useCase.execute({ deviceId });
+
+      expect(result.value.suggestions[0].actions).toEqual(['UPDATE']);
+    });
+
+    it('returns the reported name with no catalog id when the catalog lacks it', async () => {
+      const deviceId = await seedDevice(prisma, deviceModelId, {
+        name: 'AP Roof1'
+      });
+      await seedSnapshot(prisma, deviceId, {
+        deviceName: 'AP Roof1',
+        deviceModel: 'Rocket Prism 5AC'
+      });
+
+      const result = await useCase.execute({ deviceId });
+
+      expect(result.value.suggestions[0]).toMatchObject({
+        field: 'deviceModel',
+        suggestedValue: null,
+        suggestedLabel: 'Rocket Prism 5AC'
+      });
+    });
+  });
+
+  describe('swapped units (WLS-153)', () => {
+    it('suggests a swap when the reported MAC is on another inventory record', async () => {
+      const other = await seedDevice(prisma, deviceModelId, {
+        name: 'AP Torre Norte',
+        macAddress: 'AA:BB:CC:DD:EE:99'
+      });
+      const deviceId = await seedDevice(prisma, deviceModelId, {
+        name: 'AP Roof1',
+        macAddress: 'AA:BB:CC:DD:EE:01'
+      });
+      await seedSnapshot(prisma, deviceId, {
+        deviceName: 'AP Roof1',
+        macAddress: 'aa:bb:cc:dd:ee:99'
+      });
+
+      const result = await useCase.execute({ deviceId });
+
+      expect(result.value.suggestions).toEqual([
+        {
+          field: 'macAddress',
+          currentValue: 'AA:BB:CC:DD:EE:01',
+          suggestedValue: 'AA:BB:CC:DD:EE:99',
+          currentLabel: null,
+          suggestedLabel: null,
+          actions: ['SWAP'],
+          swapWith: { deviceId: other, name: 'AP Torre Norte' }
+        }
+      ]);
     });
   });
 
@@ -249,7 +393,9 @@ describe('GetDeviceIdentitySuggestionsUseCase — integration', () => {
           currentValue: declaredAp,
           suggestedValue: reportedAp,
           currentLabel: 'AP Torre Norte',
-          suggestedLabel: 'AP Torre Sur'
+          suggestedLabel: 'AP Torre Sur',
+          actions: ['UPDATE'],
+          swapWith: null
         }
       ]);
     });
@@ -277,7 +423,9 @@ describe('GetDeviceIdentitySuggestionsUseCase — integration', () => {
           currentValue: null,
           suggestedValue: ap,
           currentLabel: null,
-          suggestedLabel: 'AP Torre Norte'
+          suggestedLabel: 'AP Torre Norte',
+          actions: ['UPDATE'],
+          swapWith: null
         }
       ]);
     });

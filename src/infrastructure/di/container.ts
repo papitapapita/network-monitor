@@ -270,6 +270,7 @@ import { WirelessDeviceRepositoryAdapter } from '../wireless-monitoring/adapters
 import { DeviceReachAdapter } from '../wireless-monitoring/adapters/DeviceReachAdapter';
 import { ContractedCapacityAdapter } from '../wireless-monitoring/adapters/ContractedCapacityAdapter';
 import { DeviceVendorAdapter } from '../wireless-monitoring/adapters/DeviceVendorAdapter';
+import { DeviceHardwareAdapter } from '../wireless-monitoring/adapters/DeviceHardwareAdapter';
 import {
   WirelessAlertEvaluator,
   LinkDiagnosisAnalyzer
@@ -2287,6 +2288,10 @@ export class DependencyContainer {
         this.wirelessSnapshotRepository,
         this.wirelessDeviceConfigRepository,
         wirelessDeviceRepo,
+        new DeviceHardwareAdapter(
+          this.deviceRepository,
+          this.deviceModelRepository
+        ),
         this.logger
       );
     const getActiveWirelessAlertsUseCase =

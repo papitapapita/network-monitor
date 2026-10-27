@@ -4023,14 +4023,36 @@ limit?: number // 1–1000
   polled: boolean; // false if the device has never been polled
   collectedAt: string | null; // ISO 8601 from the latest snapshot
   suggestions: Array<{
-    field: 'name' | 'macAddress' | 'upstreamDeviceId'; // was 'parentApDeviceId' before 2026-10-28
+    field: 'name' | 'macAddress' | 'upstreamDeviceId' | 'deviceModel'; // was 'parentApDeviceId' before 2026-10-28
     currentValue: string | null; // from device-inventory
-    suggestedValue: string; // from the latest AirOS poll
-    currentLabel: string | null; // upstreamDeviceId only: declared AP's name
-    suggestedLabel: string | null; // upstreamDeviceId only: reported AP's name
+    suggestedValue: string | null; // from the latest AirOS poll; null only for deviceModel not in the catalog
+    currentLabel: string | null; // upstreamDeviceId: declared AP's name; deviceModel: model on file
+    suggestedLabel: string | null; // upstreamDeviceId: reported AP's name; deviceModel: reported model
+    actions: Array<'UPDATE' | 'REPLACE' | 'SWAP'>; // how to accept it, best first (since 2026-10-27)
+    swapWith: { deviceId: string; name: string } | null; // set only when actions is ['SWAP']
   }>;
 }
 ```
+
+> **Hardware changes (WLS-152, WLS-153, since 2026-10-27).** A `deviceModel`
+> suggestion appears when the model the radio reports differs from the one on
+> file (case, spaces and hyphens ignored). `suggestedValue` is the matching
+> catalog model's id, or `null` when the catalog has none — then offer to add
+> `suggestedLabel` to the catalog first. Each suggestion's `actions` says how to
+> accept it; show the first as the main button and any others as secondary:
+>
+> | Action | Call |
+> |---|---|
+> | `UPDATE` | `PATCH /api/devices/:id` with the suggested value (`{ deviceModelId: suggestedValue }` for a model) |
+> | `REPLACE` | `POST /api/devices/:id/replace` — pre-fill `deviceModelId` (from the `deviceModel` suggestion's `suggestedValue`) and `macAddress` (from the `macAddress` suggestion) |
+> | `SWAP` | `POST /api/devices/:id/swap-hardware` with `{ otherDeviceId: swapWith.deviceId }` — name `swapWith.name` in the confirmation |
+>
+> A device in service that reports a different MAC gets `['REPLACE', 'UPDATE']`
+> (most likely a new box, possibly a typo when the MAC was entered); a different
+> model gets `['REPLACE']`. While the device is in `INVENTORY` both get
+> `['UPDATE']`. When the reported MAC is on another device, both get `['SWAP']`.
+> When `macAddress` and `deviceModel` suggestions both say `REPLACE` or `SWAP`,
+> they describe one hardware change — show them as one card with one button.
 
 > Read-only diff between what AirOS last reported about its own hostname/MAC
 > and what's on file in device-inventory (WLS-164) — never auto-written. Name
@@ -4038,8 +4060,8 @@ limit?: number // 1–1000
 > the same way `.../clients/expected` matches. A device that has never been
 > polled returns `polled: false` and an empty `suggestions` array rather than 404. Serial number is never compared — AirOS does not expose one.  
 > **Frontend:** render each suggestion as an accept/dismiss row; accepting one
-> means calling `PATCH /api/devices/:id` with the suggested value — this
-> endpoint never writes to device-inventory itself.
+> means the call its first `actions` entry names (see above) — this endpoint
+> never writes to device-inventory itself.
 >
 > **Parent AP (WLS-151, STATION only).** An `upstreamDeviceId` suggestion
 > appears when the AP from the latest poll differs from the declared one

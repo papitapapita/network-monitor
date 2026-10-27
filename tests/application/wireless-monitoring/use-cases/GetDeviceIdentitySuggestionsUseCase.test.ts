@@ -3,7 +3,11 @@
 import { GetDeviceIdentitySuggestionsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase';
 import { IWirelessSnapshotRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessSnapshotRepository';
 import { IWirelessDeviceConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessDeviceConfigRepository';
-import { IDeviceRepository } from '../../../../src/application/wireless-monitoring/interfaces';
+import {
+  DeviceHardware,
+  IDeviceHardwareLookup,
+  IDeviceRepository
+} from '../../../../src/application/wireless-monitoring/interfaces';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import {
@@ -25,6 +29,12 @@ const DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const SNAPSHOT_UUID = '550e8400-e29b-41d4-a716-446655440002';
 const AP_UUID = '550e8400-e29b-41d4-a716-446655440003';
 const OTHER_AP_UUID = '550e8400-e29b-41d4-a716-446655440004';
+const ROCKET_MODEL_UUID = '550e8400-e29b-41d4-a716-446655440010';
+const POWERBEAM_MODEL_UUID = '550e8400-e29b-41d4-a716-446655440011';
+const OTHER_VENDOR_POWERBEAM_UUID =
+  '550e8400-e29b-41d4-a716-446655440012';
+const UBIQUITI_UUID = '550e8400-e29b-41d4-a716-446655440020';
+const OTHER_VENDOR_UUID = '550e8400-e29b-41d4-a716-446655440021';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -88,12 +98,51 @@ function makeStationConfig(): WirelessDeviceConfig {
 
 function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
   return {
-    findIdByMacAddress: jest.fn(),
+    findIdByMacAddress: jest.fn().mockResolvedValue(Result.ok(null)),
     findIdByIpAddress: jest.fn().mockResolvedValue(Result.ok(null)),
     findBasicInfoById: jest.fn(),
     findWirelessIneligibilityReason: jest.fn(),
     findUpstreamId: jest.fn().mockResolvedValue(Result.ok(null)),
     declareUpstreamIfUnset: jest.fn()
+  };
+}
+
+function makeHardware(
+  overrides: Partial<DeviceHardware> = {}
+): DeviceHardware {
+  return {
+    inInventory: false,
+    deviceModelId: ROCKET_MODEL_UUID,
+    modelName: 'Rocket 5AC Lite',
+    vendorId: UBIQUITI_UUID,
+    ...overrides
+  };
+}
+
+function makeHardwareLookup(): jest.Mocked<IDeviceHardwareLookup> {
+  return {
+    findHardware: jest
+      .fn()
+      .mockResolvedValue(Result.ok(makeHardware())),
+    findCatalogModels: jest.fn().mockResolvedValue(
+      Result.ok([
+        {
+          id: ROCKET_MODEL_UUID,
+          model: 'Rocket 5AC Lite',
+          vendorId: UBIQUITI_UUID
+        },
+        {
+          id: OTHER_VENDOR_POWERBEAM_UUID,
+          model: 'PowerBeam 5AC ISO',
+          vendorId: OTHER_VENDOR_UUID
+        },
+        {
+          id: POWERBEAM_MODEL_UUID,
+          model: 'Powerbeam-5AC ISO',
+          vendorId: UBIQUITI_UUID
+        }
+      ])
+    )
   };
 }
 
@@ -167,6 +216,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
   let snapshotRepo: jest.Mocked<IWirelessSnapshotRepository>;
   let configRepo: jest.Mocked<IWirelessDeviceConfigRepository>;
   let deviceRepo: jest.Mocked<IDeviceRepository>;
+  let hardwareLookup: jest.Mocked<IDeviceHardwareLookup>;
   let logger: jest.Mocked<ILogger>;
   let useCase: GetDeviceIdentitySuggestionsUseCase;
 
@@ -174,11 +224,13 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
     snapshotRepo = makeSnapshotRepo();
     configRepo = makeConfigRepo();
     deviceRepo = makeDeviceRepo();
+    hardwareLookup = makeHardwareLookup();
     logger = makeLogger();
     useCase = new GetDeviceIdentitySuggestionsUseCase(
       snapshotRepo,
       configRepo,
       deviceRepo,
+      hardwareLookup,
       logger
     );
 
@@ -303,7 +355,9 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
         currentValue: 'AP Roof1',
         suggestedValue: 'AP Roof2',
         currentLabel: null,
-        suggestedLabel: null
+        suggestedLabel: null,
+        actions: ['UPDATE'],
+        swapWith: null
       });
     });
 
@@ -370,7 +424,9 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
         currentValue: 'AA:BB:CC:DD:EE:01',
         suggestedValue: 'AA:BB:CC:DD:EE:99',
         currentLabel: null,
-        suggestedLabel: null
+        suggestedLabel: null,
+        actions: ['REPLACE', 'UPDATE'],
+        swapWith: null
       });
     });
 
@@ -391,7 +447,9 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
         currentValue: null,
         suggestedValue: 'AA:BB:CC:DD:EE:01',
         currentLabel: null,
-        suggestedLabel: null
+        suggestedLabel: null,
+        actions: ['UPDATE'],
+        swapWith: null
       });
     });
 
@@ -412,6 +470,224 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
       expect(
         result.value.suggestions.find((s) => s.field === 'macAddress')
       ).toBeUndefined();
+    });
+  });
+
+  // ===========================================================================
+  describe('[WLS-152] executeImpl — MAC actions', () => {
+    beforeEach(() => {
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(
+          makeSnapshot({
+            deviceName: 'AP Roof1',
+            macAddress: 'AA:BB:CC:DD:EE:99'
+          })
+        )
+      );
+    });
+
+    it('should offer only an update when the device is still in INVENTORY', async () => {
+      hardwareLookup.findHardware.mockResolvedValue(
+        Result.ok(makeHardware({ inInventory: true }))
+      );
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(
+        result.value.suggestions.find((s) => s.field === 'macAddress')
+          ?.actions
+      ).toEqual(['UPDATE']);
+    });
+
+    it('should recommend a replacement, then an update, for a device in service', async () => {
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(
+        result.value.suggestions.find((s) => s.field === 'macAddress')
+          ?.actions
+      ).toEqual(['REPLACE', 'UPDATE']);
+    });
+  });
+
+  // ===========================================================================
+  describe('[WLS-153] executeImpl — swapped with another inventory unit', () => {
+    beforeEach(() => {
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(
+          makeSnapshot({
+            deviceName: 'AP Roof1',
+            macAddress: 'AA:BB:CC:DD:EE:99',
+            deviceModel: 'PowerBeam 5AC ISO'
+          })
+        )
+      );
+      deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.ok(DeviceId.parse(AP_UUID).value)
+      );
+      deviceRepo.findBasicInfoById.mockImplementation(async (id) =>
+        Result.ok(
+          id.toString() === AP_UUID
+            ? {
+                name: 'AP Torre Norte',
+                macAddress: 'AA:BB:CC:DD:EE:99'
+              }
+            : { name: 'AP Roof1', macAddress: 'AA:BB:CC:DD:EE:01' }
+        )
+      );
+    });
+
+    it('should offer only a swap with the unit that owns the reported MAC', async () => {
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      const swapWith = { deviceId: AP_UUID, name: 'AP Torre Norte' };
+      expect(
+        result.value.suggestions.find((s) => s.field === 'macAddress')
+      ).toMatchObject({ actions: ['SWAP'], swapWith });
+      expect(
+        result.value.suggestions.find(
+          (s) => s.field === 'deviceModel'
+        )
+      ).toMatchObject({ actions: ['SWAP'], swapWith });
+    });
+
+    it('should fall back to replacement when the MAC lookup fails', async () => {
+      deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(
+        result.value.suggestions.find((s) => s.field === 'macAddress')
+      ).toMatchObject({
+        actions: ['REPLACE', 'UPDATE'],
+        swapWith: null
+      });
+    });
+
+    it('should not offer a swap when no other unit owns the MAC', async () => {
+      deviceRepo.findIdByMacAddress.mockResolvedValue(
+        Result.ok(null)
+      );
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(
+        result.value.suggestions.find(
+          (s) => s.field === 'deviceModel'
+        )
+      ).toMatchObject({ actions: ['REPLACE'], swapWith: null });
+    });
+  });
+
+  // ===========================================================================
+  describe('[WLS-152] executeImpl — model comparison', () => {
+    function modelSuggestion(
+      suggestions: { field: string }[]
+    ): unknown {
+      return suggestions.find((s) => s.field === 'deviceModel');
+    }
+
+    function reporting(deviceModel: string | null): void {
+      snapshotRepo.findLatestByDevice.mockResolvedValue(
+        Result.ok(
+          makeSnapshot({
+            deviceName: 'AP Roof1',
+            macAddress: 'AA:BB:CC:DD:EE:01',
+            deviceModel
+          })
+        )
+      );
+    }
+
+    it('should not suggest when the reported model matches ignoring case, spaces and hyphens', async () => {
+      reporting('rocket-5ac  LITE');
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(
+        modelSuggestion(result.value.suggestions)
+      ).toBeUndefined();
+      expect(hardwareLookup.findCatalogModels).not.toHaveBeenCalled();
+    });
+
+    it('should not suggest when the poll never reported a model', async () => {
+      reporting(null);
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(
+        modelSuggestion(result.value.suggestions)
+      ).toBeUndefined();
+    });
+
+    it('should suggest a replacement with the matching catalog model, preferring the same vendor', async () => {
+      reporting('PowerBeam 5AC ISO');
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(modelSuggestion(result.value.suggestions)).toEqual({
+        field: 'deviceModel',
+        currentValue: ROCKET_MODEL_UUID,
+        suggestedValue: POWERBEAM_MODEL_UUID,
+        currentLabel: 'Rocket 5AC Lite',
+        suggestedLabel: 'Powerbeam-5AC ISO',
+        actions: ['REPLACE'],
+        swapWith: null
+      });
+    });
+
+    it('should suggest the reported name with no catalog id when the catalog lacks it', async () => {
+      reporting('LiteBeam 5AC Gen2');
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(modelSuggestion(result.value.suggestions)).toEqual({
+        field: 'deviceModel',
+        currentValue: ROCKET_MODEL_UUID,
+        suggestedValue: null,
+        currentLabel: 'Rocket 5AC Lite',
+        suggestedLabel: 'LiteBeam 5AC Gen2',
+        actions: ['REPLACE'],
+        swapWith: null
+      });
+    });
+
+    it('should offer an in-place update while the device is in INVENTORY', async () => {
+      reporting('PowerBeam 5AC ISO');
+      hardwareLookup.findHardware.mockResolvedValue(
+        Result.ok(makeHardware({ inInventory: true }))
+      );
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(modelSuggestion(result.value.suggestions)).toMatchObject(
+        {
+          actions: ['UPDATE'],
+          swapWith: null
+        }
+      );
+    });
+
+    it('should fail when the catalog cannot be read', async () => {
+      reporting('PowerBeam 5AC ISO');
+      hardwareLookup.findCatalogModels.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(result.isFailure).toBe(true);
+    });
+
+    it('should fail when the device hardware cannot be read', async () => {
+      hardwareLookup.findHardware.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(result.isFailure).toBe(true);
     });
   });
 
@@ -487,7 +763,9 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
         currentValue: AP_UUID,
         suggestedValue: OTHER_AP_UUID,
         currentLabel: 'AP Torre Norte',
-        suggestedLabel: 'AP Torre Sur'
+        suggestedLabel: 'AP Torre Sur',
+        actions: ['UPDATE'],
+        swapWith: null
       });
     });
 
@@ -530,7 +808,9 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
         currentValue: null,
         suggestedValue: AP_UUID,
         currentLabel: null,
-        suggestedLabel: 'AP Torre Norte'
+        suggestedLabel: 'AP Torre Norte',
+        actions: ['UPDATE'],
+        swapWith: null
       });
     });
 

@@ -2005,7 +2005,7 @@ mid-outage and hasn't reported anything itself.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application (not in domain)
-**Since:** 2026-09-22
+**Since:** 2026-09-22 · **Revised:** 2026-10-27
 
 `GET /api/devices/:id/wireless/identity/suggestions` compares the device's
 _own_ hostname and MAC as last reported by AirOS — `host.hostname` and
@@ -2015,7 +2015,9 @@ trims and lowercases both sides; MAC comparison normalizes separators and case
 the same way [WLS-163](#wls-163--the-expected-clients-query-diffs-declared-stations-against-a-live-snapshot)
 does. A mismatch on either field — including a `null` `Device.macAddress` when
 AirOS reports one — is returned as a suggestion; nothing is written
-automatically. A device that has never been polled returns `polled: false`
+automatically. The reported model is compared as well, and each suggestion
+says how to accept it — see [WLS-152](#wls-152--identity-suggestions-compare-the-reported-model-and-say-whether-to-update-replace-or-swap).
+A device that has never been polled returns `polled: false`
 and an empty suggestion list rather than failing. Serial number is never part
 of this comparison — AirOS's `status.cgi` payload has no serial-number field
 anywhere the collector reads, so there is nothing to compare it against. This
@@ -2068,6 +2070,74 @@ difference lasts, the operator is also alerted
 ([WLS-013](#wls-013--a-station-reporting-an-ap-other-than-its-declared-one-for-three-polls-raises-a-warning)).
 
 **Enforced at:** `src/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.ts` (`suggestParentAp`)
+**Reached from:** `GET /api/devices/:id/wireless/identity/suggestions`
+**Tests:** `tests/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetDeviceIdentitySuggestionsUseCase.integration.test.ts`
+
+### WLS-152 — Identity suggestions compare the reported model and say whether to update, replace or swap
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-10-27
+
+`GET /api/devices/:id/wireless/identity/suggestions` also compares the model
+AirOS reports (`WirelessSnapshot.metrics.deviceModel`) against the model on
+file in device-inventory. Both names are lowercased and stripped of everything
+but letters and digits before comparing, so "PowerBeam 5AC-ISO" equals
+"powerbeam 5ac iso". On a mismatch a `deviceModel` suggestion is returned. Its
+`suggestedValue` is the id of the catalog model whose name matches the reported
+one the same way (one from the device's current vendor first, then any), or
+`null` when the catalog has no such model. `suggestedLabel` is that catalog
+name, or the name the radio reported when there is none.
+
+Every suggestion carries `actions`, the ways to accept it, best first:
+
+| Suggestion | Device in `INVENTORY` | Device in any other status |
+|---|---|---|
+| `name`, `upstreamDeviceId` | `UPDATE` | `UPDATE` |
+| `macAddress`, none on file | `UPDATE` | `UPDATE` |
+| `macAddress`, a different one on file | `UPDATE` | `REPLACE`, then `UPDATE` |
+| `deviceModel` | `UPDATE` | `REPLACE` |
+
+`UPDATE` is `PATCH /api/devices/:id`. `REPLACE` is
+`POST /api/devices/:id/replace` (DEV-078). When the reported MAC belongs to
+another device, WLS-153 overrides this table.
+
+**Why:** A radio that reports a different MAC or model than the record is
+usually a different box. Overwriting the record would attribute every reading,
+alert and snapshot already taken to hardware that never produced it, which is
+what DEV-063 forbids for the model and the replace flow exists to avoid. Only
+while the unit is still in `INVENTORY` is the record a data-entry slip to fix
+in place. A different MAC on an in-service unit can still be a typo when the
+MAC was entered, so `UPDATE` stays as the second choice there. A different
+model cannot be a typo of the MAC, so the in-service model suggestion offers
+only `REPLACE`. Model names are compared loosely because AirOS and the catalog
+spell the same hardware with different case, spacing and hyphens.
+
+**Enforced at:** `src/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.ts` (`suggestModel`, `macActions`), `src/application/wireless-monitoring/services/matchReportedModel.ts`
+**Reached from:** `GET /api/devices/:id/wireless/identity/suggestions`
+**Tests:** `tests/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.test.ts`, `tests/application/wireless-monitoring/services/matchReportedModel.test.ts`, `tests/infrastructure/wireless-monitoring/adapters/DeviceHardwareAdapter.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetDeviceIdentitySuggestionsUseCase.integration.test.ts`
+
+### WLS-153 — A reported MAC that belongs to another device suggests swapping the two
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-10-27
+
+When the MAC the radio reports differs from the one on file and belongs to
+another device in inventory (soft-deleted devices do not count), the `macAddress`
+and `deviceModel` suggestions offer only `SWAP`, and their `swapWith` names that
+device (`{ deviceId, name }`). Accepting means
+`POST /api/devices/:id/swap-hardware` with `otherDeviceId: swapWith.deviceId`.
+In every other case `swapWith` is `null`. A failed MAC lookup is logged and the
+suggestions fall back to WLS-152.
+
+**Why:** The box behind this record is one the inventory already knows, so two
+units traded places. Swap-hardware moves model, serial and MAC between the two
+records together. Replace would create a new record with a MAC that is already
+taken and be refused, and updating the MAC alone would trip the same
+uniqueness check.
+
+**Enforced at:** `src/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.ts` (`findSwapCandidate`)
 **Reached from:** `GET /api/devices/:id/wireless/identity/suggestions`
 **Tests:** `tests/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetDeviceIdentitySuggestionsUseCase.integration.test.ts`
 
