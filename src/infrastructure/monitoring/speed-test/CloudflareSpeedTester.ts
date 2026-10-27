@@ -244,16 +244,13 @@ export class CloudflareSpeedTester implements IInternetSpeedTester {
 
     const startedAt = performance.now();
     let bytes = 0;
-    let warm: { bytes: number; at: number } | null = null;
+    let warm = null as { bytes: number; at: number } | null;
     let lastTick = { bytes: 0, at: startedAt };
     let timeUp = false;
     let failure: unknown = null;
 
     const ticker = setInterval(() => {
       const now = performance.now();
-      if (warm === null && now - startedAt >= this.options.warmUpMs) {
-        warm = { bytes, at: now };
-      }
       report({
         phase,
         elapsedMs: Math.round(now - startedAt),
@@ -271,6 +268,14 @@ export class CloudflareSpeedTester implements IInternetSpeedTester {
       while (!phaseAbort.signal.aborted) {
         try {
           await transfer(phaseAbort.signal, (n) => {
+            // Marked by the data rather than the progress timer, which
+            // fires late on a busy server and would leave nothing after.
+            if (warm === null) {
+              const now = performance.now();
+              if (now - startedAt >= this.options.warmUpMs) {
+                warm = { bytes, at: now };
+              }
+            }
             bytes += n;
           });
         } catch (error) {
@@ -298,7 +303,11 @@ export class CloudflareSpeedTester implements IInternetSpeedTester {
     if (bytes === 0) throw new Error('no data could be transferred');
 
     const end = performance.now();
-    const from = warm ?? { bytes: 0, at: startedAt };
+    // Nothing moved after the warm-up: the whole phase is all there is.
+    const from =
+      warm !== null && bytes > warm.bytes
+        ? warm
+        : { bytes: 0, at: startedAt };
     return round(mbps(bytes - from.bytes, end - from.at));
   }
 }
