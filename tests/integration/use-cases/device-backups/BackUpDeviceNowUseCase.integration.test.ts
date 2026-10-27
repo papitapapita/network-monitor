@@ -140,7 +140,7 @@ describe('BackUpDeviceNowUseCase — integration', () => {
     expect(fetcher.calls).toHaveLength(0);
   });
 
-  it('[BKP-014] should refuse a station', async () => {
+  it('[BKP-010] should back up a company station', async () => {
     const deviceId = await seedDiagnosableDevice(prisma, modelId, {
       ip: '10.0.0.20',
       deviceType: 'STATION'
@@ -148,16 +148,46 @@ describe('BackUpDeviceNowUseCase — integration', () => {
 
     const result = await build().execute({ deviceId });
 
+    expect(result.value.outcome).toBe('SAVED');
+  });
+
+  it('[BKP-014] should refuse a customer-owned antenna', async () => {
+    const deviceId = await seedDiagnosableDevice(prisma, modelId, {
+      ip: '10.0.0.20',
+      deviceType: 'STATION'
+    });
+    await prisma.device.update({
+      where: { id: deviceId },
+      data: { owner: 'CLIENT' }
+    });
+
+    const result = await build().execute({ deviceId });
+
+    expect(result.error).toBe(
+      `Cannot back up this device: ${BACKUP_REFUSALS.NOT_MAIN_DEVICE}`
+    );
+    expect(fetcher.calls).toHaveLength(0);
+  });
+
+  it('[BKP-014] should refuse a plain router, such as a Wi-Fi router', async () => {
+    const routerId = await seedRouter(prisma, {
+      ip: '10.0.0.1',
+      vendorSlug: 'tenda',
+      deviceType: 'ROUTER'
+    });
+
+    const result = await build().execute({ deviceId: routerId });
+
     expect(result.error).toBe(
       `Cannot back up this device: ${BACKUP_REFUSALS.NOT_MAIN_DEVICE}`
     );
   });
 
-  it('[BKP-014] should refuse a router of a vendor with no RouterOS', async () => {
+  it('[BKP-014] should refuse a switch of a vendor with no RouterOS', async () => {
     const routerId = await seedRouter(prisma, {
-      ip: '10.0.0.1',
+      ip: '10.0.0.3',
       vendorSlug: 'ubiquiti',
-      deviceType: 'ROUTER'
+      deviceType: 'SWITCH'
     });
 
     const result = await build().execute({ deviceId: routerId });

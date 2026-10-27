@@ -4,7 +4,6 @@ import { Request, Response } from 'express';
 import { DeviceBackupController } from '../../../../src/presentation/http/controllers/DeviceBackupController';
 import {
   BackUpDeviceNowUseCase,
-  DiffDeviceBackupsUseCase,
   DownloadDeviceBackupUseCase,
   ListDeviceBackupsUseCase
 } from '../../../../src/application/device-backups/use-cases';
@@ -39,7 +38,6 @@ describe('DeviceBackupController', () => {
   let list: { execute: jest.Mock };
   let backUpNow: { execute: jest.Mock };
   let download: { execute: jest.Mock };
-  let diff: { execute: jest.Mock };
   let controller: DeviceBackupController;
   const req = {
     params: { id: DEVICE_UUID, backupId: DEVICE_UUID }
@@ -49,12 +47,10 @@ describe('DeviceBackupController', () => {
     list = { execute: jest.fn() };
     backUpNow = { execute: jest.fn() };
     download = { execute: jest.fn() };
-    diff = { execute: jest.fn() };
     controller = new DeviceBackupController(
       list as unknown as ListDeviceBackupsUseCase,
       backUpNow as unknown as BackUpDeviceNowUseCase,
       download as unknown as DownloadDeviceBackupUseCase,
-      diff as unknown as DiffDeviceBackupsUseCase,
       createMockLogger()
     );
   });
@@ -110,49 +106,6 @@ describe('DeviceBackupController', () => {
         'Cache-Control': 'no-store'
       });
       expect(res.send).toHaveBeenCalledWith('a=1\n');
-    });
-  });
-
-  describe('diff', () => {
-    const diffReq = {
-      params: { id: DEVICE_UUID },
-      query: { from: DEVICE_UUID, to: DEVICE_UUID }
-    } as unknown as Request;
-
-    it('should answer 200 with the comparison, never cached', async () => {
-      const body = { identical: true, hunks: [] };
-      diff.execute.mockResolvedValue(Result.ok(body));
-      const res = createMockResponse();
-
-      await controller.diff(diffReq, res as unknown as Response);
-
-      expect(diff.execute).toHaveBeenCalledWith({
-        deviceId: DEVICE_UUID,
-        fromBackupId: DEVICE_UUID,
-        toBackupId: DEVICE_UUID
-      });
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.set).toHaveBeenCalledWith(
-        'Cache-Control',
-        'no-store'
-      );
-      expect(res.json).toHaveBeenCalledWith(body);
-    });
-
-    it.each([
-      [
-        'Invalid comparison: the two backups have different formats',
-        400
-      ],
-      ['Backup not found', 404],
-      ['Device not found', 404]
-    ])('should map "%s" to %i', async (error, status) => {
-      diff.execute.mockResolvedValue(Result.fail(error));
-      const res = createMockResponse();
-
-      await controller.diff(diffReq, res as unknown as Response);
-
-      expect(res.status).toHaveBeenCalledWith(status);
     });
   });
 });

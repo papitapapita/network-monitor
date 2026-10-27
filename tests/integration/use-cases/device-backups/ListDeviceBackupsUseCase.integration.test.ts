@@ -46,7 +46,7 @@ describe('ListDeviceBackupsUseCase — integration', () => {
       deviceType: 'ACCESS_POINT'
     });
 
-  it('[BKP-042] should list versions newest first, without the file', async () => {
+  it('[BKP-042] should list the kept copy, without the file', async () => {
     const deviceId = await seedAp();
     now = new Date('2026-10-07T08:00:00Z');
     await stack().backUpNow.execute({ deviceId });
@@ -57,8 +57,7 @@ describe('ListDeviceBackupsUseCase — integration', () => {
     const result = await stack().list.execute({ deviceId });
 
     expect(result.value.backups.map((b) => b.takenAt)).toEqual([
-      '2026-10-08T08:00:00.000Z',
-      '2026-10-07T08:00:00.000Z'
+      '2026-10-08T08:00:00.000Z'
     ]);
     expect(JSON.stringify(result.value)).not.toContain(
       'aaa.1.status'

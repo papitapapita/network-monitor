@@ -110,14 +110,15 @@ export class FakeFetcher
     this.result = Result.fail(error);
   }
 
-  // Like the real registry: AirOS on Ubiquiti access points, RouterOS on any
+  // Like the real registry: AirOS on Ubiquiti antennas, RouterOS on any
   // MikroTik.
   forDevice(
     vendorSlug: string,
     kind: BackupDeviceKind
   ): IConfigFetcher | null {
     if (vendorSlug === 'mikrotik') return this;
-    return vendorSlug === 'ubiquiti' && kind === 'ACCESS_POINT'
+    return vendorSlug === 'ubiquiti' &&
+      (kind === 'ACCESS_POINT' || kind === 'STATION')
       ? this
       : null;
   }

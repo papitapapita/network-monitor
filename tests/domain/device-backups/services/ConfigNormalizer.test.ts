@@ -71,4 +71,52 @@ describe('ConfigNormalizer', () => {
       expect(normalize(raw)).toBe(raw);
     });
   });
+
+  describe('an AirOS file', () => {
+    const file = (written: string, checksum: string) =>
+      `### PART ###\n## ${written}\n##XC.v8.7.5\naaa.status=enabled\n#feature.g3=0\n#${checksum}\n### PART ###\nwireless.1.ssid=Sector\n`;
+
+    it('[BKP-056] should ignore the time it was written and its checksum', () => {
+      expect(
+        normalize(
+          file('1626992172', '417550ddade29c043f483ec1b1c2ff1a')
+        )
+      ).toBe(
+        normalize(
+          file('1628054048', '91121ca5b905d65444da5fe97ac1176c')
+        )
+      );
+    });
+
+    it('[BKP-056] should keep the firmware line and the commented features', () => {
+      const normalized = normalize(
+        file('1626992172', '417550ddade29c043f483ec1b1c2ff1a')
+      );
+
+      expect(normalized).toBe(
+        '### PART ###\n##XC.v8.7.5\naaa.status=enabled\n#feature.g3=0\n### PART ###\nwireless.1.ssid=Sector'
+      );
+    });
+
+    it('[BKP-056] should still see a changed value', () => {
+      expect(
+        normalize(file('1', '417550ddade29c043f483ec1b1c2ff1a'))
+      ).not.toBe(
+        normalize(
+          file('1', '417550ddade29c043f483ec1b1c2ff1a').replace(
+            'Sector',
+            'Sector2'
+          )
+        )
+      );
+    });
+
+    it('[BKP-056] should leave such lines in a RouterOS export alone', () => {
+      const raw = '/ip address\n## 1626992172';
+
+      expect(
+        ConfigNormalizer.normalize(BackupFormat.ROUTEROS_EXPORT, raw)
+      ).toBe(raw);
+    });
+  });
 });

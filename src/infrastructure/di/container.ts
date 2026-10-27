@@ -65,10 +65,7 @@ import {
   UserSignInPausedEvent,
   UserTwoFactorResetEvent
 } from 'domain/identity/events';
-import {
-  DeviceConfigChangedEvent,
-  DeviceBackupFailingEvent
-} from 'domain/device-backups/events';
+import { DeviceBackupFailingEvent } from 'domain/device-backups/events';
 import { MAX_CONFIG_BYTES } from 'domain/device-backups';
 import { BcryptPasswordService } from '../identity/services/BcryptPasswordService';
 import { PrismaUserRepository } from '../identity/repositories/PrismaUserRepository';
@@ -460,7 +457,6 @@ import {
   AgentClockDriftedNotificationHandler,
   AgentClockCorrectedNotificationHandler,
   AgentUpdateFailedNotificationHandler,
-  DeviceConfigChangedNotificationHandler,
   DeviceBackupFailingNotificationHandler
 } from 'application/notifications/event-handlers';
 import {
@@ -537,7 +533,6 @@ import {
   BackUpDeviceNowUseCase,
   DeviceConfigBackupService,
   DownloadDeviceBackupUseCase,
-  DiffDeviceBackupsUseCase,
   ListDeviceBackupsUseCase,
   RunScheduledBackupsUseCase
 } from 'application/device-backups';
@@ -2424,12 +2419,12 @@ export class DependencyContainer {
       new ConfigFetcherRegistry([
         {
           vendor: 'ubiquiti',
-          kinds: ['ACCESS_POINT'],
+          kinds: ['ACCESS_POINT', 'STATION'],
           fetcher: new AirOsConfigFetcher(airOsHttpClient)
         },
         {
           vendor: 'mikrotik',
-          kinds: ['ACCESS_POINT', 'ROUTER', 'SWITCH'],
+          kinds: ['ACCESS_POINT', 'STATION', 'ROUTER', 'SWITCH'],
           fetcher: new RouterOsConfigFetcher(
             new SshCommandClient({ maxOutputBytes: MAX_CONFIG_BYTES })
           )
@@ -2452,11 +2447,6 @@ export class DependencyContainer {
         this.logger
       ),
       new DownloadDeviceBackupUseCase(
-        backupTargets,
-        configBackupRepository,
-        this.logger
-      ),
-      new DiffDeviceBackupsUseCase(
         backupTargets,
         configBackupRepository,
         this.logger
@@ -2619,15 +2609,8 @@ export class DependencyContainer {
       alertPublisher,
       vendorPublisher
     ]);
-    // BKP-060 … BKP-062: through the shared publisher, so quiet hours and
+    // BKP-061, BKP-062: through the shared publisher, so quiet hours and
     // muted types apply.
-    EventDispatcher.register(
-      DeviceConfigChangedEvent.name,
-      new DeviceConfigChangedNotificationHandler(
-        alertPublisher,
-        this.logger
-      )
-    );
     EventDispatcher.register(
       DeviceBackupFailingEvent.name,
       new DeviceBackupFailingNotificationHandler(

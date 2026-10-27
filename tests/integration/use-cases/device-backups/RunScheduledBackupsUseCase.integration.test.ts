@@ -25,17 +25,14 @@ import {
 import { EventDispatcher } from 'domain/shared/core';
 import { IDomainEvent } from 'domain/shared/interfaces';
 import { BACKUP_FAILURES_BEFORE_ALERT } from 'domain/device-backups';
-import {
-  DeviceBackupFailingEvent,
-  DeviceConfigChangedEvent
-} from 'domain/device-backups/events';
+import { DeviceBackupFailingEvent } from 'domain/device-backups/events';
 
 const DAY = 24 * 60 * 60 * 1000;
 
 // The nightly run has no HTTP surface, so this suite is its only coverage
 // against real rows: which devices the run picks (BKP-010), what it skips
 // (BKP-012), that retention holds in the table (BKP-030), and which alerts a
-// run raises once its rows are saved (BKP-060, BKP-061).
+// run raises once its rows are saved (BKP-061, BKP-063).
 describe('RunScheduledBackupsUseCase — integration', () => {
   let container: DependencyContainer;
   let prisma: PrismaClient;
@@ -46,8 +43,7 @@ describe('RunScheduledBackupsUseCase — integration', () => {
   beforeAll(async () => {
     container = await setupDependencies();
     prisma = container.getPrisma();
-    // The real handlers publish alerts; the retention test alone changes the
-    // config every night for weeks. Only the 'alerts' tests listen.
+    // The real handlers publish alerts; only the 'alerts' tests listen.
     EventDispatcher.clearHandlers();
   });
 
@@ -90,16 +86,50 @@ describe('RunScheduledBackupsUseCase — integration', () => {
       expect(backedUpIps()).toEqual(['10.0.0.10', '10.0.0.11']);
     });
 
-    it('should leave out stations', async () => {
+    it('should back up the polled stations in service', async () => {
       await seedDiagnosableDevice(prisma, modelId, {
         ip: '10.0.0.20',
         deviceType: 'STATION'
       });
 
-      await run();
+      const result = await run();
 
-      expect(fetcher.calls).toHaveLength(0);
+      expect(result.value.saved).toBe(1);
+      expect(backedUpIps()).toEqual(['10.0.0.20']);
     });
+
+    it('should back up a device categorised as a wireless CPE that wireless monitoring does not poll', async () => {
+      await seedDiagnosableDevice(prisma, modelId, {
+        ip: '10.0.0.20',
+        deviceType: 'STATION',
+        withConfig: false
+      });
+
+      const result = await run();
+
+      expect(result.value.saved).toBe(1);
+    });
+
+    it.each(['CLIENT', null] as const)(
+      'should leave out antennas and routerboards whose owner is %s',
+      async (owner) => {
+        const ap = await seedAp('10.0.0.10');
+        const station = await seedDiagnosableDevice(prisma, modelId, {
+          ip: '10.0.0.20',
+          deviceType: 'STATION'
+        });
+        await prisma.device.updateMany({
+          where: { id: { in: [ap, station] } },
+          data: { owner }
+        });
+        await seedRouter(prisma, { ip: '10.0.0.2', owner });
+
+        const result = await run();
+
+        expect(result.value.saved).toBe(0);
+        expect(fetcher.calls).toHaveLength(0);
+      }
+    );
 
     it('should leave out an access point whose polling is disabled', async () => {
       const deviceId = await seedAp('10.0.0.10');
@@ -141,16 +171,18 @@ describe('RunScheduledBackupsUseCase — integration', () => {
       expect(backedUpIps()).toEqual(['10.0.0.10']);
     });
 
-    it('should leave out a device categorised as an access point that is polled as a station', async () => {
-      const deviceId = await seedAp('10.0.0.10');
+    it('should leave out a station whose polling is disabled', async () => {
+      const deviceId = await seedDiagnosableDevice(prisma, modelId, {
+        ip: '10.0.0.20',
+        deviceType: 'STATION'
+      });
       await prisma.wirelessPollingConfiguration.update({
         where: { deviceId },
-        data: { deviceType: 'STATION' }
+        data: { enabled: false }
       });
 
-      const result = await run();
+      await run();
 
-      expect(result.value.saved).toBe(0);
       expect(fetcher.calls).toHaveLength(0);
     });
 
@@ -178,11 +210,7 @@ describe('RunScheduledBackupsUseCase — integration', () => {
       expect(fetcher.calls).toHaveLength(0);
     });
 
-    it('should back up the routers and switches in service', async () => {
-      await seedRouter(prisma, {
-        ip: '10.0.0.1',
-        deviceType: 'ROUTER'
-      });
+    it('should back up the routerboards and switches in service', async () => {
       await seedRouter(prisma, {
         ip: '10.0.0.2',
         deviceType: 'ROUTERBOARD'
@@ -194,12 +222,25 @@ describe('RunScheduledBackupsUseCase — integration', () => {
 
       const result = await run();
 
-      expect(result.value.saved).toBe(3);
-      expect(backedUpIps()).toEqual([
-        '10.0.0.1',
-        '10.0.0.2',
-        '10.0.0.3'
-      ]);
+      expect(result.value.saved).toBe(2);
+      expect(backedUpIps()).toEqual(['10.0.0.2', '10.0.0.3']);
+    });
+
+    it('should leave out a plain router, such as a Wi-Fi router', async () => {
+      await seedRouter(prisma, {
+        ip: '10.0.0.1',
+        vendorSlug: 'tenda',
+        deviceType: 'ROUTER'
+      });
+
+      const result = await run();
+
+      expect(result.value).toEqual({
+        saved: 0,
+        unchanged: 0,
+        skipped: 0,
+        failed: []
+      });
     });
 
     it('should leave out a router in inventory and a server', async () => {
@@ -217,11 +258,11 @@ describe('RunScheduledBackupsUseCase — integration', () => {
       expect(fetcher.calls).toHaveLength(0);
     });
 
-    it('[BKP-014] should record a router of a vendor with no RouterOS as failing', async () => {
+    it('[BKP-014] should record a switch of a vendor with no RouterOS as failing', async () => {
       const deviceId = await seedRouter(prisma, {
-        ip: '10.0.0.1',
+        ip: '10.0.0.3',
         vendorSlug: 'ubiquiti',
-        deviceType: 'ROUTER'
+        deviceType: 'SWITCH'
       });
 
       const result = await run();
@@ -350,20 +391,20 @@ describe('RunScheduledBackupsUseCase — integration', () => {
   });
 
   describe('[BKP-030] retention', () => {
-    it(`should keep the newest ${BACKUP_VERSIONS_KEPT} versions in the table`, async () => {
+    it('should keep only the latest configuration in the table', async () => {
       const deviceId = await seedAp('10.0.0.10');
-      for (let day = 0; day < BACKUP_VERSIONS_KEPT + 3; day++) {
+      for (let day = 0; day < 3; day++) {
         fetcher.serve(`system.revision=${day}\n`);
         await run(new Date(now.getTime() + day * DAY));
       }
 
       const rows = await prisma.configBackup.findMany({
-        where: { deviceId },
-        orderBy: { takenAt: 'asc' }
+        where: { deviceId }
       });
-      expect(rows).toHaveLength(BACKUP_VERSIONS_KEPT);
+      expect(BACKUP_VERSIONS_KEPT).toBe(1);
+      expect(rows).toHaveLength(1);
       expect(rows[0].takenAt).toEqual(
-        new Date(now.getTime() + 3 * DAY)
+        new Date(now.getTime() + 2 * DAY)
       );
     });
   });
@@ -375,49 +416,23 @@ describe('RunScheduledBackupsUseCase — integration', () => {
     beforeEach(() => {
       captured = [];
       EventDispatcher.clearHandlers();
-      for (const name of [
-        DeviceConfigChangedEvent.name,
-        DeviceBackupFailingEvent.name
-      ])
-        EventDispatcher.register(name, {
-          handle: async (event: IDomainEvent) => {
-            captured.push(event);
-          }
-        });
+      EventDispatcher.register(DeviceBackupFailingEvent.name, {
+        handle: async (event: IDomainEvent) => {
+          captured.push(event);
+        }
+      });
     });
 
     afterAll(() => EventDispatcher.clearHandlers());
 
-    it('[BKP-060] should announce a configuration changed since the last night', async () => {
-      const deviceId = await seedAp('10.0.0.10');
-      await prisma.device.update({
-        where: { id: deviceId },
-        data: { name: 'AP Torre Norte' }
-      });
+    it('[BKP-030] should replace the copy quietly when the configuration changed', async () => {
+      await seedAp('10.0.0.10');
       await run();
       fetcher.serve('aaa.1.status=disabled\n');
 
-      await run(new Date(now.getTime() + DAY));
+      const result = await run(new Date(now.getTime() + DAY));
 
-      expect(captured).toHaveLength(1);
-      const event = captured[0] as DeviceConfigChangedEvent;
-      expect(event).toBeInstanceOf(DeviceConfigChangedEvent);
-      expect(event.deviceId.toString()).toBe(deviceId);
-      expect(event.deviceName).toBe('AP Torre Norte');
-      expect(event.previousCheckedAt).toEqual(now);
-      const newest = await prisma.configBackup.findFirstOrThrow({
-        where: { deviceId },
-        orderBy: { takenAt: 'desc' }
-      });
-      expect(event.aggregateId.toString()).toBe(newest.id);
-    });
-
-    it('[BKP-060] should stay quiet for a first backup and for an unchanged one', async () => {
-      await seedAp('10.0.0.10');
-
-      await run();
-      await run(new Date(now.getTime() + DAY));
-
+      expect(result.value.saved).toBe(1);
       expect(captured).toHaveLength(0);
     });
 

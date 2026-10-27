@@ -105,7 +105,7 @@ the API. Wherever an endpoint below lists `ADMIN`, `VENDOR` is allowed too.
 device passwords and SNMP keys, so they are not covered by the generic `update`
 permission. Reading them stays on `read` because the response is masked. It
 also gates downloading a configuration backup, which holds the same secrets
-(BKP-041), and comparing two backups (BKP-072).
+(BKP-041).
 
 `reveal-credentials` gates seeing a device's secrets in plaintext
 (`POST /api/devices/:id/credentials/reveal`) and the password re-check that
@@ -1452,15 +1452,25 @@ interface RevealedDeviceCredentialsDTO {
 > **Response envelope:** raw data directly — **no `{ success, data }` wrapper**.
 > Error: `{ error: string }`.
 
-Daily configuration backups of the main devices. A run starts from 03:00
-Colombian time and backs up every **access point**, that is a device
-wireless monitoring polls as one (enabled config) or, with no polling config,
-whose category is `ACCESS_POINT`, and every device whose model is a **router**,
-**routerboard** or **switch**, in both cases `ACTIVE` or `COMMISSIONING`. A new version is
-stored only when the configuration changed; otherwise the latest version's
-`lastCheckedAt` moves forward. The newest 30 versions per device are kept.
+> **⚠ Breaking change (2026-10-26): one copy per device, no comparison, no
+> change alert.** Only the latest configuration of a device is kept (BKP-030),
+> so `backups` holds at most one entry; `GET /api/devices/:id/backups/diff` is
+> gone (BKP-070, now 404), and so is the `config_changed` notification
+> (BKP-060) — drop it from the mutable alert types. Customers' devices are no
+> longer backed up; company **stations** now are (BKP-010).
 
-Supported for now: Ubiquiti AirOS access points (HTTPS, `system.cfg`) and any
+Daily configuration backup of the company's own devices. A run starts from
+03:00 Colombian time and backs up every device whose `owner` is `COMPANY`,
+`ACTIVE` or `COMMISSIONING`, that is an **antenna** — a device wireless
+monitoring polls as an access point or a station (enabled config) or, with no
+polling config, whose category is `ACCESS_POINT` or `WIRELESS_CPE` — or whose
+model is a **routerboard** or **switch**. A customer's device, a device with
+no owner, and a model of type `ROUTER` (a Wi-Fi router) are never backed up
+(BKP-010). A changed configuration replaces the device's copy; otherwise the
+copy's `lastCheckedAt` moves forward. An AirOS file's write time and checksum
+lines don't count as a change (BKP-056).
+
+Supported for now: Ubiquiti AirOS antennas, APs and stations (HTTPS, `system.cfg`) and any
 MikroTik (SSH `/export show-sensitive`, on the credentials' `sshPort` with the
 HTTP username and password, BKP-054/055). On site this server reads every
 device itself. Off site (`serverOnSite: false`) a device with an `agentId` is
@@ -1468,20 +1478,18 @@ read by its agent, which must run agent `0.5.0` or later, with the same
 fetchers; a device behind no agent is left out of the nightly run and a
 manual backup of it answers 409 (BKP-015, BKP-016, AGT-113, AGT-114).
 
-**Alerts** (Telegram, through the same publisher as device alerts, so quiet
-hours and an expired subscription hold them back):
+**Alert** (Telegram, through the same publisher as device alerts, so quiet
+hours and an expired subscription hold it back):
 
-- `config_changed` — the nightly run saved a new version of a device that
-  already had one (BKP-060). Not sent for a first backup or a manual one.
 - `backup_failing` — the third failed attempt in a row, once per streak
   (BKP-061). Not sent for a device left out because backing it up is not
-  available yet (not a main device, out of reach, unsupported vendor, an
-  agent older than `0.5.0`); a missing IP address or login, an agent that is
-  offline or does not answer, does count (BKP-063, BKP-016).
+  available yet (not a company antenna, routerboard or switch, out of reach,
+  unsupported vendor, an agent older than `0.5.0`); a missing IP address or
+  login, an agent that is offline or does not answer, does count (BKP-063,
+  BKP-016).
 
-Both types can be muted for the whole install through
-`PUT /api/notification-mutes`. They are notifications
-only; they do not appear in `GET /api/alerts`.
+It can be muted for the whole install through `PUT /api/notification-mutes`.
+It is a notification only; it does not appear in `GET /api/alerts`.
 
 ```ts
 interface ConfigBackupDTO {
@@ -1506,7 +1514,7 @@ interface DeviceBackupStateDTO {
 
 ---
 
-### `GET /api/devices/:id/backups` — List versions
+### `GET /api/devices/:id/backups` — The kept copy and the latest attempt
 
 **Status:** 200 | 400 | 404
 **Roles:** ADMIN, OPERATOR, VIEWER (`read`)
@@ -1516,7 +1524,7 @@ interface DeviceBackupStateDTO {
 {
   deviceId: string
   state: DeviceBackupStateDTO | null  // null: never attempted
-  backups: ConfigBackupDTO[]          // newest first; never includes the file
+  backups: ConfigBackupDTO[]          // the kept copy, or []; never includes the file
 }
 ```
 
@@ -1536,11 +1544,12 @@ interface DeviceBackupStateDTO {
 }
 ```
 
-- **201** — a new version was saved; **200** — the device still holds the latest one.
-- **409** `Cannot back up this device: …` — the device was not asked: not an
-  access point, router or switch, off site and behind no agent, no IP
+- **201** — the configuration changed (or was the first) and replaced the copy; **200** — the device still holds the kept one.
+- **409** `Cannot back up this device: …` — the device was not asked: not a
+  company antenna, routerboard or switch (`Only company antennas, routerboards
+  and switches are backed up for now`), off site and behind no agent, no IP
   address, no HTTP credentials, no backup support yet for this kind of device
-  from its vendor (a Ubiquiti router, for one), or its agent must be updated
+  from its vendor (a Ubiquiti switch, for one), or its agent must be updated
   first (`The on-site agent must be updated to take backups`).
 - **502** `Backup failed: …` — the device was asked and did not hand over its
   configuration (timeout, login refused, …), or its agent is not connected
@@ -1553,7 +1562,7 @@ Every attempt, refused or failed included, updates the device's `state`.
 
 ---
 
-### `GET /api/devices/:id/backups/:backupId/download` — Download a version
+### `GET /api/devices/:id/backups/:backupId/download` — Download the copy
 
 **Status:** 200 | 400 | 403 | 404
 **Roles:** ADMIN (`manage-credentials`)
@@ -1570,44 +1579,6 @@ Cache-Control: no-store
 
 The file holds the device's passwords and wireless keys. Returns 404
 `Backup not found` when the backup does not exist or belongs to another device.
-
----
-
-### `GET /api/devices/:id/backups/diff?from=&to=` — Compare two versions
-
-**Status:** 200 | 400 | 401 | 403 | 404
-**Roles:** ADMIN (`manage-credentials`)
-
-```ts
-// Query: from, to — backup UUIDs of this device, in either order
-// Response (Cache-Control: no-store)
-{
-  from: ConfigBackupDTO;
-  to: ConfigBackupDTO;
-  identical: boolean;
-  added: number;    // lines only in `to`
-  removed: number;  // lines only in `from`
-  hunks: {
-    fromStart: number;  // 1-based; the line before when fromLines is 0
-    fromLines: number;
-    toStart: number;
-    toLines: number;
-    lines: { kind: 'context' | 'added' | 'removed'; text: string }[];
-  }[];
-}
-```
-
-- Both files are compared after normalising line endings and trailing
-  whitespace, and without the date in a RouterOS export's first line
-  (BKP-052); each change comes with 3 unchanged lines around it (BKP-070).
-- Passwords, wireless keys and community strings show as `name=********`
-  (in RouterOS lines, per argument: `wpa2-pre-shared-key=********`, BKP-053).
-  Masking happens after comparing, so a changed password still appears as a
-  removed and an added line (BKP-071). Download the file for the real values.
-- **400** — `from` or `to` missing or not a UUID, or
-  `Invalid comparison: the two backups have different formats`.
-- **404** `Backup not found` — either version does not exist or belongs to
-  another device; `Device not found`.
 
 ---
 
@@ -2550,9 +2521,9 @@ touches the alert record: a muted condition still opens/lists normally on
 metric name — `cpu_load_percent`, not `wireless:cpu_load_percent:WARNING` —
 so one entry silences both its WARNING and CRITICAL severities.
 
-Besides the device and wireless metrics, two backup notifications are muted
-the same way: `config_changed` and `backup_failing` (see Device Backups,
-BKP-060, BKP-061).
+Besides the device and wireless metrics, the backup notification
+`backup_failing` is muted the same way (see Device Backups, BKP-061).
+`config_changed` no longer exists (BKP-060, removed 2026-10-26).
 
 ### `GET /api/notification-mutes` — List Muted Alert Types
 

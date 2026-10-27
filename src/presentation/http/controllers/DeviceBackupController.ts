@@ -3,7 +3,6 @@ import { ILogger } from 'application/shared/interfaces';
 import {
   BACKUP_NOW_FAILURES,
   BackUpDeviceNowUseCase,
-  DiffDeviceBackupsUseCase,
   DownloadDeviceBackupUseCase,
   ListDeviceBackupsUseCase
 } from 'application/device-backups/use-cases';
@@ -13,7 +12,6 @@ export class DeviceBackupController {
     private readonly listDeviceBackupsUseCase: ListDeviceBackupsUseCase,
     private readonly backUpDeviceNowUseCase: BackUpDeviceNowUseCase,
     private readonly downloadDeviceBackupUseCase: DownloadDeviceBackupUseCase,
-    private readonly diffDeviceBackupsUseCase: DiffDeviceBackupsUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -90,33 +88,6 @@ export class DeviceBackupController {
           'Cache-Control': 'no-store'
         })
         .send(file.content);
-    } catch (error) {
-      this.handleUnexpectedError(error, res);
-    }
-  };
-
-  public diff = async (
-    req: Request,
-    res: Response
-  ): Promise<void> => {
-    try {
-      const result = await this.diffDeviceBackupsUseCase.execute({
-        deviceId: req.params.id,
-        fromBackupId: String(req.query.from),
-        toBackupId: String(req.query.to)
-      });
-
-      if (result.isFailure) {
-        res
-          .status(this.getErrorStatusCode(result.error!))
-          .json({ error: result.error });
-        return;
-      }
-
-      res
-        .status(200)
-        .set('Cache-Control', 'no-store')
-        .json(result.value);
     } catch (error) {
       this.handleUnexpectedError(error, res);
     }

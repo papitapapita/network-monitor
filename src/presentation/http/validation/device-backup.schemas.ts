@@ -14,11 +14,6 @@ export const downloadDeviceBackupSchema = z.object({
   params: z.object({ id: uuidSchema, backupId: uuidSchema })
 });
 
-export const diffDeviceBackupsSchema = z.object({
-  params: z.object({ id: uuidSchema }),
-  query: z.object({ from: uuidSchema, to: uuidSchema })
-});
-
 export type ListDeviceBackupsInput = z.infer<
   typeof listDeviceBackupsSchema
 >;
@@ -27,7 +22,4 @@ export type BackUpDeviceNowInput = z.infer<
 >;
 export type DownloadDeviceBackupInput = z.infer<
   typeof downloadDeviceBackupSchema
->;
-export type DiffDeviceBackupsInput = z.infer<
-  typeof diffDeviceBackupsSchema
 >;

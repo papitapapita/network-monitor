@@ -19,12 +19,12 @@ import {
   NoAgentConfigFetcher
 } from '../interfaces';
 
-// BKP-030: enough history to step back a month of daily changes.
-export const BACKUP_VERSIONS_KEPT = 30;
+// BKP-030: only the device's latest configuration is worth keeping.
+export const BACKUP_VERSIONS_KEPT = 1;
 
 export const BACKUP_REFUSALS = {
   NOT_MAIN_DEVICE:
-    'Only access points, routers and switches are backed up for now',
+    'Only company antennas, routerboards and switches are backed up for now',
   OUT_OF_REACH:
     'This server cannot reach the device, and it is not behind an on-site agent',
   NO_IP_ADDRESS: 'The device has no IP address',
@@ -137,19 +137,14 @@ export class DeviceConfigBackupService {
       });
     }
 
-    const created = ConfigBackup.create(
-      {
-        deviceId,
-        format,
-        contentHash,
-        sizeBytes: Buffer.byteLength(content, 'utf8'),
-        trigger,
-        takenAt: now
-      },
-      latest.value
-        ? { previous: latest.value, deviceName: candidate.deviceName }
-        : undefined
-    );
+    const created = ConfigBackup.create({
+      deviceId,
+      format,
+      contentHash,
+      sizeBytes: Buffer.byteLength(content, 'utf8'),
+      trigger,
+      takenAt: now
+    });
     if (created.isFailure)
       return Result.ok({
         outcome: BackupOutcome.FAILED,

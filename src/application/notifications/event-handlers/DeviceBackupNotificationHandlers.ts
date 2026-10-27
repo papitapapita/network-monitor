@@ -1,9 +1,6 @@
 import { IHandle } from 'domain/shared/interfaces';
 import { AlertSeverity } from 'domain/shared/enums';
-import {
-  DeviceBackupFailingEvent,
-  DeviceConfigChangedEvent
-} from 'domain/device-backups/events';
+import { DeviceBackupFailingEvent } from 'domain/device-backups/events';
 import {
   AlertNotification,
   IAlertPublisher,
@@ -13,40 +10,8 @@ import {
 import { TelegramFormatting } from '../shared';
 
 export const DEVICE_BACKUP_SOURCE = 'Copias de configuración';
-// Plain alert types, so each can be muted for the whole install (BKP-062).
-export const CONFIG_CHANGED_ALERT_TYPE = 'config_changed';
+// A plain alert type, so it can be muted for the whole install (BKP-062).
 export const BACKUP_FAILING_ALERT_TYPE = 'backup_failing';
-
-// BKP-060
-export class DeviceConfigChangedNotificationHandler
-  implements IHandle<DeviceConfigChangedEvent>
-{
-  constructor(
-    private readonly alertPublisher: IAlertPublisher,
-    private readonly logger: ILogger
-  ) {}
-
-  async handle(event: DeviceConfigChangedEvent): Promise<void> {
-    const since = TelegramFormatting.formatLocalTime(
-      event.previousCheckedAt
-    );
-    await publish(
-      this.alertPublisher,
-      this.logger,
-      'DeviceConfigChangedNotificationHandler',
-      {
-        deviceId: event.deviceId.toString(),
-        severity: AlertSeverity.WARNING,
-        source: DEVICE_BACKUP_SOURCE,
-        summary: `La configuración de "${event.deviceName}" cambió`,
-        detail: `Seguía igual en la revisión del ${since}. Las dos versiones quedan guardadas para compararlas.`,
-        occurredAt: event.dateTimeOccurred,
-        resolved: false,
-        type: CONFIG_CHANGED_ALERT_TYPE
-      }
-    );
-  }
-}
 
 // BKP-061
 export class DeviceBackupFailingNotificationHandler

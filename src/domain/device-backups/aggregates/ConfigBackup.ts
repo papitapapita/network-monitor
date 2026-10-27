@@ -2,7 +2,6 @@ import { AggregateRoot, Result, Guard } from 'domain/shared/core';
 import { ConfigBackupId } from 'domain/shared/ids';
 import { BackupFormat, BackupTrigger } from '../enums';
 import { ConfigBackupProps } from '../props';
-import { DeviceConfigChangedEvent } from '../events';
 
 export const MAX_CONFIG_BYTES = 1_000_000;
 const SHA256_HEX = /^[0-9a-f]{64}$/;
@@ -45,10 +44,8 @@ export class ConfigBackup extends AggregateRoot<
     return this.props.lastCheckedAt;
   }
 
-  // `replacing`: the device's latest version before this one, if any.
   public static create(
-    props: Omit<ConfigBackupProps, 'lastCheckedAt'>,
-    replacing?: { previous: ConfigBackup; deviceName: string }
+    props: Omit<ConfigBackupProps, 'lastCheckedAt'>
   ): Result<ConfigBackup> {
     const candidate: ConfigBackupProps = {
       ...props,
@@ -56,32 +53,9 @@ export class ConfigBackup extends AggregateRoot<
     };
     const validation = ConfigBackup.validate(candidate);
     if (validation.isFailure) return Result.fail(validation.error);
-    if (
-      replacing &&
-      !replacing.previous.deviceId.equals(candidate.deviceId)
-    )
-      return Result.fail(
-        'A backup can only replace a version of the same device'
-      );
-
-    const backup = new ConfigBackup(
-      candidate,
-      ConfigBackupId.create()
+    return Result.ok(
+      new ConfigBackup(candidate, ConfigBackupId.create())
     );
-    // BKP-060: someone changed the device since the last nightly check. A
-    // version taken on demand is the user's own doing and says nothing.
-    if (replacing && candidate.trigger === BackupTrigger.SCHEDULED)
-      backup.addDomainEvent(
-        new DeviceConfigChangedEvent({
-          aggregateId: backup.id,
-          deviceId: candidate.deviceId,
-          deviceName: replacing.deviceName,
-          previousBackupId: replacing.previous.id,
-          previousCheckedAt: replacing.previous.lastCheckedAt,
-          dateTimeOccurred: candidate.takenAt
-        })
-      );
-    return Result.ok(backup);
   }
 
   // bypasses validation — for repository use only

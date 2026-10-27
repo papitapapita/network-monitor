@@ -2,7 +2,6 @@ import { PrismaClient } from '../../../src/generated/prisma/client';
 import {
   BackUpDeviceNowUseCase,
   DeviceConfigBackupService,
-  DiffDeviceBackupsUseCase,
   DownloadDeviceBackupUseCase,
   ListDeviceBackupsUseCase,
   RunScheduledBackupsUseCase
@@ -32,6 +31,7 @@ export async function seedRouter(
     deviceType?: 'ROUTER' | 'ROUTERBOARD' | 'SWITCH' | 'SERVER';
     status?: 'ACTIVE' | 'COMMISSIONING' | 'INVENTORY';
     sshPort?: number;
+    owner?: 'COMPANY' | 'CLIENT' | null;
   }
 ): Promise<string> {
   const vendorSlug = opts.vendorSlug ?? 'mikrotik';
@@ -59,6 +59,7 @@ export async function seedRouter(
     data: {
       name: `Router ${opts.ip}`,
       status: opts.status ?? 'ACTIVE',
+      owner: opts.owner === undefined ? 'COMPANY' : opts.owner,
       ipAddress: opts.ip,
       deviceModelId: model.id
     }
@@ -78,7 +79,6 @@ export interface DeviceBackupStack {
   backUpNow: BackUpDeviceNowUseCase;
   list: ListDeviceBackupsUseCase;
   download: DownloadDeviceBackupUseCase;
-  diff: DiffDeviceBackupsUseCase;
   runScheduled: RunScheduledBackupsUseCase;
 }
 
@@ -128,7 +128,6 @@ export function buildDeviceBackups(
       backups,
       logger
     ),
-    diff: new DiffDeviceBackupsUseCase(targets, backups, logger),
     runScheduled: new RunScheduledBackupsUseCase(
       targets,
       states,

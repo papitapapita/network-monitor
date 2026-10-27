@@ -1,8 +1,8 @@
 # Device Backups — Business Rules
 
-Automatic copies of the main devices' configuration. When an access point dies
-or someone breaks its settings, the last good configuration is one download
-away instead of being rebuilt from memory.
+An automatic copy of the configuration of the company's own devices. When an
+antenna dies or someone breaks its settings, its latest configuration is one
+download away instead of being rebuilt from memory.
 
 Format and conventions: [README.md](README.md).
 
@@ -17,28 +17,27 @@ Format and conventions: [README.md](README.md).
 | `BKP-040` … `BKP-049` | Secrecy and access                        |
 | `BKP-050` … `BKP-059` | Vendors and the HTTP surface              |
 | `BKP-060` … `BKP-069` | Alerts                                    |
-| `BKP-070` … `BKP-079` | Comparing versions                        |
+| `BKP-070` … `BKP-079` | Comparing versions (removed)              |
 
 ## Layer coverage
 
-| Layer                          | Rules |
-| ------------------------------ | ----- |
-| Domain (aggregate)             | 9     |
-| Domain (service)               | 4     |
-| Domain (service) + Application | 1     |
-| Domain + Application           | 5     |
-| Application                    | 5     |
-| Application + Infrastructure   | 2     |
-| Application + Presentation     | 1     |
-| Infrastructure                 | 8     |
-| Infrastructure (database)      | 1     |
-| Presentation                   | 3     |
+| Layer                        | Rules |
+| ---------------------------- | ----- |
+| Domain (aggregate)           | 9     |
+| Domain (service)             | 3     |
+| Domain + Application         | 4     |
+| Application                  | 5     |
+| Application + Infrastructure | 2     |
+| Application + Presentation   | 1     |
+| Infrastructure               | 8     |
+| Infrastructure (database)    | 1     |
+| Presentation                 | 2     |
 
-AirOS access points and MikroTik routers and switches, read by this server
-on site or by the device's on-site agent off site, with change and failure
-alerts and a comparison of any two versions. Stations and other vendors'
-routers and switches come later; the refusals in `BKP-014` say which case a
-device falls into today.
+The company's AirOS antennas, access points and stations, and its MikroTik
+routerboards and switches, read by this server on site or by the device's
+on-site agent off site. Only the latest configuration is kept, and only a
+backup that keeps failing raises an alert. Customers' own equipment is never
+backed up; the refusals in `BKP-014` say which case a device falls into today.
 
 ---
 
@@ -130,8 +129,8 @@ look like a change every night.
 When the device still holds the latest saved configuration, nothing new is
 stored; that version's last-checked time moves forward instead.
 
-**Why:** The history then shows real changes only, and 30 versions (`BKP-030`)
-cover months rather than a month of identical copies.
+**Why:** The kept copy's date then says when the configuration last really
+changed, not when it was last read.
 
 **Enforced at:** `src/application/device-backups/services/DeviceConfigBackupService.ts`,
 `src/domain/device-backups/aggregates/ConfigBackup.ts` (`confirmUnchanged`)
@@ -170,33 +169,33 @@ downloaded is byte for byte the device's own.
 
 ## Which devices, when, and what is refused
 
-### BKP-010 — The daily run backs up the access points, routers and switches
+### BKP-010 — The daily run backs up the company's antennas, routerboards and switches
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-10-07 · **Changed:** 2026-10-07 (routers and switches; access points by category)
+**Since:** 2026-10-07 · **Revised:** 2026-10-26
 
-A device is in the run when it is `ACTIVE` or `COMMISSIONING`, is not deleted,
-and is one of:
+A device is in the run when it is owned by the company, is `ACTIVE` or
+`COMMISSIONING`, is not deleted, and is one of:
 
-- an access point: an enabled wireless polling configuration of type
-  `ACCESS_POINT`, or, for a device with no polling configuration, the
-  category `ACCESS_POINT`;
-- a device whose model is a `ROUTER`, `ROUTERBOARD` or `SWITCH`.
+- an antenna: an enabled wireless polling configuration, access point or
+  station, or, for a device with no polling configuration, the category
+  `ACCESS_POINT` or `WIRELESS_CPE`;
+- a device whose model is a `ROUTERBOARD` or a `SWITCH`.
 
-These are the main devices; an access point counts as one first. A polling
-configuration, when there is one, decides over the category: a device polled
-as a station, or an access point whose polling was turned off, is left out
-whatever its category. Servers, devices in inventory or decommissioned are
-left out too. A manual backup recognises an access point the same way, its
-polling turned off or not.
+A device owned by a customer, or with no owner set, is left out whatever it
+is. So is a model of type `ROUTER`, such as a customer's Wi-Fi router. A
+polling configuration, when there is one, decides over the category: an
+antenna whose polling was turned off is left out. Servers, devices in
+inventory or decommissioned are left out too. A manual backup recognises a
+device the same way, its polling turned off or not.
 
-**Why:** Access points carry a whole sector of customers and the routers and
-switches carry the whole network; their configuration is the one worth having.
-Stations come later as an opt-in. The category is what an operator sets when
-adding a device, so an access point nobody set up wireless polling for is
-still backed up; a polling configuration is the more deliberate statement, so
-it wins when the two disagree.
+**Why:** The access points, the backhaul links and the routerboards carry the
+network, and rebuilding them by hand is what a backup saves. A customer's CPE
+or Wi-Fi router is cheap to set up again and not the company's to keep. The
+category is what an operator sets when adding a device, so an antenna nobody
+set up wireless polling for is still backed up; a polling configuration is the
+more deliberate statement, so it wins when the two disagree.
 
 **Enforced at:** `src/infrastructure/device-backups/queries/PrismaBackupTargetsQuery.ts` (`listScheduled`, `select`)
 **Tests:** `tests/integration/use-cases/device-backups/RunScheduledBackupsUseCase.integration.test.ts`,
@@ -255,19 +254,21 @@ the rest, and the run should never flood the network.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-10-07
+**Since:** 2026-10-07 · **Revised:** 2026-10-26
 
-In this order: not a main device (`BKP-010`); out of reach, that is off site
-and behind no agent (`BKP-015`); no IP address; no HTTP credentials; no backup support yet for this kind of device
-from its vendor. Today that support is AirOS on Ubiquiti access points and
-RouterOS on any MikroTik; a Ubiquiti router, for one, is refused. The refusal
+In this order: not a company antenna, routerboard or switch (`BKP-010`); out
+of reach, that is off site and behind no agent (`BKP-015`); no IP address; no
+HTTP credentials; no backup support yet for this kind of device from its
+vendor. Today that support is AirOS on Ubiquiti antennas, access points and
+stations, and RouterOS on any MikroTik; a Ubiquiti switch, for one, is
+refused. The refusal
 is recorded like a failed attempt (`BKP-020`).
 
 **Why:** An access point that is never backed up because nobody saved its
 login should show up as failing, with the reason, instead of silently missing.
 
 **Enforced at:** `src/application/device-backups/services/DeviceConfigBackupService.ts` (`refusalFor`)
-**Messages:** `Only access points, routers and switches are backed up for now`,
+**Messages:** `Only company antennas, routerboards and switches are backed up for now`,
 `This server cannot reach the device, and it is not behind an on-site agent`,
 `The device has no IP address`, `No HTTP credentials are configured for this device`,
 `Backups are not supported for this kind of device from this vendor yet`
@@ -403,22 +404,26 @@ the attempt itself.
 
 ## Retention
 
-### BKP-030 — The newest 30 versions per device are kept
+### BKP-030 — Only the latest configuration of a device is kept
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application + Infrastructure
-**Since:** 2026-10-07
+**Since:** 2026-10-07 · **Revised:** 2026-10-26
 
-Older versions are removed right after a new one is saved. The newest version
-is never removed.
+When a changed configuration is saved, the device's previous copy is removed
+right after. There is no history of versions; an unchanged configuration keeps
+its copy (`BKP-006`). Migration `20261027120000_keep_latest_config_backup`
+removed the older versions kept before.
 
-**Why:** With `BKP-006`, 30 versions are 30 real changes. Months of history at
-a few KB each.
+**Why:** A backup is there to rebuild a device that died or was broken, and
+for that only its latest configuration is useful. Copies of every change were
+noise nobody read.
 
 **Enforced at:** `src/application/device-backups/services/DeviceConfigBackupService.ts` (`BACKUP_VERSIONS_KEPT`),
 `src/infrastructure/device-backups/repositories/PrismaConfigBackupRepository.ts` (`pruneOldVersions`)
 **Tests:** `tests/application/device-backups/services/DeviceConfigBackupService.test.ts`,
-`tests/integration/use-cases/device-backups/RunScheduledBackupsUseCase.integration.test.ts`
+`tests/integration/use-cases/device-backups/RunScheduledBackupsUseCase.integration.test.ts`,
+`tests/integration/use-cases/device-backups/ListDeviceBackupsUseCase.integration.test.ts`
 
 ### BKP-031 — A device's backups go with it when it is removed for good
 
@@ -477,21 +482,18 @@ Every read but the download leaves the encrypted content out of the query.
 **Tests:** `tests/integration/use-cases/device-backups/ListDeviceBackupsUseCase.integration.test.ts`,
 `tests/integration/device-backup.routes.test.ts`
 
-### BKP-043 — A downloaded file or a comparison is neither logged nor cached
+### BKP-043 — A downloaded file is neither logged nor cached
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application + Presentation
-**Since:** 2026-10-07
+**Since:** 2026-10-07 · **Revised:** 2026-10-26
 
-The use case log shows `[redacted]` in place of the content, or of the changed
-lines of a comparison (`BKP-070`), and both responses carry
-`Cache-Control: no-store`.
+The use case log shows `[redacted]` in place of the content, and the response
+carries `Cache-Control: no-store`.
 
 **Enforced at:** `src/application/device-backups/use-cases/DownloadDeviceBackupUseCase.ts` (`sanitizeForLogging`),
-`src/application/device-backups/use-cases/DiffDeviceBackupsUseCase.ts` (`sanitizeForLogging`),
-`src/presentation/http/controllers/DeviceBackupController.ts` (`download`, `diff`)
+`src/presentation/http/controllers/DeviceBackupController.ts` (`download`)
 **Tests:** `tests/application/device-backups/use-cases/DownloadDeviceBackupUseCase.test.ts`,
-`tests/application/device-backups/use-cases/DiffDeviceBackupsUseCase.test.ts`,
 `tests/integration/device-backup.routes.test.ts`
 
 ---
@@ -550,22 +552,11 @@ change worth seeing.
 
 ### BKP-053 — A RouterOS comparison hides the value of each secret argument
 
-**Type:** Policy · **Status:** Active
-**Layer:** Domain (service)
-**Since:** 2026-10-07
+**Type:** Policy · **Status:** Removed
+**Since:** 2026-10-07 · **Removed:** 2026-10-26
 
-In a RouterOS line, every `name=value` argument whose name contains `pass`,
-`psk`, `secret`, `community`, `token` or `private`, or ends in `key`
-(`wpa2-pre-shared-key`, `private-key`), shows `********` instead of its value,
-quoted or not. Comment lines, empty values and text inside a quoted value are
-left alone. A secret long enough for RouterOS to wrap onto a second line is
-masked on its first line only.
-
-**Why:** Same as `BKP-071`: PPPoE passwords, RADIUS secrets and wireless keys
-are for restoring, not for reading on screen.
-
-**Enforced at:** `src/domain/device-backups/services/ConfigSecretMasker.ts` (`maskRouterOs`)
-**Tests:** `tests/domain/device-backups/services/ConfigSecretMasker.test.ts`
+**Why it was removed:** Only the latest configuration is kept (`BKP-030`), so
+there are no two versions to compare and no comparison to mask.
 
 ### BKP-054 — A RouterOS backup is the export `/import` takes back, secrets included
 
@@ -615,32 +606,37 @@ pins host keys yet, and the routers are reached on the ISP's own network.
 **Tests:** `tests/infrastructure/device-backups/fetchers/SshCommandClient.test.ts`,
 `tests/integration/use-cases/device-backups/BackUpDeviceNowUseCase.integration.test.ts`
 
+### BKP-056 — The time an AirOS file was written and its checksum are not a change
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain (service)
+**Since:** 2026-10-26
+
+On top of `BKP-005`, an AirOS file is compared without its `## <number>` line
+(the moment the file was written) and its `#<32 hex digits>` lines (a checksum
+of the part above). The firmware line (`##XC.v8.7.5`), the commented feature
+flags and every setting still count.
+
+**Why:** AirOS writes both anew on every download, so without this every
+antenna looked changed every night and its copy was replaced for nothing.
+
+**Enforced at:** `src/domain/device-backups/services/ConfigNormalizer.ts` (`AIROS_STAMP`)
+**Tests:** `tests/domain/device-backups/services/ConfigNormalizer.test.ts`,
+`tests/application/device-backups/services/DeviceConfigBackupService.test.ts`
+
 ---
 
 ## Alerts
 
 ### BKP-060 — A configuration changed since the last night is announced
 
-**Type:** Policy · **Status:** Active
-**Layer:** Domain + Application
-**Since:** 2026-10-07
+**Type:** Policy · **Status:** Removed
+**Since:** 2026-10-07 · **Removed:** 2026-10-26
 
-When the nightly run saves a new version of a device that already had one, a
-warning names the device and when it was last seen unchanged:
-`La configuración de "<device>" cambió`. The first version of a device, an
-unchanged night, and a change found by a manual backup announce nothing.
-
-**Why:** A change nobody planned (a technician's mistake, a reset, someone
-else in the radio) is worth knowing the next morning. A manual backup is the
-user's own doing, usually right after their own change.
-
-**Enforced at:** `src/domain/device-backups/aggregates/ConfigBackup.ts` (`create`, `DeviceConfigChangedEvent`),
-`src/application/device-backups/services/DeviceConfigBackupService.ts`,
-`src/application/notifications/event-handlers/DeviceBackupNotificationHandlers.ts`
-**Tests:** `tests/domain/device-backups/aggregates/ConfigBackup.test.ts`,
-`tests/application/device-backups/services/DeviceConfigBackupService.test.ts`,
-`tests/application/notifications/event-handlers/DeviceBackupNotificationHandlers.test.ts`,
-`tests/integration/use-cases/device-backups/RunScheduledBackupsUseCase.integration.test.ts`
+**Why it was removed:** The routers' queues change every day with billing and
+suspensions, and the AirOS files looked changed every night (`BKP-056`), so
+the alert went off every night for nothing. A changed configuration now just
+replaces the kept copy (`BKP-030`).
 
 ### BKP-061 — A device failing three times in a row is announced, once per streak
 
@@ -662,22 +658,21 @@ stays broken should be reported once, not every night.
 `tests/application/notifications/event-handlers/DeviceBackupNotificationHandlers.test.ts`,
 `tests/integration/use-cases/device-backups/RunScheduledBackupsUseCase.integration.test.ts`
 
-### BKP-062 — Backup alerts follow the install's notification settings
+### BKP-062 — The failing alert follows the install's notification settings
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application + Infrastructure
-**Since:** 2026-10-07
+**Since:** 2026-10-07 · **Revised:** 2026-10-26
 
-Both go through the shared alert publisher, so the device's quiet hours and an
-expired subscription hold them back like any device alert. Each has its own
-type, `config_changed` and `backup_failing`, that the muted alert types can
-switch off for the whole install. They are notifications only, not entries in
-the alert list.
+It goes through the shared alert publisher, so the device's quiet hours and an
+expired subscription hold it back like any device alert. Its own type,
+`backup_failing`, lets the muted alert types switch it off for the whole
+install. It is a notification only, not an entry in the alert list.
 
-**Why:** An install that changes its radios often may not want the change
-alert at all, and turning it off must not need a code change.
+**Why:** An install may not want backup alerts at all, and turning them off
+must not need a code change.
 
-**Enforced at:** `src/application/notifications/event-handlers/DeviceBackupNotificationHandlers.ts` (`CONFIG_CHANGED_ALERT_TYPE`, `BACKUP_FAILING_ALERT_TYPE`),
+**Enforced at:** `src/application/notifications/event-handlers/DeviceBackupNotificationHandlers.ts` (`BACKUP_FAILING_ALERT_TYPE`),
 `src/infrastructure/di/container.ts`
 **Tests:** `tests/application/notifications/event-handlers/DeviceBackupNotificationHandlers.test.ts`
 
@@ -687,8 +682,8 @@ alert at all, and turning it off must not need a code change.
 **Layer:** Domain + Application
 **Since:** 2026-10-07
 
-A refusal (`BKP-014`) because the device is not a main device, is out of
-reach, or is of a vendor with no backup support yet, or because its agent must
+A refusal (`BKP-014`) because the device is not a company antenna,
+routerboard or switch, is out of reach, or is of a vendor with no backup support yet, or because its agent must
 be updated first (`BKP-016`), still counts in the device's streak and shows as
 its last error, but never triggers the failing alert (`BKP-061`). A refusal
 someone can fix (no IP address, no HTTP credentials) does. A device out of
@@ -710,58 +705,23 @@ yet; an alert for it is noise that teaches people to ignore the real ones.
 
 ### BKP-070 — Two versions are compared line by line, as normalised
 
-**Type:** Policy · **Status:** Active
-**Layer:** Domain (service) + Application
-**Since:** 2026-10-07
+**Type:** Policy · **Status:** Removed
+**Since:** 2026-10-07 · **Removed:** 2026-10-26
 
-Any two versions of the same device and format, in either order. Both are
-normalised first (`BKP-005`); changed lines come with three unchanged lines
-around them, and changes close together share one block. A changed block
-larger than four million line pairs is shown as all removed, then all added.
-
-**Why:** "What did someone change on this radio?" is the question the change
-alert (`BKP-060`) raises. The size limit keeps one odd pair of files from
-taking the server's memory.
-
-**Enforced at:** `src/domain/device-backups/services/ConfigDiff.ts`,
-`src/application/device-backups/use-cases/DiffDeviceBackupsUseCase.ts`
-**Messages:** `Backup not found`,
-`Invalid comparison: the two backups have different formats`
-**Tests:** `tests/domain/device-backups/services/ConfigDiff.test.ts`,
-`tests/application/device-backups/use-cases/DiffDeviceBackupsUseCase.test.ts`,
-`tests/integration/use-cases/device-backups/DiffDeviceBackupsUseCase.integration.test.ts`
+**Why it was removed:** Only the latest configuration is kept (`BKP-030`), so
+there is nothing to compare it with. `GET /api/devices/:id/backups/diff` is
+gone.
 
 ### BKP-071 — A comparison hides secret values but shows that they changed
 
-**Type:** Policy · **Status:** Active
-**Layer:** Domain (service)
-**Since:** 2026-10-07
+**Type:** Policy · **Status:** Removed
+**Since:** 2026-10-07 · **Removed:** 2026-10-26
 
-In AirOS lines, the value of any setting whose name has a part containing
-`pass`, `psk`, `secret`, `community`, `token` or `private`, or whose last part
-ends in `key`, becomes `********`. RouterOS lines are masked argument by
-argument (`BKP-053`). Masking happens after comparing, so a
-changed password still shows as a removed and an added line. An empty value
-stays empty.
-
-**Why:** The comparison is for reading on screen; the secrets are only for
-restoring, which is what the download is for (`BKP-041`).
-
-**Enforced at:** `src/domain/device-backups/services/ConfigSecretMasker.ts`
-**Tests:** `tests/domain/device-backups/services/ConfigSecretMasker.test.ts`,
-`tests/application/device-backups/use-cases/DiffDeviceBackupsUseCase.test.ts`,
-`tests/integration/use-cases/device-backups/DiffDeviceBackupsUseCase.integration.test.ts`,
-`tests/integration/device-backup.routes.test.ts`
+**Why it was removed:** The comparison is gone (`BKP-070`).
 
 ### BKP-072 — Comparing needs `manage-credentials`
 
-**Type:** Policy · **Status:** Active
-**Layer:** Presentation
-**Since:** 2026-10-07
+**Type:** Policy · **Status:** Removed
+**Since:** 2026-10-07 · **Removed:** 2026-10-26
 
-**Why:** Even masked, the configuration around a change shows SSIDs, addresses
-and the whole network layout, so it is the download's audience: ADMIN and
-VENDOR.
-
-**Enforced at:** `src/presentation/http/routes/device-backup.routes.ts`
-**Tests:** `tests/integration/device-backup.routes.test.ts`
+**Why it was removed:** The comparison is gone (`BKP-070`).

@@ -15,10 +15,7 @@ import {
   BackupOutcome,
   BackupTrigger
 } from '../../../../src/domain/device-backups';
-import {
-  DeviceBackupFailingEvent,
-  DeviceConfigChangedEvent
-} from '../../../../src/domain/device-backups/events';
+import { DeviceBackupFailingEvent } from '../../../../src/domain/device-backups/events';
 import { DeviceId } from '../../../../src/domain/shared/ids';
 import {
   AIROS_CONFIG,
@@ -111,7 +108,20 @@ describe('DeviceConfigBackupService', () => {
       expect(result.value.outcome).toBe(BackupOutcome.UNCHANGED);
     });
 
-    it('[BKP-001] should add a version when the configuration changed', async () => {
+    it('[BKP-010] should back up a Ubiquiti station like an access point', async () => {
+      const result = await service.backUp(
+        makeCandidate({
+          kind: 'STATION',
+          deviceName: 'PtP Torre Sur'
+        }),
+        BackupTrigger.SCHEDULED,
+        NOW
+      );
+
+      expect(result.value.outcome).toBe(BackupOutcome.SAVED);
+    });
+
+    it('[BKP-030] should replace the kept copy when the configuration changed', async () => {
       const candidate = makeCandidate();
       await service.backUp(candidate, BackupTrigger.SCHEDULED, NOW);
       fetcher.serve('aaa.status=disabled\n');
@@ -123,27 +133,26 @@ describe('DeviceConfigBackupService', () => {
       );
 
       expect(result.value.outcome).toBe(BackupOutcome.SAVED);
-      expect(backups.rows).toHaveLength(2);
+      expect(backups.rows).toHaveLength(1);
+      expect(backups.rows[0].content).toBe('aaa.status=disabled\n');
+      expect(backups.rows[0].backup.domainEvents).toHaveLength(0);
     });
 
-    it('[BKP-060] should announce the change, naming the device and the version it replaces', async () => {
+    it('[BKP-056] should not count a new AirOS write time and checksum as a change', async () => {
+      const file = (written: string, checksum: string) =>
+        `### PART ###\n## ${written}\n${AIROS_CONFIG}#${checksum}\n`;
       const candidate = makeCandidate();
+      fetcher.serve(file('1626992172', 'a'.repeat(32)));
       await service.backUp(candidate, BackupTrigger.SCHEDULED, NOW);
-      const first = backups.rows[0].backup;
-      fetcher.serve('aaa.status=disabled\n');
+      fetcher.serve(file('1628054048', 'b'.repeat(32)));
 
-      await service.backUp(
+      const result = await service.backUp(
         candidate,
         BackupTrigger.SCHEDULED,
         new Date(NOW.getTime() + DAY)
       );
 
-      expect(first.domainEvents).toHaveLength(0);
-      const [event] = backups.rows[1].backup
-        .domainEvents as DeviceConfigChangedEvent[];
-      expect(event).toBeInstanceOf(DeviceConfigChangedEvent);
-      expect(event.deviceName).toBe('AP Torre Norte');
-      expect(event.previousBackupId.equals(first.id)).toBe(true);
+      expect(result.value.outcome).toBe(BackupOutcome.UNCHANGED);
     });
 
     it(`[BKP-030] should keep only the newest ${BACKUP_VERSIONS_KEPT} versions`, async () => {

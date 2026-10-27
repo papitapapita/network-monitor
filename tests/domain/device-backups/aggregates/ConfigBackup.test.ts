@@ -7,7 +7,6 @@ import {
   ConfigBackup,
   MAX_CONFIG_BYTES
 } from '../../../../src/domain/device-backups';
-import { DeviceConfigChangedEvent } from '../../../../src/domain/device-backups/events';
 import { DeviceId } from '../../../../src/domain/shared/ids';
 
 const HASH = 'a'.repeat(64);
@@ -136,73 +135,6 @@ describe('ConfigBackup', () => {
 
       expect(result.isSuccess).toBe(true);
       expect(backup.lastCheckedAt).toEqual(TAKEN_AT);
-    });
-  });
-
-  describe('create() replacing a previous version', () => {
-    const LATER = new Date('2026-10-08T08:00:00Z');
-
-    it('[BKP-060] should announce a change found by the nightly run', () => {
-      const previous = makeBackup();
-      previous.confirmUnchanged(new Date('2026-10-07T20:00:00Z'));
-
-      const backup = ConfigBackup.create(
-        makeProps({
-          deviceId: previous.deviceId,
-          contentHash: 'b'.repeat(64),
-          takenAt: LATER
-        }),
-        { previous, deviceName: 'AP Torre Norte' }
-      ).value;
-
-      expect(backup.domainEvents).toHaveLength(1);
-      const event = backup
-        .domainEvents[0] as DeviceConfigChangedEvent;
-      expect(event).toBeInstanceOf(DeviceConfigChangedEvent);
-      expect(event.aggregateId.equals(backup.id)).toBe(true);
-      expect(event.deviceId.equals(previous.deviceId)).toBe(true);
-      expect(event.deviceName).toBe('AP Torre Norte');
-      expect(event.previousBackupId.equals(previous.id)).toBe(true);
-      expect(event.previousCheckedAt).toEqual(
-        new Date('2026-10-07T20:00:00Z')
-      );
-      expect(event.dateTimeOccurred).toEqual(LATER);
-    });
-
-    it('[BKP-060] should not announce a change found by a manual backup', () => {
-      const previous = makeBackup();
-
-      const backup = ConfigBackup.create(
-        makeProps({
-          deviceId: previous.deviceId,
-          trigger: BackupTrigger.MANUAL,
-          takenAt: LATER
-        }),
-        { previous, deviceName: 'AP Torre Norte' }
-      ).value;
-
-      expect(backup.domainEvents).toHaveLength(0);
-    });
-
-    it('[BKP-060] should not announce the first version of a device', () => {
-      expect(makeBackup().domainEvents).toHaveLength(0);
-    });
-
-    it('should refuse to replace a version of another device', () => {
-      const previous = makeBackup();
-
-      const result = ConfigBackup.create(
-        makeProps({ takenAt: LATER }),
-        {
-          previous,
-          deviceName: 'AP Torre Norte'
-        }
-      );
-
-      expect(result.isFailure).toBe(true);
-      expect(result.error).toBe(
-        'A backup can only replace a version of the same device'
-      );
     });
   });
 });

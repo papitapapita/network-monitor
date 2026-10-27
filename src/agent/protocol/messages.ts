@@ -355,6 +355,7 @@ export interface TrafficLoginWire {
 
 export type BackupDeviceKindWire =
   | 'ACCESS_POINT'
+  | 'STATION'
   | 'ROUTER'
   | 'SWITCH';
 

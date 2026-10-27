@@ -55,7 +55,8 @@ export class FakeConfigFetcher
     kind: BackupDeviceKind
   ): IConfigFetcher | null {
     if (vendorSlug === 'mikrotik') return this;
-    return vendorSlug === 'ubiquiti' && kind === 'ACCESS_POINT'
+    return vendorSlug === 'ubiquiti' &&
+      (kind === 'ACCESS_POINT' || kind === 'STATION')
       ? this
       : null;
   }

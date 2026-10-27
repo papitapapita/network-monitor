@@ -130,12 +130,12 @@ async function main(): Promise<void> {
     new ConfigFetcherRegistry([
       {
         vendor: 'ubiquiti',
-        kinds: ['ACCESS_POINT'],
+        kinds: ['ACCESS_POINT', 'STATION'],
         fetcher: new AirOsConfigFetcher(airOsHttpClient)
       },
       {
         vendor: 'mikrotik',
-        kinds: ['ACCESS_POINT', 'ROUTER', 'SWITCH'],
+        kinds: ['ACCESS_POINT', 'STATION', 'ROUTER', 'SWITCH'],
         fetcher: new RouterOsConfigFetcher(
           new SshCommandClient({
             maxOutputBytes: MAX_BACKUP_CONFIG_BYTES

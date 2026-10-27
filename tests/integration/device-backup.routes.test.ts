@@ -23,8 +23,6 @@ import { DeviceBackupController } from '../../src/presentation/http/controllers/
 const path = (id: string) => `/api/devices/${id}/backups`;
 const downloadPath = (id: string, backupId: string) =>
   `${path(id)}/${backupId}/download`;
-const diffPath = (id: string, from: string, to: string) =>
-  `${path(id)}/diff?from=${from}&to=${to}`;
 
 describe('Device backup routes', () => {
   let app: Application;
@@ -43,7 +41,6 @@ describe('Device backup routes', () => {
         stack.list,
         stack.backUpNow,
         stack.download,
-        stack.diff,
         c.getLogger()
       );
     }));
@@ -247,97 +244,6 @@ describe('Device backup routes', () => {
     it('should answer 401 without a token', async () => {
       const res = await request(app).get(
         downloadPath(GHOST_ID, GHOST_ID)
-      );
-
-      expect(res.status).toBe(401);
-    });
-  });
-
-  describe('GET /api/devices/:id/backups/diff', () => {
-    const seedTwoVersions = async () => {
-      const deviceId = await seedAp();
-      const first = await backUp(deviceId);
-      fetcher.serve(
-        FAKE_AIROS_CONFIG.replace(
-          'radio.1.mode=master',
-          'radio.1.mode=ap'
-        )
-      );
-      const second = await backUp(deviceId);
-      return {
-        deviceId,
-        from: first.body.backup.id as string,
-        to: second.body.backup.id as string
-      };
-    };
-
-    it('[BKP-071] should answer 200 with the changes, secrets masked and not cached', async () => {
-      const { deviceId, from, to } = await seedTwoVersions();
-
-      const res = await request(app)
-        .get(diffPath(deviceId, from, to))
-        .set('Authorization', `Bearer ${adminToken}`);
-
-      expect(res.status).toBe(200);
-      expect(res.headers['cache-control']).toBe('no-store');
-      expect(res.body).toMatchObject({
-        from: { id: from },
-        to: { id: to },
-        identical: false,
-        added: 1,
-        removed: 1
-      });
-      const texts = res.body.hunks[0].lines.map(
-        (l: { text: string }) => l.text
-      );
-      expect(texts).toContain('radio.1.mode=ap');
-      expect(JSON.stringify(res.body)).not.toContain('$1$secret');
-    });
-
-    it('[BKP-072] should answer 403 to an operator', async () => {
-      const { deviceId, from, to } = await seedTwoVersions();
-
-      const res = await request(app)
-        .get(diffPath(deviceId, from, to))
-        .set('Authorization', `Bearer ${operatorToken}`);
-
-      expect(res.status).toBe(403);
-    });
-
-    it('should answer 400 when a version is missing from the query', async () => {
-      const deviceId = await seedAp();
-
-      const res = await request(app)
-        .get(`${path(deviceId)}/diff?from=${GHOST_ID}`)
-        .set('Authorization', `Bearer ${adminToken}`);
-
-      expect(res.status).toBe(400);
-    });
-
-    it('should answer 400 for a malformed version id', async () => {
-      const deviceId = await seedAp();
-
-      const res = await request(app)
-        .get(diffPath(deviceId, INVALID_ID, GHOST_ID))
-        .set('Authorization', `Bearer ${adminToken}`);
-
-      expect(res.status).toBe(400);
-    });
-
-    it('should answer 404 for an unknown version', async () => {
-      const { deviceId, from } = await seedTwoVersions();
-
-      const res = await request(app)
-        .get(diffPath(deviceId, from, GHOST_ID))
-        .set('Authorization', `Bearer ${adminToken}`);
-
-      expect(res.status).toBe(404);
-      expect(res.body.error).toBe('Backup not found');
-    });
-
-    it('should answer 401 without a token', async () => {
-      const res = await request(app).get(
-        diffPath(GHOST_ID, GHOST_ID, GHOST_ID)
       );
 
       expect(res.status).toBe(401);

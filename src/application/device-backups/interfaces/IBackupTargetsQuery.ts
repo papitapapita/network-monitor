@@ -10,8 +10,12 @@ export interface BackupCredentials {
   sshPort: number;
 }
 
-// The main devices whose configuration is backed up (BKP-010).
-export type BackupDeviceKind = 'ACCESS_POINT' | 'ROUTER' | 'SWITCH';
+// The company devices whose configuration is backed up (BKP-010).
+export type BackupDeviceKind =
+  | 'ACCESS_POINT'
+  | 'STATION'
+  | 'ROUTER'
+  | 'SWITCH';
 
 // Who reads the device's configuration (BKP-015, BKP-016). On site this
 // server does; off site, the agent the device sits behind, if any.
@@ -27,7 +31,7 @@ export interface BackupCandidate {
   deviceName: string;
   ipAddress: string | null;
   vendorSlug: string | null;
-  // null: not a main device, such as a station or a server.
+  // null: not backed up, such as a customer's CPE or a server.
   kind: BackupDeviceKind | null;
   reach: BackupReach;
   credentials: BackupCredentials | null;

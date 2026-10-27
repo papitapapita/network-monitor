@@ -30,19 +30,23 @@ export class PrismaBackupTargetsQuery implements IBackupTargetsQuery {
     private readonly serverOnSite: boolean
   ) {}
 
-  // BKP-010: the access points, polled or categorised as such, and the
-  // routers and switches, in service. Off site, only those behind an agent
-  // (BKP-015).
+  // BKP-010: the company's own antennas, access points and stations, and
+  // its routerboards and switches, in service. Off site, only those behind
+  // an agent (BKP-015).
   async listScheduled(): Promise<Result<BackupCandidate[]>> {
     const reachable = this.serverOnSite
       ? Prisma.empty
       : Prisma.sql`AND d.agent_id IS NOT NULL`;
     return this.select(
       Prisma.sql`
-        (
-          (wpc.device_type = 'ACCESS_POINT' AND wpc.enabled = true)
-          OR (wpc.device_id IS NULL AND d.category = 'ACCESS_POINT')
-          OR dm.device_type IN ('ROUTER', 'ROUTERBOARD', 'SWITCH')
+        d.owner = 'COMPANY'
+        AND (
+          wpc.enabled = true
+          OR (
+            wpc.device_id IS NULL
+            AND d.category IN ('ACCESS_POINT', 'WIRELESS_CPE')
+          )
+          OR dm.device_type IN ('ROUTERBOARD', 'SWITCH')
         )
         AND d.status IN ('ACTIVE', 'COMMISSIONING')
         ${reachable}
@@ -75,13 +79,17 @@ export class PrismaBackupTargetsQuery implements IBackupTargetsQuery {
                COALESCE(wpc.ip_address, d.ip_address) AS ip_address,
                v.slug AS vendor_slug,
                -- A polling configuration says what the radio is; without
-               -- one, the device's category does (BKP-010).
+               -- one, the device's category does. A customer's own
+               -- equipment is never backed up (BKP-010).
                CASE
+                 WHEN d.owner IS DISTINCT FROM 'COMPANY' THEN NULL
                  WHEN wpc.device_type = 'ACCESS_POINT' THEN 'ACCESS_POINT'
+                 WHEN wpc.device_type = 'STATION' THEN 'STATION'
                  WHEN wpc.device_id IS NULL
                    AND d.category = 'ACCESS_POINT' THEN 'ACCESS_POINT'
-                 WHEN dm.device_type IN ('ROUTER', 'ROUTERBOARD')
-                   THEN 'ROUTER'
+                 WHEN wpc.device_id IS NULL
+                   AND d.category = 'WIRELESS_CPE' THEN 'STATION'
+                 WHEN dm.device_type = 'ROUTERBOARD' THEN 'ROUTER'
                  WHEN dm.device_type = 'SWITCH' THEN 'SWITCH'
                END AS kind,
                dc.http_username,

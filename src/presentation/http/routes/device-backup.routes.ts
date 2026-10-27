@@ -7,7 +7,6 @@ import {
 } from '../middleware';
 import {
   backUpDeviceNowSchema,
-  diffDeviceBackupsSchema,
   downloadDeviceBackupSchema,
   listDeviceBackupsSchema
 } from '../validation';
@@ -15,15 +14,12 @@ import {
 /**
  * Device configuration backups — mounted under /api/devices
  *
- * GET  /api/devices/:id/backups                     — versions and the latest attempt
+ * GET  /api/devices/:id/backups                     — the kept copy and the latest attempt
  * POST /api/devices/:id/backups                     — back up now
  * GET  /api/devices/:id/backups/:backupId/download  — the saved file
- * GET  /api/devices/:id/backups/diff?from=&to=       — what changed between two
  *
  * The file carries the device's passwords and wireless keys, so downloading it
  * sits behind `manage-credentials`, like writing those credentials (BKP-041).
- * The diff masks those values but still shows the whole configuration around
- * a change, so it sits behind the same permission (BKP-072).
  */
 export function createDeviceBackupRoutes(
   controller: DeviceBackupController
@@ -50,13 +46,6 @@ export function createDeviceBackupRoutes(
     createRateLimiter('read'),
     validateRequest(downloadDeviceBackupSchema),
     controller.download
-  );
-  router.get(
-    '/:id/backups/diff',
-    authorize('manage-credentials'),
-    createRateLimiter('read'),
-    validateRequest(diffDeviceBackupsSchema),
-    controller.diff
   );
 
   return router;
