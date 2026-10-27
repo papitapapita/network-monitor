@@ -13,3 +13,4 @@ export * from './WhenConfiguredAlertPublisher';
 export * from './WebPushSender';
 export * from './PushAlertPublisher';
 export * from './TicketModeGatedOpener';
+export * from './InboxAlertPublisher';

@@ -405,9 +405,20 @@ describe('SendDeviceDownAlertUseCase', () => {
       expect(result.value?.status).toBe('OPEN');
     });
 
-    it('should call alertRepository.save exactly once', async () => {
+    it('[NOT-266] stores the alert before publishing it, then saves it notified', async () => {
       await useCase.execute(makeRequest());
-      expect(alertRepo.save).toHaveBeenCalledTimes(1);
+      expect(alertRepo.save).toHaveBeenCalledTimes(2);
+      expect(alertRepo.save.mock.invocationCallOrder[0]).toBeLessThan(
+        alertPublisher.publish.mock.invocationCallOrder[0]
+      );
+    });
+
+    it('[NOT-266] links the notice to its alert record', async () => {
+      await useCase.execute(makeRequest());
+      const stored = alertRepo.save.mock.calls[0][0];
+      expect(alertPublisher.publish).toHaveBeenCalledWith(
+        expect.objectContaining({ alertId: stored.id.toString() })
+      );
     });
 
     it('should publish exactly one CRITICAL, unresolved availability alert', async () => {
@@ -461,7 +472,7 @@ describe('SendDeviceDownAlertUseCase', () => {
       );
 
       const result = await useCase.execute(makeRequest());
-      expect(alertRepo.save).toHaveBeenCalledTimes(1);
+      expect(alertRepo.save).toHaveBeenCalledTimes(2);
       expect(result.isSuccess).toBe(true);
     });
 
@@ -502,6 +513,7 @@ describe('SendDeviceDownAlertUseCase', () => {
       const result = await useCase.execute(makeRequest());
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('Failed to save alert');
+      expect(alertPublisher.publish).not.toHaveBeenCalled();
     });
   });
 

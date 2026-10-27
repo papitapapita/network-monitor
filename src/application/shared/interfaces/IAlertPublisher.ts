@@ -25,6 +25,9 @@ export interface AlertNotification {
   // Lets a publisher decorator key a decision (mute, in particular) off which
   // condition this is without parsing `summary`/`detail`.
   type: string;
+  // The alert record this notice is about, when there is one; the inbox
+  // links to it (NOT-266).
+  alertId?: string | null;
 }
 
 export interface IAlertPublisher {

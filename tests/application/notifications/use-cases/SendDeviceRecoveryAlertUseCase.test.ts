@@ -227,6 +227,31 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
       );
     });
 
+    it('[NOT-270] does not also hand a delivered recovery to the inbox-only path', async () => {
+      const inboxOnly = makeAlertPublisher();
+      const withInbox = new SendDeviceRecoveryAlertUseCase(
+        alertRepo,
+        deviceRepo as unknown as IDeviceRepository,
+        alertPublisher,
+        logger,
+        undefined,
+        inboxOnly
+      );
+
+      await withInbox.execute(makeRequest());
+
+      expect(alertPublisher.publish).toHaveBeenCalledTimes(1);
+      expect(inboxOnly.publish).not.toHaveBeenCalled();
+    });
+
+    it('[NOT-266] links the notice to the alert it resolves', async () => {
+      await useCase.execute(makeRequest());
+      const saved = alertRepo.save.mock.calls[0][0];
+      expect(alertPublisher.publish).toHaveBeenCalledWith(
+        expect.objectContaining({ alertId: saved.id.toString() })
+      );
+    });
+
     it('should save the alert with recoveryNotifiedAt set when publish succeeds', async () => {
       let capturedAlert: Alert | null = null;
       alertRepo.save.mockImplementation(async (a) => {
@@ -283,6 +308,32 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
     it('never looks up the IP, since no message is being built', async () => {
       await useCase.execute(makeRequest());
       expect(deviceRepo.findById).not.toHaveBeenCalled();
+    });
+
+    it('[NOT-270] hands the recovery to the inbox only, never to delivery', async () => {
+      const inboxOnly = makeAlertPublisher();
+      const withInbox = new SendDeviceRecoveryAlertUseCase(
+        alertRepo,
+        deviceRepo as unknown as IDeviceRepository,
+        alertPublisher,
+        logger,
+        undefined,
+        inboxOnly
+      );
+
+      const result = await withInbox.execute(makeRequest());
+
+      expect(result.isSuccess).toBe(true);
+      expect(alertPublisher.publish).not.toHaveBeenCalled();
+      expect(inboxOnly.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          resolved: true,
+          type: 'device_unreachable',
+          occurredAt: OCCURRED_AT
+        })
+      );
+      const saved = alertRepo.save.mock.calls[0][0];
+      expect(saved.recoveryNotifiedAt).toBeNull();
     });
   });
 

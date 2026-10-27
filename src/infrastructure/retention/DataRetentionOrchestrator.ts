@@ -1,5 +1,8 @@
 import { PurgeOldPingResultsUseCase } from 'application/device-monitoring/use-cases';
-import { PurgeOldAlertsUseCase } from 'application/notifications/use-cases';
+import {
+  PurgeOldAlertsUseCase,
+  PurgeOldInboxNotificationsUseCase
+} from 'application/notifications/use-cases';
 import {
   PurgeOldWirelessSnapshotsUseCase,
   PurgeOldWirelessAlertRecordsUseCase
@@ -28,6 +31,7 @@ export class DataRetentionOrchestrator {
     private readonly purgeOldWirelessSnapshots: PurgeOldWirelessSnapshotsUseCase,
     private readonly purgeOldWirelessAlertRecords: PurgeOldWirelessAlertRecordsUseCase,
     private readonly purgeDeletedDevices: PurgeDeletedDevicesUseCase,
+    private readonly purgeOldInboxNotifications: PurgeOldInboxNotificationsUseCase,
     private readonly config: RetentionConfig,
     private readonly vendorSettings: IVendorSettingsRepository,
     private readonly logger: ILogger
@@ -100,7 +104,8 @@ export class DataRetentionOrchestrator {
       ),
       this.purgeDeletedDevices.execute(
         this.config.deletedDeviceGraceDays
-      )
+      ),
+      this.purgeOldInboxNotifications.execute()
     ]);
 
     const [
@@ -108,7 +113,8 @@ export class DataRetentionOrchestrator {
       alertResult,
       snapshotResult,
       wirelessAlertResult,
-      deletedDeviceResult
+      deletedDeviceResult,
+      inboxResult
     ] = results;
 
     if (pingResult.isFailure) {
@@ -141,6 +147,12 @@ export class DataRetentionOrchestrator {
         new Error(deletedDeviceResult.error)
       );
     }
+    if (inboxResult.isFailure) {
+      this.logger.error(
+        '[DataRetentionOrchestrator] Failed to purge inbox notifications',
+        new Error(inboxResult.error)
+      );
+    }
 
     this.logger.info('[DataRetentionOrchestrator] Purge complete', {
       pingResultsDeleted: pingResult.isSuccess ? pingResult.value : 0,
@@ -153,6 +165,9 @@ export class DataRetentionOrchestrator {
         : 0,
       deletedDevicesPurged: deletedDeviceResult.isSuccess
         ? deletedDeviceResult.value
+        : 0,
+      inboxNotificationsDeleted: inboxResult.isSuccess
+        ? inboxResult.value
         : 0
     });
   }

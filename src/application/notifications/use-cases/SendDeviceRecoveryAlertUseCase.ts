@@ -8,6 +8,7 @@ import { UseCase } from 'application/shared/core';
 import {
   ILogger,
   IAlertPublisher,
+  AlertNotification,
   isSuppressedPublish
 } from 'application/shared/interfaces';
 import { AlertMapper } from '../mappers';
@@ -30,7 +31,9 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
     private readonly deviceRepository: IDeviceRepository,
     private readonly alertPublisher: IAlertPublisher,
     logger: ILogger,
-    private readonly outageRollup?: OutageRollup
+    private readonly outageRollup?: OutageRollup,
+    // Records in the inbox without telling anyone (NOT-270).
+    private readonly inboxOnlyPublisher?: IAlertPublisher
   ) {
     super(logger, 'SendDeviceRecoveryAlertUseCase');
   }
@@ -90,34 +93,19 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
       if (saveResult.isFailure) {
         return this.fail(`Failed to save alert: ${saveResult.error}`);
       }
+      // An outage held back by quiet hours or a mute still reached the
+      // inbox, so its recovery goes there too (NOT-270).
+      if (this.inboxOnlyPublisher !== undefined) {
+        await this.inboxOnlyPublisher.publish(
+          await this.recoveryNotice(openAlert, deviceId, request)
+        );
+      }
       return this.ok(AlertMapper.toDTO(saveResult.value));
     }
 
-    const deviceName = await this.resolveDeviceName(deviceId);
-    const summary =
-      openAlert.durationSecs === null
-        ? `${deviceName} volvió a responder`
-        : `${deviceName} volvió a responder tras ${formatDuration(openAlert.durationSecs)} sin conexión`;
-    const latency =
-      request.latencyMs !== null ? `${request.latencyMs} ms` : 'N/A';
-    const affected = await this.affectedDevices(openAlert);
-
-    const publishResult = await this.alertPublisher.publish({
-      deviceId: deviceId.toString(),
-      severity: openAlert.severity,
-      source: SOURCE,
-      summary,
-      detail: [
-        `Latencia: ${latency}`,
-        OutageMessages.recoveryChat(affected)
-      ]
-        .filter((part) => part !== null)
-        .join('\n'),
-      shortDetail: OutageMessages.recoveryPush(affected),
-      occurredAt: request.occurredAt,
-      resolved: true,
-      type: ALERT_TYPE
-    });
+    const publishResult = await this.alertPublisher.publish(
+      await this.recoveryNotice(openAlert, deviceId, request)
+    );
 
     if (publishResult.isFailure) {
       // Deliberately not retried on a later cycle: unlike the down alert,
@@ -143,6 +131,39 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
     }
 
     return this.ok(AlertMapper.toDTO(saveResult.value));
+  }
+
+  private async recoveryNotice(
+    openAlert: Alert,
+    deviceId: DeviceId,
+    request: SendDeviceRecoveryAlertDTO
+  ): Promise<AlertNotification> {
+    const deviceName = await this.resolveDeviceName(deviceId);
+    const summary =
+      openAlert.durationSecs === null
+        ? `${deviceName} volvió a responder`
+        : `${deviceName} volvió a responder tras ${formatDuration(openAlert.durationSecs)} sin conexión`;
+    const latency =
+      request.latencyMs !== null ? `${request.latencyMs} ms` : 'N/A';
+    const affected = await this.affectedDevices(openAlert);
+
+    return {
+      deviceId: deviceId.toString(),
+      severity: openAlert.severity,
+      source: SOURCE,
+      summary,
+      detail: [
+        `Latencia: ${latency}`,
+        OutageMessages.recoveryChat(affected)
+      ]
+        .filter((part) => part !== null)
+        .join('\n'),
+      shortDetail: OutageMessages.recoveryPush(affected),
+      occurredAt: request.occurredAt,
+      resolved: true,
+      type: ALERT_TYPE,
+      alertId: openAlert.id.toString()
+    };
   }
 
   // NOT-245: who came back with this device and who is still down. The

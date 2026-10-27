@@ -19,6 +19,15 @@ import {
   INVALID_ID
 } from '../../helpers/db';
 import { FakeNotificationService } from '../../helpers/FakeNotificationService';
+import { seedPushUser } from '../../helpers/pushSubscriptions';
+import { InboxAlertPublisher } from 'infrastructure/notifications/InboxAlertPublisher';
+import { RecordInboxNotificationUseCase } from 'application/notifications/use-cases/RecordInboxNotificationUseCase';
+import { PrismaInboxNotificationRepository } from 'infrastructure/persistence/PrismaInboxNotificationRepository';
+import { PrismaInboxRecipientsQuery } from 'infrastructure/persistence/PrismaInboxRecipientsQuery';
+import { SseBroadcaster } from 'infrastructure/realtime/SseBroadcaster';
+import { InboxStream } from 'application/notifications/shared/InboxStream';
+import { QUIET_HOURS_SUPPRESSED } from 'application/shared/interfaces';
+import { Result } from 'domain/shared/core';
 
 // deleted_by is a UUID column: the id of the user who deleted the device.
 const OPERATOR_USER_ID = '00000000-0000-4000-8000-0000000000aa';
@@ -377,6 +386,108 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
         where: { id: child.alertId }
       });
       expect(row!.recoveryNotifiedAt).toBeNull();
+    });
+  });
+
+  describe('[NOT-270] the inbox when the outage was held back', () => {
+    let heldDown: SendDeviceDownAlertUseCase;
+    let heldRecovery: SendDeviceRecoveryAlertUseCase;
+    let hub: SseBroadcaster;
+    let userId: string;
+
+    beforeAll(() => {
+      const alertRepo = new PrismaAlertRepository(prisma);
+      const deviceRepo = new PrismaDeviceRepository(prisma);
+      const logger = new WinstonLogger();
+      const inboxRepo = new PrismaInboxNotificationRepository(prisma);
+      hub = new SseBroadcaster(logger);
+      const record = new RecordInboxNotificationUseCase(
+        inboxRepo,
+        new PrismaInboxRecipientsQuery(prisma),
+        new InboxStream(hub, inboxRepo, logger),
+        logger
+      );
+      // Quiet hours: every delivery is withheld.
+      const quiet = new InboxAlertPublisher(
+        { publish: async () => Result.fail(QUIET_HOURS_SUPPRESSED) },
+        record,
+        logger
+      );
+      const inboxOnly = new InboxAlertPublisher(
+        { publish: async () => Result.ok() },
+        record,
+        logger
+      );
+      heldDown = new SendDeviceDownAlertUseCase(
+        alertRepo,
+        new PrismaPollingConfigurationRepository(prisma),
+        deviceRepo,
+        new DeviceEligibilityService(),
+        quiet,
+        logger
+      );
+      heldRecovery = new SendDeviceRecoveryAlertUseCase(
+        alertRepo,
+        deviceRepo,
+        quiet,
+        logger,
+        undefined,
+        inboxOnly
+      );
+    });
+
+    afterAll(() => {
+      hub.closeAll();
+    });
+
+    beforeEach(async () => {
+      userId = await seedPushUser(prisma, 'operator@example.local');
+    });
+
+    async function inbox(): Promise<
+      { resolved: boolean; alertId: string | null }[]
+    > {
+      return prisma.inboxNotification.findMany({
+        where: { userId },
+        select: { resolved: true, alertId: true },
+        orderBy: { occurredAt: 'asc' }
+      });
+    }
+
+    it('records the recovery next to the outage, without paging anyone', async () => {
+      const down = await heldDown.execute({
+        deviceId,
+        consecutiveFailures: 3,
+        occurredAt: new Date('2026-10-27T07:10:00Z')
+      });
+      expect(down.value!.notifiedAt).toBeNull();
+
+      const result = await heldRecovery.execute({
+        deviceId,
+        latencyMs: 4,
+        occurredAt: new Date('2026-10-27T07:40:00Z')
+      });
+
+      expect(result.value.recoveryNotifiedAt).toBeNull();
+      expect(await inbox()).toEqual([
+        { resolved: false, alertId: down.value!.id },
+        { resolved: true, alertId: down.value!.id }
+      ]);
+    });
+
+    it('records nothing for a blip that never reached the inbox', async () => {
+      await prisma.alertEvent.create({
+        data: { deviceId, type: 'device_unreachable' }
+      });
+
+      const result = await heldRecovery.execute({
+        deviceId,
+        latencyMs: 4,
+        occurredAt: new Date()
+      });
+
+      expect(result.value.status).toBe('RESOLVED');
+      expect(await inbox()).toEqual([]);
     });
   });
 });

@@ -6,6 +6,7 @@ import { PurgeOldAlertsUseCase } from '../../../src/application/notifications/us
 import { PurgeOldWirelessSnapshotsUseCase } from '../../../src/application/wireless-monitoring/use-cases/PurgeOldWirelessSnapshotsUseCase';
 import { PurgeOldWirelessAlertRecordsUseCase } from '../../../src/application/wireless-monitoring/use-cases/PurgeOldWirelessAlertRecordsUseCase';
 import { PurgeDeletedDevicesUseCase } from '../../../src/application/device-inventory/use-cases/PurgeDeletedDevicesUseCase';
+import { PurgeOldInboxNotificationsUseCase } from '../../../src/application/notifications/use-cases/PurgeOldInboxNotificationsUseCase';
 import { ILogger } from '../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../src/domain/shared/core/Result';
 import {
@@ -49,6 +50,12 @@ function makePurgeDeletedDevices(): jest.Mocked<PurgeDeletedDevicesUseCase> {
   } as unknown as jest.Mocked<PurgeDeletedDevicesUseCase>;
 }
 
+function makePurgeInbox(): jest.Mocked<PurgeOldInboxNotificationsUseCase> {
+  return {
+    execute: jest.fn()
+  } as unknown as jest.Mocked<PurgeOldInboxNotificationsUseCase>;
+}
+
 function makeLogger(): jest.Mocked<ILogger> {
   return {
     debug: jest.fn(),
@@ -67,6 +74,7 @@ interface OrchestratorFixture {
   purgeSnapshots: jest.Mocked<PurgeOldWirelessSnapshotsUseCase>;
   purgeAlertRecords: jest.Mocked<PurgeOldWirelessAlertRecordsUseCase>;
   purgeDeletedDevices: jest.Mocked<PurgeDeletedDevicesUseCase>;
+  purgeInbox: jest.Mocked<PurgeOldInboxNotificationsUseCase>;
   logger: jest.Mocked<ILogger>;
   vendorSettings: jest.Mocked<IVendorSettingsRepository>;
   orchestrator: DataRetentionOrchestrator;
@@ -80,6 +88,7 @@ function makeOrchestrator(
   const purgeSnapshots = makePurgeSnapshots();
   const purgeAlertRecords = makePurgeAlertRecords();
   const purgeDeletedDevices = makePurgeDeletedDevices();
+  const purgeInbox = makePurgeInbox();
   const logger = makeLogger();
   const vendorSettings = vendorSettingsRepo({
     pingResultRetentionDays: 30,
@@ -93,6 +102,7 @@ function makeOrchestrator(
   purgeSnapshots.execute.mockResolvedValue(Result.ok(0));
   purgeAlertRecords.execute.mockResolvedValue(Result.ok(0));
   purgeDeletedDevices.execute.mockResolvedValue(Result.ok(0));
+  purgeInbox.execute.mockResolvedValue(Result.ok(0));
 
   const orchestrator = new DataRetentionOrchestrator(
     purgePing,
@@ -100,6 +110,7 @@ function makeOrchestrator(
     purgeSnapshots,
     purgeAlertRecords,
     purgeDeletedDevices,
+    purgeInbox,
     { deletedDeviceGraceDays: 7, checkIntervalMs },
     vendorSettings,
     logger
@@ -111,6 +122,7 @@ function makeOrchestrator(
     purgeSnapshots,
     purgeAlertRecords,
     purgeDeletedDevices,
+    purgeInbox,
     logger,
     vendorSettings,
     orchestrator
@@ -304,6 +316,22 @@ describe('DataRetentionOrchestrator', () => {
 
   // =========================================================================
   describe('error handling during runPurge()', () => {
+    it('[NOT-268] should log an error when the inbox purge fails', async () => {
+      const { purgeInbox, logger, orchestrator } =
+        makeOrchestrator(60_000);
+      purgeInbox.execute.mockResolvedValue(
+        Result.fail('inbox error')
+      );
+
+      orchestrator.start();
+      await flushPurge();
+
+      expect(logger.error).toHaveBeenCalledWith(
+        '[DataRetentionOrchestrator] Failed to purge inbox notifications',
+        expect.any(Error)
+      );
+    });
+
     it('should log an error when the ping results purge fails', async () => {
       const { purgePing, logger, orchestrator } =
         makeOrchestrator(60_000);
@@ -451,9 +479,11 @@ describe('DataRetentionOrchestrator', () => {
         purgeSnapshots,
         purgeAlertRecords,
         purgeDeletedDevices,
+        purgeInbox,
         logger,
         orchestrator
       } = makeOrchestrator(60_000);
+      purgeInbox.execute.mockResolvedValue(Result.ok(7));
       purgePing.execute.mockResolvedValue(Result.ok(10));
       purgeAlerts.execute.mockResolvedValue(Result.ok(5));
       purgeSnapshots.execute.mockResolvedValue(Result.ok(20));
@@ -470,7 +500,8 @@ describe('DataRetentionOrchestrator', () => {
           alertsDeleted: 5,
           wirelessSnapshotsDeleted: 20,
           wirelessAlertRecordsDeleted: 3,
-          deletedDevicesPurged: 2
+          deletedDevicesPurged: 2,
+          inboxNotificationsDeleted: 7
         }
       );
     });

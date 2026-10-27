@@ -32,11 +32,11 @@ Format and conventions: [README.md](README.md).
 
 | Layer                        | Rules |
 | ---------------------------- | ----- |
-| Application                  | 50    |
+| Application                  | 54    |
 | Domain (aggregate/entity/VO) | 24    |
 | Presentation                 | 7     |
 | Infrastructure (database)    | 2     |
-| Infrastructure (composition) | 3     |
+| Infrastructure (composition) | 4     |
 
 `Alert` is a deliberately thin aggregate — it holds one three-flag lifecycle
 (`resolvedAt`, `notifiedAt`, `recoveryNotifiedAt`) and refuses to move any of
@@ -2276,3 +2276,112 @@ share.
 **Enforced at:** `src/application/notifications/shared/InboxStream.ts`, `src/application/notifications/use-cases/MarkInboxNotificationReadUseCase.ts`, `src/application/notifications/use-cases/MarkAllInboxNotificationsReadUseCase.ts`, `src/presentation/http/controllers/InboxStreamController.ts`, `src/presentation/http/routes/inbox-stream.routes.ts`
 **Reached from:** `GET /api/notifications/stream`
 **Tests:** `tests/application/notifications/shared/InboxStream.test.ts`, `tests/presentation/http/controllers/InboxStreamController.test.ts`, `tests/integration/inbox-stream.routes.test.ts`, `tests/integration/use-cases/notifications/MarkInboxNotificationReadUseCase.integration.test.ts`, `tests/integration/use-cases/notifications/MarkAllInboxNotificationsReadUseCase.integration.test.ts`
+
+### NOT-266 — Every active account gets each notice; security notices go to administrators only
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-27
+
+Each notice the install sends its staff is added to the inbox of every account
+that is not disabled. The exception is security notices (`sign_in_paused`,
+`two_factor_reset`): only `ADMIN` and `VENDOR` accounts get those. The copy keeps
+the notice's first line as its title, the full detail as its body, and the
+device it is about. A device outage or recovery also links to its alert, so
+the inbox can open it. To make that link possible, a new outage alert is stored
+before its notice goes out. Deleting the device or the alert unlinks the copy
+and leaves the notice itself in the inbox.
+
+**Why:** Everyone on staff can act on a fault, so everyone gets the notice.
+Notices about who is locked out of an account are for the people who manage
+accounts. A disabled account cannot sign in, so filling its inbox would only
+store rows nobody reads.
+
+**Enforced at:** `src/application/notifications/use-cases/RecordInboxNotificationUseCase.ts`, `src/application/notifications/interfaces/IInboxRecipientsQuery.ts`, `src/infrastructure/persistence/PrismaInboxRecipientsQuery.ts`, `src/application/notifications/use-cases/SendDeviceDownAlertUseCase.ts`, `src/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.ts`
+**Tests:** `tests/application/notifications/use-cases/InboxNotificationUseCases.test.ts`, `tests/application/notifications/use-cases/SendDeviceDownAlertUseCase.test.ts`, `tests/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.test.ts`, `tests/integration/use-cases/notifications/RecordInboxNotificationUseCase.integration.test.ts`
+
+### NOT-267 — The inbox records what Telegram and phones are kept quiet about, once each
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure (composition)
+**Since:** 2026-10-27
+
+The inbox is recorded before any filter that silences a delivery. A notice still
+reaches the inbox during a device's quiet hours (NOT-170), for a muted type
+(NOT-190), with an expired subscription, and for a wireless alert while wireless
+notifications are switched off (NOT-203). It reaches the inbox even when
+Telegram is down. A silenced notice is retried on every cycle. All attempts for
+the same condition starting at the same moment share one inbox copy, so a retry
+adds nothing new, and a copy the user has read stays read. A recovery, or a
+later outage of the same device, is a new notice. Notices meant only for the
+vendor's chat, such as a failed agent update, never reach the inbox. A failure
+to record is logged and never holds up delivery.
+
+A recovery whose outage was held back still reaches the inbox (NOT-270).
+
+**Why:** Quiet hours and mutes decide who gets woken up. They don't decide
+what happened. Someone checking the inbox in the morning should see the night's
+outages that nobody was paged about.
+
+**Enforced at:** `src/infrastructure/notifications/InboxAlertPublisher.ts`, `src/infrastructure/di/container.ts`, `src/domain/notifications/entities/InboxNotification.ts` (`dedupKeyFor`), `src/infrastructure/persistence/PrismaInboxNotificationRepository.ts` (`addMany`)
+**Tests:** `tests/infrastructure/notifications/InboxAlertPublisher.test.ts`, `tests/integration/use-cases/notifications/RecordInboxNotificationUseCase.integration.test.ts`
+
+### NOT-268 — Inbox notifications are deleted after 90 days
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-27
+
+The nightly retention run deletes every inbox notification that arrived more
+than 90 days ago, read or unread, from every inbox. The window is fixed and is
+not one of the vendor's retention settings (INS-028). The manual retention run
+(NOT-131) leaves the inbox alone. If the purge fails, the error is logged and
+the next night's run tries again.
+
+**Why:** The inbox is a list of recent notices. The lasting record of each fault
+is the alert. After three months a notice no longer helps anyone.
+
+**Enforced at:** `src/application/notifications/use-cases/PurgeOldInboxNotificationsUseCase.ts`, `src/infrastructure/retention/DataRetentionOrchestrator.ts`
+**Tests:** `tests/application/notifications/use-cases/InboxNotificationUseCases.test.ts`, `tests/infrastructure/retention/DataRetentionOrchestrator.test.ts`, `tests/integration/use-cases/notifications/PurgeOldInboxNotificationsUseCase.integration.test.ts`
+
+### NOT-269 — An open dashboard tab is shown each new notification as it arrives
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-27
+
+When a notice is added to a user's inbox, each of that user's open inbox
+streams (NOT-265) receives it along with the new unread count. A retried
+delivery that adds nothing sends nothing. Each user's stream carries only their
+own copy.
+
+**Why:** The dashboard shows a new notice as a pop-up card the moment it
+arrives, and updates the bell in the same step.
+
+**Enforced at:** `src/application/notifications/shared/InboxStream.ts` (`notificationAdded`), `src/application/notifications/use-cases/RecordInboxNotificationUseCase.ts`
+**Reached from:** `GET /api/notifications/stream`
+**Tests:** `tests/application/notifications/shared/InboxStream.test.ts`, `tests/integration/use-cases/notifications/RecordInboxNotificationUseCase.integration.test.ts`
+
+### NOT-270 — A device recovery follows its outage into the inbox, even when nobody was paged
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-27
+
+A device recovery reaches the inbox exactly when its outage notice did. Usually
+both go out to everyone. Sometimes the outage notice was held back: quiet hours,
+a muted type, an expired subscription, or Telegram being down. The outage still
+reached the inbox (NOT-267), so its recovery is added there too. It is not sent
+to Telegram or phones, because nobody was told about the outage
+(NOT-097), and the alert keeps no recovery-notified time. Two kinds of outage
+never reach the inbox: a blip that ended inside the alert delay, and a device
+that went down behind its upstream (NOT-246). Their recoveries are left out as
+well. The match is by alert, so an outage already deleted after 90 days
+(NOT-268) gets no recovery either.
+
+**Why:** An outage in the inbox with no recovery next to it reads as a device
+that is still down. Someone catching up in the morning needs to see the device
+came back without opening the alert.
+
+**Enforced at:** `src/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.ts`, `src/application/notifications/use-cases/RecordInboxNotificationUseCase.ts`, `src/infrastructure/persistence/PrismaInboxNotificationRepository.ts` (`hasOutageNotice`), `src/infrastructure/di/container.ts`
+**Tests:** `tests/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.test.ts`, `tests/application/notifications/use-cases/InboxNotificationUseCases.test.ts`, `tests/integration/use-cases/notifications/SendDeviceRecoveryAlertUseCase.integration.test.ts`

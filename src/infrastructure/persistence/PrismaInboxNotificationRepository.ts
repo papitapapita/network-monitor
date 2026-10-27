@@ -55,6 +55,31 @@ export class PrismaInboxNotificationRepository
     }
   }
 
+  async addMany(
+    notifications: InboxNotification[]
+  ): Promise<Result<InboxNotification[]>> {
+    if (notifications.length === 0) return Result.ok([]);
+    try {
+      const records =
+        await this.prisma.inboxNotification.createManyAndReturn({
+          data: notifications.map((notification) => {
+            const data =
+              InboxNotificationMapper.toPersistence(notification);
+            return {
+              ...data,
+              severity: data.severity as 'WARNING' | 'CRITICAL'
+            };
+          }),
+          skipDuplicates: true
+        });
+      return Result.ok(records.map(InboxNotificationMapper.toDomain));
+    } catch (error) {
+      return Result.fail(
+        `Database error adding notifications: ${(error as Error).message}`
+      );
+    }
+  }
+
   async listForUser(
     userId: string,
     query: InboxPageQuery
@@ -113,6 +138,34 @@ export class PrismaInboxNotificationRepository
     } catch (error) {
       return Result.fail(
         `Database error marking notifications read: ${(error as Error).message}`
+      );
+    }
+  }
+
+  async hasOutageNotice(alertId: string): Promise<Result<boolean>> {
+    try {
+      const found = await this.prisma.inboxNotification.findFirst({
+        where: { alertId, resolved: false },
+        select: { id: true }
+      });
+      return Result.ok(found !== null);
+    } catch (error) {
+      return Result.fail(
+        `Database error checking notifications: ${(error as Error).message}`
+      );
+    }
+  }
+
+  async deleteOlderThan(cutoff: Date): Promise<Result<number>> {
+    try {
+      const { count } =
+        await this.prisma.inboxNotification.deleteMany({
+          where: { createdAt: { lt: cutoff } }
+        });
+      return Result.ok(count);
+    } catch (error) {
+      return Result.fail(
+        `Database error purging notifications: ${(error as Error).message}`
       );
     }
   }

@@ -24,6 +24,11 @@ export interface IInboxNotificationRepository {
   save(
     notification: InboxNotification
   ): Promise<Result<InboxNotification>>;
+  // Returns only the ones added: a notification the user already has (same
+  // dedup key) is skipped, so a retried delivery records nothing new.
+  addMany(
+    notifications: InboxNotification[]
+  ): Promise<Result<InboxNotification[]>>;
   // Newest first (NOT-261).
   listForUser(
     userId: string,
@@ -32,4 +37,8 @@ export interface IInboxNotificationRepository {
   countUnread(userId: string): Promise<Result<number>>;
   // Returns how many were unread before.
   markAllRead(userId: string, at: Date): Promise<Result<number>>;
+  // Whether any user's inbox holds the outage notice of this alert (NOT-270).
+  hasOutageNotice(alertId: string): Promise<Result<boolean>>;
+  // The one method across every inbox: retention (NOT-268).
+  deleteOlderThan(cutoff: Date): Promise<Result<number>>;
 }

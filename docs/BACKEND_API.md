@@ -3034,14 +3034,22 @@ Sends "✅ Notificación de prueba" to every phone the caller has subscribed.
 **Since:** 2026-10-27 · **Roles:** all
 
 Each user's **in-app inbox**: what the install told its staff, kept so it's still
-there after a missed Telegram message or a closed tab (NOT-260…264). Every action
+there after a missed Telegram message or a closed tab (NOT-260…270). Every action
 applies only to the **signed-in user's own inbox**.
 
-> **Status: storage, reading and the live badge.** Nothing writes to the inbox
-> yet. The next backend slice starts filling it from every alert, agent, backup
-> and sign-in notice, and adds a `notification` event to the stream to drive the
-> floating card. You can build the bell, badge, list page and stream now; the
-> inbox stays empty until then.
+**What lands in it** (NOT-266, NOT-267):
+
+- Every notice the install sends its staff: device down and back, wireless
+  alerts and their clearing, agent offline/back/clock, failing backups, paused
+  sign-ins and two-factor resets.
+- Every active account gets its own copy. `security` notices go to `ADMIN` and
+  `VENDOR` accounts only.
+- Quiet hours, muted types, an expired subscription and the wireless switch
+  silence only Telegram and phones. The inbox still gets those notices.
+- Each notice appears once, however many times its delivery is retried.
+- A device that comes back always gets its "volvió a responder" notice next to
+  the outage, even when the outage was held back from Telegram (NOT-270).
+- Notices older than 90 days are deleted, read or not (NOT-268).
 
 Errors from a request the user just made (a save that failed, a timeout) are
 **not** inbox notifications. Keep showing those as frontend-only toasts.
@@ -3154,15 +3162,27 @@ es.addEventListener('unread', (e) => {
   const { unread } = JSON.parse(e.data) as { unread: number };
   setBadge(unread);
 });
+es.addEventListener('notification', (e) => {
+  const { notification, unread } = JSON.parse(e.data) as {
+    notification: InboxNotificationDTO;
+    unread: number;
+  };
+  showFloatingCard(notification);
+  setBadge(unread);
+});
 ```
 
-| Event    | Data                 | When                                                         |
-| -------- | -------------------- | ------------------------------------------------------------ |
-| `unread` | `{ unread: number }` | first frame on open, then each time the unread count changes |
+| Event          | Data                                                     | When                                                          |
+| -------------- | -------------------------------------------------------- | ------------------------------------------------------------- |
+| `unread`       | `{ unread: number }`                                     | first frame on open, then when the user marks one or all read |
+| `notification` | `{ notification: InboxNotificationDTO; unread: number }` | a new notice reached this user's inbox (NOT-269)              |
 
 - The first frame is always `unread`, so a reconnect brings the badge back in
   step. If the list page is open, refetch it on that first frame too.
-- Today the count changes when the user marks one or all read, in any tab.
+- On `notification`, show the floating card and prepend it to an open list. Its
+  `unread` already counts it, so don't add one yourself.
+- Notices that arrive while no tab is open don't come as `notification` frames.
+  The opening `unread` count includes them.
 - Errors come as JSON before the stream opens: `401` (no or bad token), `429`
   `Too many streams` (10 per user, 200 per server).
 - Accepts the session cookie, a Bearer header or `?token=<jwt>`.

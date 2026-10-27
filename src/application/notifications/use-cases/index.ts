@@ -31,3 +31,5 @@ export * from './ListInboxNotificationsUseCase';
 export * from './GetUnreadInboxCountUseCase';
 export * from './MarkInboxNotificationReadUseCase';
 export * from './MarkAllInboxNotificationsReadUseCase';
+export * from './RecordInboxNotificationUseCase';
+export * from './PurgeOldInboxNotificationsUseCase';

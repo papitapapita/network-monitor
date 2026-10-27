@@ -1,3 +1,5 @@
+import { AlertSeverity } from 'domain/shared/enums';
+
 export interface InboxNotificationDTO {
   id: string;
   category: string;
@@ -48,4 +50,19 @@ export interface MarkAllInboxNotificationsReadDTO {
 
 export interface MarkAllInboxNotificationsReadResponseDTO {
   marked: number;
+}
+
+export interface RecordInboxNotificationDTO {
+  type: string;
+  severity: AlertSeverity;
+  resolved: boolean;
+  title: string;
+  body: string | null;
+  deviceId: string | null;
+  alertId: string | null;
+  occurredAt: Date;
+}
+
+export interface RecordInboxNotificationResponseDTO {
+  recorded: number;
 }

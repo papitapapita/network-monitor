@@ -142,6 +142,7 @@ import {
   PrismaMutedAlertTypeRepository,
   PrismaPushSubscriptionRepository,
   PrismaInboxNotificationRepository,
+  PrismaInboxRecipientsQuery,
   PrismaNotificationSettingsRepository,
   PrismaVendorSettingsRepository
 } from '../persistence/';
@@ -356,7 +357,8 @@ import {
   TelegramTestMessageSender,
   WhenConfiguredAlertPublisher,
   WebPushSender,
-  PushAlertPublisher
+  PushAlertPublisher,
+  InboxAlertPublisher
 } from '../notifications';
 import {
   OverdueDeviceDownAlertOrchestrator,
@@ -461,6 +463,8 @@ import {
   GetUnreadInboxCountUseCase,
   MarkInboxNotificationReadUseCase,
   MarkAllInboxNotificationsReadUseCase,
+  RecordInboxNotificationUseCase,
+  PurgeOldInboxNotificationsUseCase,
   UnsubscribePushUseCase,
   SendTestPushUseCase,
   SendPushAlertUseCase,
@@ -1993,8 +1997,8 @@ export class DependencyContainer {
     // Wraps the real publisher so every alert-producing path below (down,
     // recovery, wireless — they all share this one instance) gets
     // quiet-hours suppression for free.
-    // Outermost: an expired subscription (R17) silences everything.
-    const alertPublisher = new SubscriptionAlertPublisher(
+    // An expired subscription (R17) silences every delivery.
+    const deliveryPublisher = new SubscriptionAlertPublisher(
       new QuietHoursAlertPublisher(
         new MutedTypeAlertPublisher(
           pushSender
@@ -2018,6 +2022,20 @@ export class DependencyContainer {
         this.logger
       ),
       getSubscriptionStatusUseCase,
+      this.logger
+    );
+    // NOT-267: the inbox sits outside every filter, so it records what they
+    // keep off Telegram and phones.
+    const recordInboxNotificationUseCase =
+      new RecordInboxNotificationUseCase(
+        inboxNotificationRepository,
+        new PrismaInboxRecipientsQuery(this.prisma),
+        inboxStream,
+        this.logger
+      );
+    const alertPublisher = new InboxAlertPublisher(
+      deliveryPublisher,
+      recordInboxNotificationUseCase,
       this.logger
     );
 
@@ -2045,7 +2063,13 @@ export class DependencyContainer {
         this.deviceRepository,
         alertPublisher,
         this.logger,
-        outageRollup
+        outageRollup,
+        // NOT-270: nothing is delivered, only the inbox records it.
+        new InboxAlertPublisher(
+          { publish: async () => Result.ok() },
+          recordInboxNotificationUseCase,
+          this.logger
+        )
       );
 
     const raiseOverdueDeviceDownAlertsUseCase =
@@ -2076,9 +2100,13 @@ export class DependencyContainer {
     // Wireless alert delivery can be switched off from the dashboard so
     // wireless polling runs without paging anyone (NOT-203). Device
     // availability alerts (down/recovery) are unaffected by the switch.
-    const wirelessAlertPublisher = new SwitchedOffAlertPublisher(
-      alertPublisher,
-      this.notificationSettingsRepository,
+    const wirelessAlertPublisher = new InboxAlertPublisher(
+      new SwitchedOffAlertPublisher(
+        deliveryPublisher,
+        this.notificationSettingsRepository,
+        this.logger
+      ),
+      recordInboxNotificationUseCase,
       this.logger
     );
     const listAlertsUseCase = new ListAlertsUseCase(
@@ -2492,6 +2520,10 @@ export class DependencyContainer {
       this.deviceRepository,
       this.logger
     );
+    const purgeOldInboxNotificationsUseCase =
+      new PurgeOldInboxNotificationsUseCase(
+        inboxNotificationRepository
+      );
 
     const triggerDataRetentionUseCase =
       new TriggerDataRetentionUseCase(
@@ -2513,6 +2545,7 @@ export class DependencyContainer {
       purgeOldWirelessSnapshotsUseCase,
       purgeOldWirelessAlertRecordsUseCase,
       purgeDeletedDevicesUseCase,
+      purgeOldInboxNotificationsUseCase,
       { deletedDeviceGraceDays },
       this.vendorSettingsRepository,
       this.logger

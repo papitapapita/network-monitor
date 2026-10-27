@@ -126,6 +126,12 @@ export class SendDeviceDownAlertUseCase extends UseCase<
       );
     }
 
+    // Stored before it is published so the inbox can link to it (NOT-266).
+    const stored = await this.alertRepository.save(alertResult.value);
+    if (stored.isFailure) {
+      return this.fail(`Failed to save alert: ${stored.error}`);
+    }
+
     return this.notifyAndSave(alertResult.value, request, deviceName);
   }
 
@@ -163,7 +169,8 @@ export class SendDeviceDownAlertUseCase extends UseCase<
       shortDetail: OutageMessages.pushList(affected),
       occurredAt: request.occurredAt,
       resolved: false,
-      type: ALERT_TYPE
+      type: ALERT_TYPE,
+      alertId: alert.id.toString()
     });
 
     if (publishResult.isFailure) {
