@@ -9,3 +9,4 @@ export * from './DeviceNotificationPolicyMapper';
 export * from './MutedAlertTypeMapper';
 export * from './PushSubscriptionMapper';
 export * from './InboxNotificationMapper';
+export * from './SpeedTestResultMapper';

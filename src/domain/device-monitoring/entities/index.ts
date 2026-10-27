@@ -7,3 +7,4 @@
 
 // Polling entities
 export * from './PollingConfiguration';
+export * from './SpeedTestResult';

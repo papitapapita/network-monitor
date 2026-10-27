@@ -7,3 +7,4 @@ export * from './IRouterTrafficTargetsQuery';
 export * from './IRouterTrafficReader';
 export * from './IRouterTrafficMonitor';
 export * from './INetworkSweepTargetsQuery';
+export * from './IInternetSpeedTester';

@@ -23,6 +23,10 @@ import { createAlertThresholdRoutes } from './alert-threshold.routes';
 import { createWirelessStreamRoutes } from './wireless-stream.routes';
 import { createWirelessDiagnosisRoutes } from './wireless-diagnosis.routes';
 import { createNetworkSweepRoutes } from './network-sweep.routes';
+import {
+  createSpeedTestRoutes,
+  createSpeedTestStreamRoutes
+} from './speed-test.routes';
 import { createCredentialsRoutes } from './credentials.routes';
 import { createRadioSettingsRoutes } from './radio-settings.routes';
 import { createDeviceBackupRoutes } from './device-backup.routes';
@@ -127,6 +131,15 @@ export function setupRoutes(
     '/',
     createNetworkSweepRoutes(
       container.networkSweepController,
+      container.tokenService,
+      container.sessionValidator,
+      container.getLogger()
+    )
+  );
+  apiRouter.use(
+    '/',
+    createSpeedTestStreamRoutes(
+      container.speedTestController,
       container.tokenService,
       container.sessionValidator,
       container.getLogger()
@@ -405,6 +418,12 @@ export function setupRoutes(
   apiRouter.use(
     '/network/scan',
     createScanRoutes(container.scanController)
+  );
+
+  // Internet speed test history: /api/network/speed-tests
+  apiRouter.use(
+    '/network/speed-tests',
+    createSpeedTestRoutes(container.speedTestController)
   );
 
   // =====================================

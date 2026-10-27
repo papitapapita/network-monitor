@@ -20,3 +20,4 @@ export * from './PrismaOutageTopologyQuery';
 export * from './PrismaReportedApQuery';
 export * from './PrismaInboxNotificationRepository';
 export * from './PrismaInboxRecipientsQuery';
+export * from './PrismaSpeedTestResultRepository';

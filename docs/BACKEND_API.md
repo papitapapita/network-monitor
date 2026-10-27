@@ -2491,6 +2491,138 @@ devices not checked"): after an outage, a dead agent is the news.
 
 ---
 
+### `GET /api/network/speed-test/stream` — Internet Speed Test (SSE)
+
+**Status:** 200 (`text/event-stream`) | 401 | 403 | 409 | 500  
+**Roles:** `VENDOR`, `ADMIN`, `OPERATOR` (`create`) · **Since:** 2026-10-27
+
+Measures **the server's own internet connection, now**, the way
+speed.cloudflare.com does: latency and jitter, then download, then upload,
+streaming the speed every second. The result is kept, and appears in
+`GET /api/network/speed-tests` (MON-100 … MON-104).
+
+- **What it measures:** the ISP's upstream link as seen from its on-site
+  server, against the nearest Cloudflare data center (`serverLocation`, e.g.
+  `BOG`). It says nothing about a customer's link.
+- **How long:** about 25 s. Latency takes ~1 s (10 samples), then 10 s of
+  download and 10 s of upload, 4 connections each. The first 2 s of each are
+  left out of its result.
+- **It uses the line.** At full speed it moves several hundred MB. Don't run
+  it on a schedule or from a page load; only from a button.
+- **One at a time per install** (`409`). Closing the stream (`es.close()`)
+  stops the test, and a stopped test is **not** kept.
+- **Server hosted off site** (`SERVER_ON_SITE=false`): always `409`; the test
+  would measure the cloud server, not the ISP. Hide the button there — the
+  same `serverOnSite` flag the other on-site-only buttons use.
+- Same authentication as the other streams: the session cookie,
+  `?token=` or a Bearer header.
+
+**Query params:** `token` (optional, the JWT, for EventSource).
+
+**Events**, in this order. **This stream ends by itself**: call
+`es.close()` on `speed-test-done`, or EventSource reconnects and runs a new
+test.
+
+| Order                       | Event                 | Payload                |
+| --------------------------- | --------------------- | ---------------------- |
+| First                       | `speed-test-start`    | `SpeedTestStartDTO`    |
+| Per latency sample / second | `speed-test-progress` | `SpeedTestProgressDTO` |
+| Last                        | `speed-test-done`     | `SpeedTestResultDTO`   |
+
+```ts
+type SpeedTestPhase = 'LATENCY' | 'DOWNLOAD' | 'UPLOAD';
+
+interface SpeedTestStartDTO {
+  startedAt: string; // ISO 8601
+  latencySamples: number; // 10
+  downloadSeconds: number; // 10
+  uploadSeconds: number; // 10
+}
+
+interface SpeedTestProgressDTO {
+  phase: SpeedTestPhase;
+  elapsedMs: number; // since this phase began
+  mbps: number | null; // DOWNLOAD/UPLOAD: speed over the last second
+  latencyMs: number | null; // LATENCY: this sample
+}
+
+interface SpeedTestResultDTO {
+  id: string;
+  status: 'COMPLETED' | 'FAILED';
+  downloadMbps: number | null; // null when the test failed before measuring it
+  uploadMbps: number | null;
+  latencyMs: number | null; // median of the samples
+  jitterMs: number | null;
+  serverLocation: string | null; // Cloudflare data center code, e.g. "BOG", "MIA"
+  error: string | null; // FAILED only, e.g. "Upload failed: the server answered 503"
+  startedByEmail: string;
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+}
+```
+
+A test that fails part-way still ends with `speed-test-done`: `status:
+'FAILED'`, the measures taken before the failure, and `error`. Show what is
+there and the error.
+
+```js
+const es = new EventSource(
+  `/api/network/speed-test/stream?token=${encodeURIComponent(jwt)}`
+);
+es.addEventListener('speed-test-start', (e) => {
+  const plan = JSON.parse(e.data); // size the gauges / progress bar
+});
+es.addEventListener('speed-test-progress', (e) => {
+  const p = JSON.parse(e.data); // move the gauge for p.phase
+});
+es.addEventListener('speed-test-done', (e) => {
+  es.close(); // required — otherwise EventSource reconnects and tests again
+  const result = JSON.parse(e.data);
+});
+es.onerror = () => es.close(); // a refusal (409, 403) comes as JSON, which EventSource reports as an error
+```
+
+Errors before the stream opens come as JSON with a status code:
+
+| Status | `error`                                                                           | Show                                     |
+| ------ | --------------------------------------------------------------------------------- | ---------------------------------------- |
+| `409`  | `A speed test is already running`                                                 | "a test is already running", retry later |
+| `409`  | `This server is not on the ISP's network, so its speed test would not measure it` | hide the button                          |
+| `403`  | (VIEWER)                                                                          | hide the button for viewers              |
+
+**Frontend:** a "Test de velocidad" button for operators and admins, with
+three numbers (download, upload, latency) that fill in live like a
+speed-test site, and the history table below it.
+
+---
+
+### `GET /api/network/speed-tests` — Speed Test History
+
+**Status:** 200 | 400 | 401  
+**Roles:** all (`read`) · **Since:** 2026-10-27
+
+Every kept speed test, **newest first**, failed ones included (MON-103).
+
+**Query params:** `limit` (1–100, default 20), `offset` (default 0).
+
+```ts
+// data
+interface SpeedTestListResponseDTO {
+  results: SpeedTestResultDTO[]; // see the stream above
+  total: number;
+  hasMore: boolean;
+  limit: number;
+  offset: number;
+}
+```
+
+**Frontend:** a table under the button (date, download, upload, latency,
+location, who ran it); show `FAILED` rows with their `error`. Re-fetch after
+`speed-test-done`, or prepend the result it carries.
+
+---
+
 ### `GET /api/devices/:id/polling/history` — History + Stats
 
 > For a device behind an on-site agent, history can fill in **after the fact**:

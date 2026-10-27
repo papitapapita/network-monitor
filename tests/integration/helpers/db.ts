@@ -23,6 +23,8 @@ export async function cleanDatabase(
   await prisma.vendorSettings.deleteMany();
   // No row means the default alert thresholds apply (WLS-200).
   await prisma.wirelessAlertThresholds.deleteMany();
+  // Kept when their user is deleted (MON-103).
+  await prisma.speedTestResult.deleteMany();
 }
 
 /**

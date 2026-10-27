@@ -35,3 +35,4 @@ export * from './power-control.schemas';
 export * from './topology.schemas';
 export * from './radio-settings.schemas';
 export * from './inbox-notification.schemas';
+export * from './speed-test.schemas';

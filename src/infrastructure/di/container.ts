@@ -142,6 +142,7 @@ import {
   PrismaMutedAlertTypeRepository,
   PrismaPushSubscriptionRepository,
   PrismaInboxNotificationRepository,
+  PrismaSpeedTestResultRepository,
   PrismaInboxRecipientsQuery,
   PrismaNotificationSettingsRepository,
   PrismaVendorSettingsRepository
@@ -166,6 +167,7 @@ import {
   WirelessController,
   WirelessStreamController,
   NetworkSweepController,
+  SpeedTestController,
   LinkDiagnosisController,
   AlertThresholdsController,
   CredentialsController,
@@ -339,9 +341,12 @@ import {
 } from '../monitoring/router-traffic';
 import {
   RunNetworkSweepUseCase,
+  RunSpeedTestUseCase,
+  ListSpeedTestsUseCase,
   WatchRouterTrafficUseCase
 } from 'application/device-monitoring/use-cases';
 import { PrismaNetworkSweepTargetsQuery } from '../monitoring/network-sweep';
+import { CloudflareSpeedTester } from '../monitoring/speed-test';
 import {
   TelegramNotificationService,
   WhatsAppNotificationService,
@@ -679,6 +684,7 @@ export class DependencyContainer {
   public radioSettingsController: RadioSettingsController;
   public wirelessStreamController: WirelessStreamController;
   public networkSweepController: NetworkSweepController;
+  public speedTestController: SpeedTestController;
   public linkDiagnosisController: LinkDiagnosisController;
   public alertThresholdsController: AlertThresholdsController;
   public credentialsController: CredentialsController;
@@ -1620,6 +1626,20 @@ export class DependencyContainer {
         this.logger,
         this.serverOnSite
       ),
+      this.logger
+    );
+    // MON-100..MON-104: the server's own internet connection, on demand.
+    const speedTestRepository = new PrismaSpeedTestResultRepository(
+      this.prisma
+    );
+    this.speedTestController = new SpeedTestController(
+      new RunSpeedTestUseCase(
+        new CloudflareSpeedTester(),
+        speedTestRepository,
+        this.logger,
+        this.serverOnSite
+      ),
+      new ListSpeedTestsUseCase(speedTestRepository, this.logger),
       this.logger
     );
     const configurePollingUseCase = new ConfigureDevicePollingUseCase(

@@ -15,6 +15,7 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 | `MON-040` – `MON-059` | Ping history and retention           |
 | `MON-060` – `MON-079` | Live router traffic                  |
 | `MON-080` – `MON-099` | Network sweep                        |
+| `MON-100` – `MON-119` | Internet speed test                  |
 
 This file covers the reachability lifecycle only. The rules that decide **which**
 devices may be monitored at all live with the device itself — see DEV-057
@@ -466,6 +467,7 @@ in hand. That only ever looks correct within one page.
 The `statistics` returned by `GET /api/devices/:id/polling/history` are
 computed in the database over every ping for the device inside
 `fromDate`–`toDate`. `limit` and `offset` do not affect them:
+
 - `successRate` is pings that answered over all pings in the window, `0` for an
   empty window.
 - `averageResponseTime`, `minResponseTime` and `maxResponseTime` cover the pings
@@ -752,3 +754,118 @@ an outage, "agent offline" is itself the answer the operator needs.
 
 **Enforced at:** `src/application/device-monitoring/use-cases/RunNetworkSweepUseCase.ts` (`skipReason`, `sweepThroughAgents`, `sweepAgent`), `src/infrastructure/probe-agents/adapters/AgentChannelSweepProbe.ts`, `src/presentation/ws/agent/ConnectedAgents.ts` (`sweep`)
 **Tests:** `tests/application/device-monitoring/use-cases/RunNetworkSweepUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/RunNetworkSweepUseCase.integration.test.ts`, `tests/infrastructure/probe-agents/adapters/AgentChannelSweepProbe.test.ts`, `tests/integration/agent-sweep.test.ts`
+
+## Internet speed test
+
+An on-demand measure of the ISP's own internet connection, from its on-site
+server, to tell whether the upstream provider is delivering. Results are kept
+as a history.
+
+### MON-100 — A speed test measures the server's internet connection, and only on demand
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-27
+
+`GET /api/network/speed-test/stream` measures this server's connection to
+the nearest Cloudflare speed-test server (speed.cloudflare.com): latency and
+jitter, then download, then upload, streaming the speed as it goes. It runs
+only when a user starts it, never on a schedule. Operators and administrators
+may start one (`create`); a viewer may not. It measures the server's link to
+the internet, not any device or customer: nothing about devices is read or
+changed.
+
+**Why:** It answers "is our upstream provider giving us what we pay for?"
+from inside the ISP's network. A test fills the line while it runs, so it
+must never run by itself, and only staff who can act on the result start
+it.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/RunSpeedTestUseCase.ts`, `src/infrastructure/monitoring/speed-test/CloudflareSpeedTester.ts`, `src/presentation/http/routes/speed-test.routes.ts`
+**Reached from:** `GET /api/network/speed-test/stream` via `SpeedTestController.stream`
+**Tests:** `tests/application/device-monitoring/use-cases/SpeedTestUseCases.test.ts`, `tests/integration/speed-test.routes.test.ts`
+
+### MON-101 — One speed test at a time; closing the stream stops it and keeps nothing
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-27
+
+While a test is running, starting another is refused with `409`
+`"A speed test is already running"`, whoever started the first. When the
+caller closes the stream, the test stops and nothing is kept. The next test
+may start as soon as the last one has ended, however it ended.
+
+**Why:** Two tests at once split the same line between them, so both would
+report about half the real speed. A test stopped part-way has no complete
+answer worth keeping, and leaving the page should not leave the server
+filling the line for nobody.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/RunSpeedTestUseCase.ts` (`running`), `src/presentation/http/controllers/SpeedTestController.ts`
+**Reached from:** `GET /api/network/speed-test/stream`
+**Message:** `A speed test is already running`
+**Tests:** `tests/application/device-monitoring/use-cases/SpeedTestUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/RunSpeedTestUseCase.integration.test.ts`, `tests/integration/speed-test.routes.test.ts`
+
+### MON-102 — Latency is the median of 10 samples; each direction runs 10 s over 4 connections
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-27
+
+Latency: two empty requests open the connection and are dropped, then 10
+more are timed one after another. Each sample is the time to the answer less
+the processing time Cloudflare reports for it (`Server-Timing`). Latency is
+the median of the samples, and jitter the average change from one sample to
+the next. Download, then upload: 4 connections transfer back to back for 10
+seconds each, and the speed is the data moved after the first 2 seconds,
+over the time after them. While running, the speed over the last second is
+reported every second. A whole test takes about 25 seconds.
+
+**Why:** The first requests pay for setting up the encrypted connection and
+would overstate latency; the median ignores a stray slow sample. One TCP
+connection rarely fills a fast line, and every connection starts slow, so
+several run at once and the slow start is left out: the same approach the
+public speed-test sites use, so the numbers can be compared with them.
+
+**Enforced at:** `src/infrastructure/monitoring/speed-test/CloudflareSpeedTester.ts` (`DEFAULT_CLOUDFLARE_SPEED_TEST_OPTIONS`)
+**Tests:** `tests/infrastructure/monitoring/speed-test/CloudflareSpeedTester.test.ts`
+
+### MON-103 — Every finished speed test is kept, failed ones with what they measured
+
+**Type:** Invariant · **Status:** Active
+**Since:** 2026-10-27
+
+A test that runs to its end is kept as `COMPLETED` with all four measures
+(download, upload, latency, jitter). A test that fails part-way is kept as
+`FAILED`, with the measures taken before the failure and the reason, naming
+the phase (`"Upload failed: the server answered 503"`). A result without a
+reason must have every measure. Each keeps who started it: the user's email as
+it was then, and the user's id until that user is deleted. Results are
+listed newest first, to every role (`GET /api/network/speed-tests`), and are
+not purged: each is a few hundred bytes. When a result cannot be saved, the
+person who ran it still sees it.
+
+**Why:** A history is what turns one number into evidence: "upload has been
+half of what we pay for all week" is something to take to the provider. A
+failure is part of that history: a test that cannot reach the internet is
+itself a finding.
+
+**Enforced at:** `src/domain/device-monitoring/entities/SpeedTestResult.ts` (`create`), `src/application/device-monitoring/use-cases/RunSpeedTestUseCase.ts`, `src/application/device-monitoring/use-cases/ListSpeedTestsUseCase.ts`
+**Reached from:** `GET /api/network/speed-test/stream`, `GET /api/network/speed-tests` via `SpeedTestController.list`
+**Message:** `a speed test without an error must have every measure`
+**Tests:** `tests/domain/device-monitoring/entities/SpeedTestResult.test.ts`, `tests/integration/use-cases/device-monitoring/RunSpeedTestUseCase.integration.test.ts`, `tests/integration/use-cases/device-monitoring/ListSpeedTestsUseCase.integration.test.ts`
+
+### MON-104 — A server hosted off site runs no speed test
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-27
+
+When the server is not on the ISP's network (`SERVER_ON_SITE=false`), a
+speed test is refused with `409`
+`"This server is not on the ISP's network, so its speed test would not measure it"`,
+and nothing is measured or kept.
+
+**Why:** Off site, the test would measure the hosting provider's connection,
+not the ISP's, and a number that looks right but means something else is
+worse than none. Running it from the on-site agent is possible later.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/RunSpeedTestUseCase.ts`
+**Reached from:** `GET /api/network/speed-test/stream`
+**Message:** `This server is not on the ISP's network, so its speed test would not measure it`
+**Tests:** `tests/application/device-monitoring/use-cases/SpeedTestUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/RunSpeedTestUseCase.integration.test.ts`

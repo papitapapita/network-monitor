@@ -10,3 +10,5 @@ export * from './PurgeOldPingResultsUseCase';
 export * from './SuspendDeviceMonitoringUseCase';
 export * from './WatchRouterTrafficUseCase';
 export * from './RunNetworkSweepUseCase';
+export * from './RunSpeedTestUseCase';
+export * from './ListSpeedTestsUseCase';

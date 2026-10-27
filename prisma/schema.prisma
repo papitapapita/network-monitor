@@ -53,6 +53,7 @@ model User {
   technician         Technician?
   pushSubscriptions  PushSubscription[]
   inboxNotifications InboxNotification[]
+  speedTests         SpeedTestResult[]
 
   @@map("users")
 }
@@ -512,6 +513,36 @@ model InboxNotification {
   @@index([deviceId])
   @@index([alertId])
   @@map("inbox_notifications")
+}
+
+enum SpeedTestStatus {
+  COMPLETED
+  FAILED
+
+  @@map("speed_test_status")
+}
+
+// One run of the internet speed test, measured from this server (MON-100).
+// A failed run keeps what it measured before failing (MON-103).
+model SpeedTestResult {
+  id             String          @id @default(uuid()) @db.Uuid
+  status         SpeedTestStatus
+  downloadMbps   Float?          @map("download_mbps")
+  uploadMbps     Float?          @map("upload_mbps")
+  latencyMs      Float?          @map("latency_ms")
+  jitterMs       Float?          @map("jitter_ms")
+  serverLocation String?         @map("server_location") @db.VarChar(50)
+  error          String?         @db.VarChar(500)
+  startedById    String?         @map("started_by_id") @db.Uuid
+  startedByEmail String          @map("started_by_email") @db.VarChar(255)
+  startedAt      DateTime        @map("started_at") @db.Timestamptz
+  finishedAt     DateTime        @map("finished_at") @db.Timestamptz
+
+  startedBy User? @relation(fields: [startedById], references: [id], onDelete: SetNull)
+
+  @@index([startedAt(sort: Desc)])
+  @@index([startedById])
+  @@map("speed_test_results")
 }
 
 /// The install's notification settings, edited from the dashboard (NOT-200).

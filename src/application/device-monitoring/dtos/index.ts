@@ -15,3 +15,4 @@ export * from './IngestPingResultsDTO';
 export * from './IngestPingResultsResponseDTO';
 export * from './RouterTrafficDTO';
 export * from './NetworkSweepDTO';
+export * from './SpeedTestDTO';

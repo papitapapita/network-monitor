@@ -41,3 +41,4 @@ export * from './TopologyController';
 export * from './RadioSettingsController';
 export * from './InboxNotificationController';
 export * from './InboxStreamController';
+export * from './SpeedTestController';
