@@ -22,6 +22,7 @@ import {
   AgentChannelPingProbe,
   AgentChannelSweepProbe,
   AgentChannelRadioReader,
+  AgentChannelRadioSettings,
   DeviceMonitoringPingResultSink
 } from '../probe-agents/adapters';
 import {
@@ -147,6 +148,7 @@ import {
   LocationController,
   DeviceController,
   TopologyController,
+  RadioSettingsController,
   DeviceModelController,
   VendorController,
   PollingController,
@@ -251,8 +253,12 @@ import {
   MimosaSnmpCollector,
   WirelessCollectorRegistry,
   WirelessPollingOrchestrator,
-  LinkDiagnosisRunner
+  LinkDiagnosisRunner,
+  AirOsHostnameWriter,
+  RadioHostnameWriterRegistry,
+  RadioSettingsGateway
 } from '../wireless-monitoring';
+import { RadioLoginAdapter } from '../wireless-monitoring/adapters/RadioLoginAdapter';
 import { WirelessDeviceRepositoryAdapter } from '../wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
 import { DeviceReachAdapter } from '../wireless-monitoring/adapters/DeviceReachAdapter';
 import { ContractedCapacityAdapter } from '../wireless-monitoring/adapters/ContractedCapacityAdapter';
@@ -285,6 +291,8 @@ import {
   GetWirelessAlertHistoryUseCase,
   TriggerWirelessPollUseCase,
   RebootWirelessDeviceUseCase,
+  RevealWirelessKeyUseCase,
+  RenameRadioUseCase,
   CreateWirelessConfigUseCase,
   GetWirelessConfigUseCase,
   GetWirelessThroughputUseCase,
@@ -652,6 +660,7 @@ export class DependencyContainer {
   public alertController: AlertController;
   public scanController: ScanController;
   public wirelessController: WirelessController;
+  public radioSettingsController: RadioSettingsController;
   public wirelessStreamController: WirelessStreamController;
   public networkSweepController: NetworkSweepController;
   public linkDiagnosisController: LinkDiagnosisController;
@@ -2236,6 +2245,35 @@ export class DependencyContainer {
       deleteWirelessConfigUseCase,
       clearWirelessAlertUseCase,
       bulkClearWirelessAlertsUseCase,
+      this.logger
+    );
+
+    const radioTargetSources = {
+      configRepo: this.wirelessDeviceConfigRepository,
+      loginSource: new RadioLoginAdapter(
+        this.deviceCredentialsRepository
+      ),
+      vendorLookup: deviceVendorLookup,
+      deviceReach
+    };
+    const radioSettingsGateway = new RadioSettingsGateway(
+      airOsHttpClient,
+      new RadioHostnameWriterRegistry({
+        ubiquiti: new AirOsHostnameWriter(new SshCommandClient())
+      }),
+      new AgentChannelRadioSettings(connectedAgents)
+    );
+    this.radioSettingsController = new RadioSettingsController(
+      new RevealWirelessKeyUseCase(
+        radioTargetSources,
+        radioSettingsGateway,
+        this.logger
+      ),
+      new RenameRadioUseCase(
+        radioTargetSources,
+        radioSettingsGateway,
+        this.logger
+      ),
       this.logger
     );
 

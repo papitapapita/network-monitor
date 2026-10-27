@@ -8,3 +8,4 @@ export * from './IContractedCapacityProvider';
 export * from './ILinkDiagnosisRunner';
 export * from './IDeviceReach';
 export * from './IAgentRadioReader';
+export * from './IRadioSettingsGateway';

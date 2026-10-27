@@ -7,6 +7,10 @@ import {
   UbiquitiHttpCollector,
   WirelessCollectorRegistry
 } from 'infrastructure/wireless-monitoring/collectors';
+// Straight to the files: the folder's index also holds the backend's
+// gateway, which the agent has no use for.
+import { AirOsHostnameWriter } from 'infrastructure/wireless-monitoring/radio-settings/AirOsHostnameWriter';
+import { RadioHostnameWriterRegistry } from 'infrastructure/wireless-monitoring/radio-settings/RadioHostnameWriterRegistry';
 import {
   AGENT_CAPABILITIES,
   MAX_BACKUP_CONFIG_BYTES
@@ -146,7 +150,10 @@ async function main(): Promise<void> {
     new RouterOsTrafficReader(logger),
     logger,
     DEFAULT_PROBE_RUNNER_OPTIONS,
-    new PingCycleProbe(new PingService(), 0, 1_000)
+    new PingCycleProbe(new PingService(), 0, 1_000),
+    new RadioHostnameWriterRegistry({
+      ubiquiti: new AirOsHostnameWriter(new SshCommandClient())
+    })
   );
   runtime = new AgentRuntime({
     credentials: new CredentialStore(

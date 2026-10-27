@@ -196,6 +196,15 @@ export class AgentSession {
     );
   }
 
+  // AGT-120: only an agent that said it renames radios is ever asked to.
+  get canRenameRadios(): boolean {
+    return (
+      this.greeted &&
+      !this.closed &&
+      this.capabilities.includes('hostname')
+    );
+  }
+
   canAnswer(kind: ProbeRequest['kind']): boolean {
     switch (kind) {
       case 'backup':
@@ -204,6 +213,8 @@ export class AgentSession {
         return this.canReadTraffic;
       case 'sweep':
         return this.canSweep;
+      case 'hostname':
+        return this.canRenameRadios;
       default:
         return this.canProbe;
     }

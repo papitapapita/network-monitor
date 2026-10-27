@@ -1,5 +1,6 @@
 import type {
   DecryptedCredentials,
+  RadioLogin,
   WirelessCollectionResult
 } from 'application/wireless-monitoring/interfaces';
 import type {
@@ -43,6 +44,13 @@ export interface AgentRadioRequest {
   credentials: DecryptedCredentials;
 }
 
+export interface AgentHostnameRequest {
+  ipAddress: string;
+  vendor: string;
+  hostname: string;
+  login: RadioLogin;
+}
+
 // Asks a connected agent to measure one device now (AGT-103). The radio
 // types are the wireless context's own: the agent runs its collectors, so a
 // reading through an agent is the reading the server would have taken.
@@ -77,4 +85,10 @@ export interface IAgentProbeChannel {
     ipAddresses: string[],
     attempts: number
   ): Promise<AgentProbeOutcome<AgentPingOutcome[]>>;
+
+  // AGT-120: only an agent that names `hostname` is asked.
+  setHostname(
+    agentId: string,
+    request: AgentHostnameRequest
+  ): Promise<AgentProbeOutcome<null>>;
 }

@@ -27,3 +27,7 @@ export * from './StartLinkDiagnosisRequestDTO';
 export * from './LinkDiagnosisRequestDTO';
 export * from './LinkDiagnosisDTO';
 export * from './AlertThresholdsDTO';
+export * from './RevealWirelessKeyRequestDTO';
+export * from './RevealedWirelessKeyDTO';
+export * from './RenameRadioRequestDTO';
+export * from './RenameRadioResponseDTO';

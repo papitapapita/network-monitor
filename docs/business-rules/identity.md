@@ -309,12 +309,12 @@ endpoint is omitted entirely instead (`BIL-140`).
 **Layer:** Domain (permission table)
 **Since:** 2026-08-05 · **Revised:** 2026-10-14 (`reveal-credentials`, IDN-035)
 
-| Role         | Permissions                                                                                           |
-| ------------ | ----------------------------------------------------------------------------------------------------- |
-| **VENDOR**   | everything ADMIN has, plus `manage-installation`                                                                         |
+| Role         | Permissions                                                                                                                                    |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **VENDOR**   | everything ADMIN has, plus `manage-installation`                                                                                               |
 | **ADMIN**    | `read`, `create`, `update`, `delete`, `activate`, `bulk-import`, `manage-credentials`, `reveal-credentials`, `manage-users`, `manage-settings` |
-| **OPERATOR** | `read`, `create`, `update`, `activate`, `bulk-import`, `reveal-credentials`                           |
-| **VIEWER**   | `read`                                                                                                |
+| **OPERATOR** | `read`, `create`, `update`, `activate`, `bulk-import`, `reveal-credentials`                                                                    |
+| **VIEWER**   | `read`                                                                                                                                         |
 
 An operator lacks `delete`, `manage-credentials`, `manage-users` and
 `manage-settings`; an administrator lacks only `manage-installation`
@@ -368,12 +368,12 @@ permission to a route _weaken_ it, which is the opposite of what someone writing
 
 `manage-installation`, held by `VENDOR` alone, gates:
 
-| Endpoint                               | What it does                          |
-| -------------------------------------- | ------------------------------------- |
-| `POST /api/agents`                     | create an agent and its pairing key   |
-| `POST /api/agents/:id/pairing-key`     | issue a new pairing key               |
-| `POST /api/agents/:id/revoke`          | revoke an agent                       |
-| `POST /api/admin/data-retention/purge` | purge stale data across every context |
+| Endpoint                                | What it does                             |
+| --------------------------------------- | ---------------------------------------- |
+| `POST /api/agents`                      | create an agent and its pairing key      |
+| `POST /api/agents/:id/pairing-key`      | issue a new pairing key                  |
+| `POST /api/agents/:id/revoke`           | revoke an agent                          |
+| `POST /api/admin/data-retention/purge`  | purge stale data across every context    |
 | `GET`, `PUT /api/installation/settings` | the vendor's settings (INS-028, INS-030) |
 
 A customer's `ADMIN` answers `403` on all of them, and still reads its agents
@@ -871,11 +871,12 @@ add, so Bearer requests need no such check.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Presentation (middleware)
-**Since:** 2026-10-14
+**Since:** 2026-10-14 · **Revised:** 2026-10-27 (a radio's Wi-Fi key, `WLS-220`)
 
 A signed-in user with `reveal-credentials` (`IDN-035`) sends their own password
 to `POST /api/users/me/credential-reveal` and gets back an unlock token that
-lasts five minutes. Every plaintext read (`DEV-134`) must carry it in the
+lasts five minutes. Every plaintext read — a device's credentials (`DEV-134`)
+and a radio's Wi-Fi key (`WLS-220`) — must carry it in the
 `X-Credential-Reveal-Token` header, or it answers
 `403 Enter your password to see device credentials`. Within its five minutes
 the unlock opens any device, as often as needed.
@@ -911,7 +912,8 @@ guess the account's password.
 `tests/infrastructure/identity/services/JwtTokenService.test.ts`,
 `tests/integration/use-cases/identity/UnlockCredentialRevealUseCase.integration.test.ts`,
 `tests/integration/user.routes.test.ts`,
-`tests/integration/credentials.routes.test.ts`
+`tests/integration/credentials.routes.test.ts`,
+`tests/integration/radio-settings.routes.test.ts`
 
 ---
 
@@ -1144,12 +1146,12 @@ the process is up — no version, no database state, no dependency detail.
 
 `manage-users` (ADMIN, and VENDOR through `IDN-030`) gates:
 
-| Endpoint                               | What it does                                        |
-| -------------------------------------- | --------------------------------------------------- |
-| `GET /api/users`                       | list accounts, oldest first                         |
-| `POST /api/users`                      | create or invite an account (`IDN-184`)             |
-| `PATCH /api/users/:id`                 | change `role`, `disabled` and/or `password`         |
-| `POST /api/users/:id/two-factor/reset` | reset two-factor sign-in (`IDN-172`)                |
+| Endpoint                               | What it does                                |
+| -------------------------------------- | ------------------------------------------- |
+| `GET /api/users`                       | list accounts, oldest first                 |
+| `POST /api/users`                      | create or invite an account (`IDN-184`)     |
+| `PATCH /api/users/:id`                 | change `role`, `disabled` and/or `password` |
+| `POST /api/users/:id/two-factor/reset` | reset two-factor sign-in (`IDN-172`)        |
 
 The list leaves out the vendor account unless the caller is the vendor, and
 shows whether each account has two-factor on (`twoFactorEnabled`). A

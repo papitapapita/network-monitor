@@ -14,6 +14,7 @@ import type {
   InterfaceTrafficWire,
   ProbeCredentialsWire,
   ProbeRequestMessage,
+  RadioLoginWire,
   WirelessReadingWire
 } from '../../../src/agent/protocol';
 import type {
@@ -30,9 +31,11 @@ import { ConfigFetcherRegistry } from '../../../src/infrastructure/device-backup
 import type {
   DecryptedCredentials,
   IWirelessCollector,
+  RadioLogin,
   WirelessCollectionResult
 } from '../../../src/application/wireless-monitoring/interfaces';
 import { WirelessCollectorRegistry } from '../../../src/infrastructure/wireless-monitoring/collectors';
+import { RadioHostnameWriterRegistry } from '../../../src/infrastructure/wireless-monitoring/radio-settings';
 import type {
   InterfaceTrafficReading,
   IRouterTrafficReader
@@ -65,6 +68,7 @@ const readingMatches: Same<
   WirelessReadingWire
 > = true;
 const loginMatches: Same<BackupCredentials, BackupLoginWire> = true;
+const radioLoginMatches: Same<RadioLogin, RadioLoginWire> = true;
 const kindMatches: Same<BackupDeviceKind, BackupDeviceKindWire> =
   true;
 const configMatches: Same<
@@ -224,8 +228,9 @@ describe('ProbeRunner', () => {
       kindMatches,
       configMatches,
       formatsMatch,
-      trafficMatches
-    ]).toEqual([true, true, true, true, true, true, true]);
+      trafficMatches,
+      radioLoginMatches
+    ]).toEqual([true, true, true, true, true, true, true, true]);
     expect(MAX_BACKUP_CONFIG_BYTES).toBe(MAX_CONFIG_BYTES);
   });
 
@@ -630,6 +635,107 @@ describe('ProbeRunner', () => {
       } as ProbeRequestMessage);
 
       expect(sweepPing.run).toHaveBeenCalledWith('10.0.0.1', 10);
+    });
+  });
+
+  describe('hostname', () => {
+    let writer: { setHostname: jest.Mock };
+
+    const hostnameRequest: ProbeRequestMessage = {
+      type: 'probe',
+      requestId: 'h-1',
+      kind: 'hostname',
+      ip: '10.0.0.5',
+      vendor: 'Ubiquiti',
+      hostname: 'AP Norte',
+      login: {
+        username: 'ubnt',
+        password: 'secreto',
+        httpPort: 443,
+        sshPort: 22
+      }
+    };
+
+    beforeEach(() => {
+      writer = { setHostname: jest.fn() };
+      runner = new ProbeRunner(
+        ping,
+        new WirelessCollectorRegistry({}),
+        new ConfigFetcherRegistry([]),
+        traffic,
+        logger,
+        { maxConcurrent: 4, maxQueued: 100 },
+        ping,
+        new RadioHostnameWriterRegistry({ ubiquiti: writer })
+      );
+    });
+
+    it('[AGT-120] renames the radio with the vendor writer and answers with no payload', async () => {
+      writer.setHostname.mockResolvedValue(Result.ok());
+
+      const result = await runner.run(hostnameRequest);
+
+      expect(writer.setHostname).toHaveBeenCalledWith(
+        '10.0.0.5',
+        {
+          username: 'ubnt',
+          password: 'secreto',
+          httpPort: 443,
+          sshPort: 22
+        },
+        'AP Norte'
+      );
+      expect(result).toEqual({
+        type: 'probe.result',
+        requestId: 'h-1',
+        kind: 'hostname',
+        at: expect.any(Number)
+      });
+    });
+
+    it('[AGT-120] answers with the writer error', async () => {
+      writer.setHostname.mockResolvedValue(
+        Result.fail(
+          'SSH login rejected: check the device username and password'
+        )
+      );
+
+      const result = await runner.run(hostnameRequest);
+
+      expect(result).toEqual({
+        type: 'probe.result',
+        requestId: 'h-1',
+        error:
+          'SSH login rejected: check the device username and password'
+      });
+    });
+
+    it('[AGT-120] refuses a vendor it has no writer for', async () => {
+      const result = await runner.run({
+        ...hostnameRequest,
+        vendor: 'mimosa'
+      } as ProbeRequestMessage);
+
+      expect(result).toEqual({
+        type: 'probe.result',
+        requestId: 'h-1',
+        error: "Renaming radios is not supported for vendor 'mimosa'"
+      });
+    });
+
+    it('[AGT-120] refuses when built without writers', async () => {
+      const bare = new ProbeRunner(
+        ping,
+        new WirelessCollectorRegistry({}),
+        new ConfigFetcherRegistry([]),
+        traffic,
+        logger
+      );
+
+      const result = await bare.run(hostnameRequest);
+
+      expect(result).toMatchObject({ requestId: 'h-1' });
+      expect('error' in result).toBe(true);
     });
   });
 });

@@ -89,12 +89,12 @@ before 2026-09-30 are all refused once, when this ships.
 
 ### Roles
 
-| Role       | Allowed operations                                                      |
-| ---------- | ----------------------------------------------------------------------- |
-| `VENDOR`   | everything `ADMIN` has, plus manage-installation                        |
+| Role       | Allowed operations                                                                                                         |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `VENDOR`   | everything `ADMIN` has, plus manage-installation                                                                           |
 | `ADMIN`    | read, create, update, delete, activate, bulk-import, manage-credentials, reveal-credentials, manage-users, manage-settings |
-| `OPERATOR` | read, create, update, activate, bulk-import, reveal-credentials         |
-| `VIEWER`   | read only                                                               |
+| `OPERATOR` | read, create, update, activate, bulk-import, reveal-credentials                                                            |
+| `VIEWER`   | read only                                                                                                                  |
 
 `VENDOR` is the company that sells and runs the install; `ADMIN` is the
 customer's own administrator. There is one vendor account per install, set up
@@ -127,15 +127,15 @@ revoke, the data-retention purge and the vendor's settings
 
 ### Rate limits (per authenticated user)
 
-| Operation type                 | Limit     |
-| ------------------------------ | --------- |
-| Read (`GET`)                   | 100 / min |
-| Write (`POST`, `PATCH`, `PUT`) | 60 / min  |
-| Delete (`DELETE`)              | 60 / min  |
-| Bulk import                    | 5 / hr    |
-| Agent enrollment (per IP)      | 10 / 15 min |
-| Failed sign-ins and codes (per IP) | 10 / 15 min |
-| Everything under `/api` and `/agent/v1` (per IP) | 1000 / min |
+| Operation type                                   | Limit       |
+| ------------------------------------------------ | ----------- |
+| Read (`GET`)                                     | 100 / min   |
+| Write (`POST`, `PATCH`, `PUT`)                   | 60 / min    |
+| Delete (`DELETE`)                                | 60 / min    |
+| Bulk import                                      | 5 / hr      |
+| Agent enrollment (per IP)                        | 10 / 15 min |
+| Failed sign-ins and codes (per IP)               | 10 / 15 min |
+| Everything under `/api` and `/agent/v1` (per IP) | 1000 / min  |
 
 Counters are keyed by user id, falling back to IP for unauthenticated requests,
 so operators sharing one office address do not share a budget. Each resource
@@ -223,10 +223,10 @@ to the password screen.
 
 > **⚠ Changed 2026-10-05 — two new `429` answers:**
 >
-> | When | Body `error` |
-> | ---- | ------------ |
+> | When                                                                                                                                                                                            | Body `error`                                         |
+> | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
 > | The account had 5 wrong passwords in a row: it waits 1 minute, and each further wrong password doubles the wait, up to 15 minutes. Even the right password is refused while it waits (IDN-044). | `Too many failed sign-in attempts. Try again later.` |
-> | The caller's address had 10 failed sign-ins in 15 minutes (IDN-103). | `Too many requests` |
+> | The caller's address had 10 failed sign-ins in 15 minutes (IDN-103).                                                                                                                            | `Too many requests`                                  |
 >
 > Show both as "try again in a few minutes"; neither means the password is wrong.
 > A new password set by an administrator lifts the account's wait at once.
@@ -288,10 +288,10 @@ to the password screen.
 > account ends, and two-factor stays on (IDN-183).
 > Also accepts an invitation's token (IDN-184).
 >
-> | Status | `error`                                    | When                                                              |
-> | ------ | ------------------------------------------ | ----------------------------------------------------------------- |
-> | `400`  | `Reset link expired or already used`       | Older than an hour, used already, or the account is disabled      |
-> | `400`  | `Password must be at least 12 characters`  | The link stays usable; ask again                                  |
+> | Status | `error`                                   | When                                                         |
+> | ------ | ----------------------------------------- | ------------------------------------------------------------ |
+> | `400`  | `Reset link expired or already used`      | Older than an hour, used already, or the account is disabled |
+> | `400`  | `Password must be at least 12 characters` | The link stays usable; ask again                             |
 
 ### `POST /api/auth/two-factor/setup` — Start two-factor setup
 
@@ -343,12 +343,12 @@ to the password screen.
 }
 ```
 
-| Status | `error` | Meaning |
-| ------ | ------- | ------- |
-| `401` | `Invalid code` | Wrong code; counts as a failed sign-in |
-| `401` | `Sign-in step expired. Sign in again.` | Challenge missing, expired or of the wrong kind |
-| `409` | `Two-factor setup has not been started` | Call `/two-factor/setup` first |
-| `429` | `Too many failed sign-in attempts. Try again later.` | Account paused (IDN-044) |
+| Status | `error`                                              | Meaning                                         |
+| ------ | ---------------------------------------------------- | ----------------------------------------------- |
+| `401`  | `Invalid code`                                       | Wrong code; counts as a failed sign-in          |
+| `401`  | `Sign-in step expired. Sign in again.`               | Challenge missing, expired or of the wrong kind |
+| `409`  | `Two-factor setup has not been started`              | Call `/two-factor/setup` first                  |
+| `429`  | `Too many failed sign-in attempts. Try again later.` | Account paused (IDN-044)                        |
 
 ### `POST /api/auth/two-factor/verify` — Finish sign-in with a code
 
@@ -789,16 +789,16 @@ interface DeviceListItemDTO extends DeviceDTO {
   connectivity: {
     status: 'UP' | 'DOWN' | 'UNKNOWN';
     downSince: string | null; // ISO 8601 — when the current outage began; null unless DOWN
-    lastSeen: string | null;  // ISO 8601 — last successful ping
+    lastSeen: string | null; // ISO 8601 — last successful ping
   } | null; // null when monitoringEnabled is false
 }
 ```
 
-| Device                              | `connectivity`                                        |
-| ----------------------------------- | ----------------------------------------------------- |
-| monitored, polled                   | its recorded state                                    |
-| monitored, never polled             | `{ status: 'UNKNOWN', downSince: null, lastSeen: null }` |
-| monitoring off                      | `null`. A state recorded before it was switched off is stale and is not shown |
+| Device                                                              | `connectivity`                                                                                       |
+| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| monitored, polled                                                   | its recorded state                                                                                   |
+| monitored, never polled                                             | `{ status: 'UNKNOWN', downSince: null, lastSeen: null }`                                             |
+| monitoring off                                                      | `null`. A state recorded before it was switched off is stale and is not shown                        |
 | behind an agent that is not reporting (offline, pending or revoked) | `{ status: 'UNKNOWN', downSince: null, lastSeen }` — the recorded state is stale, `lastSeen` is kept |
 
 - `connectivity=DOWN` (or `UP`/`UNKNOWN`) matches **monitored devices only**,
@@ -1247,7 +1247,7 @@ Requires the **`activate`** permission (ADMIN and OPERATOR).
 ```ts
 // Request body
 {
-  otherDeviceId: string // required, UUID — the other record; :id is one of the two
+  otherDeviceId: string; // required, UUID — the other record; :id is one of the two
 }
 ```
 
@@ -1313,14 +1313,14 @@ would otherwise trip the "MAC already assigned to another device" check.
 
 ### Upstream link rules
 
-| Request                                                    | Result                                                                                           |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `upstreamDeviceId: null`                                   | `200` — the device becomes a root                                                                |
-| the device's own id                                        | `400` `Cannot make a device its own upstream device` (DEV-181)                                   |
-| a device that already hangs (at any depth) below this one  | `400` `<upstream> is already downstream of <device> — linking them would form a loop` (DEV-182) |
-| an unknown or deleted device                               | `404` `Upstream device not found: <id>` (DEV-183)                                                |
-| a device that is not `ACTIVE` or `COMMISSIONING`           | `400` `The upstream device must be ACTIVE or COMMISSIONING, not <status>` (DEV-183)              |
-| a malformed UUID                                           | `400` (validation)                                                                               |
+| Request                                                   | Result                                                                                          |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `upstreamDeviceId: null`                                  | `200` — the device becomes a root                                                               |
+| the device's own id                                       | `400` `Cannot make a device its own upstream device` (DEV-181)                                  |
+| a device that already hangs (at any depth) below this one | `400` `<upstream> is already downstream of <device> — linking them would form a loop` (DEV-182) |
+| an unknown or deleted device                              | `404` `Upstream device not found: <id>` (DEV-183)                                               |
+| a device that is not `ACTIVE` or `COMMISSIONING`          | `400` `The upstream device must be ACTIVE or COMMISSIONING, not <status>` (DEV-183)             |
+| a malformed UUID                                          | `400` (validation)                                                                              |
 
 - The status check applies when a link is **made**. Sending back the link a
   device already has is never re-checked, so a form that PATCHes every field
@@ -1369,16 +1369,17 @@ interface TopologyNodeDTO {
   `nodes`.
 - **`reachability`** (DEV-186):
 
-| Value         | Meaning                                                                                |
-| ------------- | -------------------------------------------------------------------------------------- |
-| `UP`          | last ping answered                                                                     |
-| `DOWN`        | down, and nothing above it is down — **this is where the fault is**                    |
-| `UNREACHABLE` | down, and a device above it is down too — probably cut off, not broken                 |
-| `UNKNOWN`     | not monitored, never polled yet, or behind an agent that is not reporting              |
+| Value         | Meaning                                                                   |
+| ------------- | ------------------------------------------------------------------------- |
+| `UP`          | last ping answered                                                        |
+| `DOWN`        | down, and nothing above it is down — **this is where the fault is**       |
+| `UNREACHABLE` | down, and a device above it is down too — probably cut off, not broken    |
+| `UNKNOWN`     | not monitored, never polled yet, or behind an agent that is not reporting |
 
-  An unmonitored or `UNKNOWN` device in the middle of a chain does not stop the
-  walk up: a CPE below an unmonitored switch below a `DOWN` router is
-  `UNREACHABLE`.
+An unmonitored or `UNKNOWN` device in the middle of a chain does not stop the
+walk up: a CPE below an unmonitored switch below a `DOWN` router is
+`UNREACHABLE`.
+
 - Unordered for drawing purposes (it comes sorted by IP); build the tree from
   `upstreamDeviceId`.
 
@@ -1449,8 +1450,8 @@ interface UpstreamSuggestionDTO {
 }
 ```
 
-| `source`   | Where it comes from (rule)                                                                                                                                                                                                   |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `source`   | Where it comes from (rule)                                                                                                                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `WIRELESS` | A STATION radio's latest reading names its AP: by the AP's MAC (`matchedBy: 'MAC'`) or, failing that, by its IP (`'IP'`, less certain) (DEV-190)                                                                               |
 | `POE`      | A PoE switch port at the device's own location is labelled with the device's IP, and no other port is (DEV-191). Never offered for a STATION: at the far end of a backhaul the switch hangs off the station, not the other way |
 
@@ -1775,7 +1776,7 @@ interface DeviceBackupStateDTO {
 - **201** — the configuration changed (or was the first) and replaced the copy; **200** — the device still holds the kept one.
 - **409** `Cannot back up this device: …` — the device was not asked: not a
   company antenna, routerboard or switch (`Only company antennas, routerboards
-  and switches are backed up for now`), off site and behind no agent, no IP
+and switches are backed up for now`), off site and behind no agent, no IP
   address, no HTTP credentials, no backup support yet for this kind of device
   from its vendor (a Ubiquiti switch, for one), or its agent must be updated
   first (`The on-site agent must be updated to take backups`).
@@ -1904,21 +1905,27 @@ Looks at the PoE switches at the device's own location only (PWR-041).
 ```ts
 // Response
 {
-  deviceId: string
+  deviceId: string;
   // FOUND: exactly one port · DUPLICATE: more than one, all in sources
   // NONE: every switch at the site was read and none names it
   // UNKNOWN: none found, but a switch in unreadSwitches could not be read
-  kind: 'FOUND' | 'DUPLICATE' | 'NONE' | 'UNKNOWN'
-  reason: string | null  // why NONE / UNKNOWN / DUPLICATE; null when FOUND
+  kind: 'FOUND' | 'DUPLICATE' | 'NONE' | 'UNKNOWN';
+  reason: string | null; // why NONE / UNKNOWN / DUPLICATE; null when FOUND
   sources: {
-    switchDeviceId: string
-    switchName: string
-    port: string
-    mode: PoeMode
-    status: PoeStatus
-    powerWatts: number | null
-  }[]
-  unreadSwitches: { deviceId: string; name: string; reason: string }[]
+    switchDeviceId: string;
+    switchName: string;
+    port: string;
+    mode: PoeMode;
+    status: PoeStatus;
+    powerWatts: number | null;
+  }
+  [];
+  unreadSwitches: {
+    deviceId: string;
+    name: string;
+    reason: string;
+  }
+  [];
 }
 ```
 
@@ -2248,8 +2255,7 @@ monitoring before polling it"`. A manual poll would write a real reading over
 > install hosted off site too.
 
 > On an install whose server is not on the monitored network
-> (`SERVER_ON_SITE=false`), a device **without** an agent returns `409`
-> `"Cannot poll device <id> — this server is not on the monitored network"`
+> (`SERVER_ON_SITE=false`), a device **without** an agent returns `409` > `"Cannot poll device <id> — this server is not on the monitored network"`
 > (MON-023): such a server pings nothing. Hide "poll now" for devices
 > without an agent when `GET /api/installation` says `serverOnSite: false`.
 
@@ -2318,7 +2324,9 @@ monitoring before polling it"`. A manual poll would write a real reading over
 
 ```ts
 // Response — not wrapped, same as the single-device route
-Array<{ /* exactly the GET /api/devices/:id/polling/status shape */ }>
+Array<{
+  /* exactly the GET /api/devices/:id/polling/status shape */
+}>;
 ```
 
 One item per device that has a polling configuration, whether `pollingEnabled`
@@ -2367,21 +2375,21 @@ by device. It's the "what is up after the outage?" button (MON-080 … MON-084).
 
 **Query params** (all optional, combinable)
 
-| Param        | Type             | Meaning                                                                                  |
-| ------------ | ---------------- | ---------------------------------------------------------------------------------------- |
-| `token`      | string           | The JWT, for EventSource                                                                 |
-| `locationId` | UUID             | Only devices at this location                                                            |
+| Param        | Type             | Meaning                                                                                             |
+| ------------ | ---------------- | --------------------------------------------------------------------------------------------------- |
+| `token`      | string           | The JWT, for EventSource                                                                            |
+| `locationId` | UUID             | Only devices at this location                                                                       |
 | `category`   | `DeviceCategory` | Only this category: `CPE`, `WIRELESS_CPE`, `ACCESS_POINT`, `GATEWAY`, `AGGREGATION_SWITCH`, `OTHER` |
 
 **Events**, in this order. Unlike the other streams, **this one ends by
 itself**: after `sweep-done` the server closes it. Call `es.close()` on
 `sweep-done`, or EventSource reconnects and starts a new sweep.
 
-| Order            | Event          | Payload                  |
-| ---------------- | -------------- | ------------------------ |
-| First            | `sweep-start`  | `NetworkSweepStartDTO`   |
-| One per device   | `sweep-result` | `NetworkSweepResultDTO`  |
-| Last             | `sweep-done`   | `NetworkSweepSummaryDTO` |
+| Order          | Event          | Payload                  |
+| -------------- | -------------- | ------------------------ |
+| First          | `sweep-start`  | `NetworkSweepStartDTO`   |
+| One per device | `sweep-result` | `NetworkSweepResultDTO`  |
+| Last           | `sweep-done`   | `NetworkSweepSummaryDTO` |
 
 ```ts
 type NetworkSweepOutcome = 'UP' | 'DOWN' | 'ERROR' | 'SKIPPED';
@@ -2451,21 +2459,21 @@ Skipped devices arrive right after `sweep-start`, before any pinged one.
 Errors before the stream opens come as JSON with a status code, not as
 events:
 
-| Status | `error`                                          | Show                                         |
-| ------ | ------------------------------------------------ | -------------------------------------------- |
-| `409`  | `A network sweep is already running`             | "a sweep is already running", retry shortly  |
-| `400`  | `category must be one of: …` / invalid UUID      | a bug in the filter UI                       |
-| `403`  | (VIEWER)                                         | hide the button for viewers                  |
-| `500`  | `Failed to load the devices to sweep: …`         | a retry                                      |
+| Status | `error`                                     | Show                                        |
+| ------ | ------------------------------------------- | ------------------------------------------- |
+| `409`  | `A network sweep is already running`        | "a sweep is already running", retry shortly |
+| `400`  | `category must be one of: …` / invalid UUID | a bug in the filter UI                      |
+| `403`  | (VIEWER)                                    | hide the button for viewers                 |
+| `500`  | `Failed to load the devices to sweep: …`    | a retry                                     |
 
 `detail` values on `ERROR` results from devices behind an agent:
 
-| `detail`                                         | Show                                          |
-| ------------------------------------------------ | --------------------------------------------- |
-| `The agent is not connected`                     | "agent {agentName} offline": group them       |
-| `The agent must be updated to sweep the network` | "update agent {agentName}"                    |
-| `The agent did not answer in time`               | "agent {agentName} did not answer"            |
-| anything else                                    | the text as is                                |
+| `detail`                                         | Show                                    |
+| ------------------------------------------------ | --------------------------------------- |
+| `The agent is not connected`                     | "agent {agentName} offline": group them |
+| `The agent must be updated to sweep the network` | "update agent {agentName}"              |
+| `The agent did not answer in time`               | "agent {agentName} did not answer"      |
+| anything else                                    | the text as is                          |
 
 EventSource doesn't expose the status code. To show the `409` message, check
 for it with a `fetch` to the same URL (Bearer header) when `onerror` fires
@@ -2881,8 +2889,7 @@ it next to the chat field, sending the value **as typed**, before saving.
 { success: true, data: { telegramChatId: string } } // the chat it was sent to
 ```
 
-> `400` for a chat id a save would refuse. `409`
-> `"No Telegram chat is configured for this install"` with nothing saved or
+> `400` for a chat id a save would refuse. `409` > `"No Telegram chat is configured for this install"` with nothing saved or
 > given. `502` `"Test message not delivered: Telegram API error: …"` when
 > Telegram refuses — most often `chat not found` (wrong id, or the bot was
 > never added to that group). Show Telegram's reason to the user.
@@ -2926,6 +2933,7 @@ only to the **signed-in user's own phones**, and every role may use it.
 3. **An "Activar notificaciones en este teléfono" switch**, for example in
    the user menu or the notification settings. It must be started by a tap,
    because iOS refuses a permission prompt that wasn't triggered by the user:
+
    1. `GET /api/push/public-key`. If `enabled` is `false`, hide the switch.
    2. `Notification.requestPermission()` must return `'granted'`.
    3. `registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: publicKey })`.
@@ -2940,6 +2948,7 @@ only to the **signed-in user's own phones**, and every role may use it.
    On each app load, if a subscription exists, `POST` it again. It's
    idempotent and keeps the server current when the browser rotates its keys
    or a different user signs in on the phone.
+
 4. **iPhone:** push only works after the user taps Share → "Agregar a
    inicio" and opens the app from that icon (iOS 16.4+). In Safari, when not
    standalone (`!matchMedia('(display-mode: standalone)').matches`), show
@@ -2982,8 +2991,7 @@ interface PushPayload {
 
 > Idempotent per `endpoint`: sending it again updates the keys. If another
 > user signs in on the same phone and sends it, the phone moves to that user.
-> `400` `"endpoint must be an https URL"` or a missing key. `503`
-> `"Phone notifications are not configured on this server"`.
+> `400` `"endpoint must be an https URL"` or a missing key. `503` > `"Phone notifications are not configured on this server"`.
 
 ---
 
@@ -3014,8 +3022,7 @@ Sends "✅ Notificación de prueba" to every phone the caller has subscribed.
 { success: true, data: { delivered: number } }
 ```
 
-> `409` `"This user has no phone subscribed to notifications"`. `502`
-> `"Test notification not delivered to any phone"`. `503` when push isn't
+> `409` `"This user has no phone subscribed to notifications"`. `502` > `"Test notification not delivered to any phone"`. `503` when push isn't
 > configured.
 
 ---
@@ -3059,7 +3066,7 @@ interface AffectedDeviceDTO {
 > an AP, switch or backhaul goes down, the devices behind it (per
 > [Topology](#topology-apitopology)) are **not** paged one by one. Their
 > `device_unreachable` alerts are still recorded, but each one is attached to
-> the alert of the **highest** device down above it, the *root alert*, through
+> the alert of the **highest** device down above it, the _root alert_, through
 > `causedByAlertId`, and is never notified (`notifiedAt` stays `null`).
 > Only the root pages, and its message names the affected devices: up to 30 in
 > Telegram, grouped under the intermediate device they hang from, then
@@ -3603,16 +3610,16 @@ limit?: number // 1–1000
 ```ts
 // Response
 {
-  deviceId: string
-  polled: boolean              // false if the device has never been polled
-  collectedAt: string | null   // ISO 8601 from the latest snapshot
+  deviceId: string;
+  polled: boolean; // false if the device has never been polled
+  collectedAt: string | null; // ISO 8601 from the latest snapshot
   suggestions: Array<{
-    field: 'name' | 'macAddress' | 'upstreamDeviceId' // was 'parentApDeviceId' before 2026-10-28
-    currentValue: string | null   // from device-inventory
-    suggestedValue: string        // from the latest AirOS poll
-    currentLabel: string | null   // upstreamDeviceId only: declared AP's name
-    suggestedLabel: string | null // upstreamDeviceId only: reported AP's name
-  }>
+    field: 'name' | 'macAddress' | 'upstreamDeviceId'; // was 'parentApDeviceId' before 2026-10-28
+    currentValue: string | null; // from device-inventory
+    suggestedValue: string; // from the latest AirOS poll
+    currentLabel: string | null; // upstreamDeviceId only: declared AP's name
+    suggestedLabel: string | null; // upstreamDeviceId only: reported AP's name
+  }>;
 }
 ```
 
@@ -3620,8 +3627,7 @@ limit?: number // 1–1000
 > and what's on file in device-inventory (WLS-164) — never auto-written. Name
 > matching is trim + case-insensitive; MAC matching is separator/case-normalized
 > the same way `.../clients/expected` matches. A device that has never been
-> polled returns `polled: false` and an empty `suggestions` array rather than
-> 404. Serial number is never compared — AirOS does not expose one.  
+> polled returns `polled: false` and an empty `suggestions` array rather than 404. Serial number is never compared — AirOS does not expose one.  
 > **Frontend:** render each suggestion as an accept/dismiss row; accepting one
 > means calling `PATCH /api/devices/:id` with the suggested value — this
 > endpoint never writes to device-inventory itself.
@@ -3757,9 +3763,9 @@ not wait for a poll, so the numbers are at most ~2 s old.
 Same transport and authentication as the throughput streams. **The opening
 frame has a different event name and shape from the ones that follow:**
 
-| Order       | Event                     | Payload                                 |
-| ----------- | ------------------------- | --------------------------------------- |
-| First only  | `router-traffic-snapshot` | `RouterTrafficSnapshotDTO`              |
+| Order       | Event                     | Payload                                    |
+| ----------- | ------------------------- | ------------------------------------------ |
+| First only  | `router-traffic-snapshot` | `RouterTrafficSnapshotDTO`                 |
 | Every later | `router-traffic`          | A single `RouterTrafficDTO` for one router |
 
 ```ts
@@ -3787,11 +3793,14 @@ interface RouterTrafficSnapshotDTO {
 ```
 
 ```js
-const es = new EventSource(`/api/routers/traffic/stream?token=${jwt}`);
+const es = new EventSource(
+  `/api/routers/traffic/stream?token=${jwt}`
+);
 const routers = new Map();
 
 es.addEventListener('router-traffic-snapshot', (e) => {
-  for (const r of JSON.parse(e.data).routers) routers.set(r.deviceId, r);
+  for (const r of JSON.parse(e.data).routers)
+    routers.set(r.deviceId, r);
 });
 es.addEventListener('router-traffic', (e) => {
   const r = JSON.parse(e.data);
@@ -3806,16 +3815,16 @@ es.addEventListener('router-traffic', (e) => {
 
 `error` values the page should expect:
 
-| `error`                                              | Meaning                                                             |
-| ---------------------------------------------------- | ------------------------------------------------------------------- |
-| `Live traffic is read from MikroTik routers only`    | The GATEWAY is another vendor's                                     |
-| `The router has no IP address`                       | Set the device's IP                                                 |
-| `The router has no username and password saved`      | Save an HTTP login in the device's credentials                      |
-| `The router is not behind an agent`                  | Off site only: assign the router to the site's agent                |
-| `The agent must be updated to read router traffic`   | Off site only: the agent is older than `0.6.0`                      |
-| `The agent is not connected` / `The agent disconnected` | Off site only: the agent is offline                              |
-| `The agent did not answer in time`                   | Off site only: no answer within 8 s                                 |
-| `RouterOS API error: …`                              | The router refused the login, the API service is off, or it timed out |
+| `error`                                                 | Meaning                                                               |
+| ------------------------------------------------------- | --------------------------------------------------------------------- |
+| `Live traffic is read from MikroTik routers only`       | The GATEWAY is another vendor's                                       |
+| `The router has no IP address`                          | Set the device's IP                                                   |
+| `The router has no username and password saved`         | Save an HTTP login in the device's credentials                        |
+| `The router is not behind an agent`                     | Off site only: assign the router to the site's agent                  |
+| `The agent must be updated to read router traffic`      | Off site only: the agent is older than `0.6.0`                        |
+| `The agent is not connected` / `The agent disconnected` | Off site only: the agent is offline                                   |
+| `The agent did not answer in time`                      | Off site only: no answer within 8 s                                   |
+| `RouterOS API error: …`                                 | The router refused the login, the API service is off, or it timed out |
 
 No frame for a router means its read is still out; a slow router is skipped,
 not queued. Nothing is stored — closing every viewer stops the reads. An empty
@@ -3936,8 +3945,7 @@ WirelessAlertDTO; // isActive: false
 > | `504`  | `its on-site agent did not answer in time` (25 s)          | a retry                               |
 > | `502`  | `its on-site agent could not read it: <the agent's error>` | the agent's error                     |
 >
-> A device **without** an agent still answers `409`
-> `"Cannot poll device — this server is not on the monitored network"`.
+> A device **without** an agent still answers `409` > `"Cannot poll device — this server is not on the monitored network"`.
 >
 > **Frontend:** on such installs, show the wireless "poll now" button for
 > devices with an `agentId` and hide it for the rest. An on-site install (the
@@ -3977,6 +3985,99 @@ Reboots the antenna remotely via its AirOS 8 HTTP API. Requires the device to ha
 
 ---
 
+### `POST /api/devices/:id/wireless/key/reveal` — Reveal Wi-Fi Key (AirOS)
+
+**Status:** 200 | 400 | 401 | 403 | 404 | 409 | 502 | 504  
+**Roles:** ADMIN, OPERATOR (`reveal-credentials`) — never VIEWER
+
+Reads the radio's Wi-Fi security **live from the radio** (its `system.cfg`)
+and returns the SSID and the WPA key in plaintext (WLS-220, WLS-221). Same
+unlock as the credential reveal: the user's password, valid **5 minutes**
+for any device (IDN-086). Needs a **wireless config** (the IP) and an **HTTP
+login** in the device credentials. AirOS (Ubiquiti) radios only (WLS-222).
+
+```ts
+// Headers
+X-Credential-Reveal-Token: string // revealToken from POST /api/users/me/credential-reveal
+
+// No request body
+
+// Response (raw, no wrapper), sent with Cache-Control: no-store
+interface RevealedWirelessKeyDTO {
+  deviceId: string;
+  // What the radio's configuration says, which may differ from the role the
+  // device was registered with.
+  role: 'ACCESS_POINT' | 'STATION';
+  ssid: string | null;
+  // WPA_PSK: `key` holds the shared key. OPEN: no security. OTHER: WPA
+  // Enterprise or WEP — nothing to show, `key` is null.
+  security: 'WPA_PSK' | 'OPEN' | 'OTHER';
+  key: string | null;
+  readAt: string; // ISO 8601
+}
+```
+
+> **Flow for the frontend:** the same as "show password" on the credentials
+> screen — reuse the held `revealToken` if it has not expired, otherwise ask
+> for the password first. Expect it to take a few seconds: the radio is read
+> each time.
+>
+> `403 { success: false, error: 'Enter your password to see device credentials' }`
+> — no unlock or an expired one; ask for the password again.
+> `403 { success: false, error: 'Forbidden' }` — VIEWER; hide the button.
+> `404` — no wireless config.
+> `400` — no HTTP login, no IP address, or not an AirOS radio
+> (`"... this vendor's radios are not supported yet ..."`).
+> `409` — off site, the radio has no agent, or its agent is not connected.
+> `502` — the radio, or the agent on its behalf, could not read it (wrong
+> login, unreachable); `error` says what it answered.
+> `504` — the agent did not answer in time.
+>
+> Every reveal is logged with the user and the device. Off site the agent
+> reads the file with the request it already uses for backups, so agents
+> from 0.5.0 on answer it.
+
+---
+
+### `PUT /api/devices/:id/wireless/hostname` — Rename Radio (AirOS)
+
+**Status:** 200 | 400 | 401 | 403 | 404 | 409 | 502 | 504  
+**Roles:** ADMIN, OPERATOR (`update`)
+
+Changes the **name the radio gives itself** (AirOS "Device Name", the
+`hostname` the wireless status shows). It does **not** rename the device in
+the inventory. The change is saved on the radio and applied at once, with no
+restart, so the link stays up (WLS-224). Done over SSH with the device's HTTP
+login, on its `sshPort`.
+
+```ts
+// Request
+{
+  hostname: string; // 1–32 characters: letters, digits, spaces, . - _ (no accents)
+}
+
+// Response (200) — raw, no wrapper
+{
+  deviceId: string;
+  hostname: string; // as saved, trimmed
+  renamedAt: string; // ISO 8601
+}
+```
+
+> `400` — a name outside the rule above (`"Radio name must be ..."`, WLS-223),
+> no HTTP login, no IP address, or not an AirOS radio.
+> `404` — no wireless config.
+> `409` — off site, the radio has no agent, its agent is not connected, or its
+> agent is older than **0.8.0** (`"... its on-site agent must be updated first ..."`, AGT-120).
+> `502` — the radio refused: SSH off or on another port, wrong login, or it
+> did not confirm the change. `error` carries what it said.
+> `504` — the agent did not answer in time.
+>
+> The wireless status shows the new name after the next poll; trigger one
+> with `POST /api/devices/:id/wireless/poll` to see it at once.
+
+---
+
 ### Live Link Diagnosis
 
 A time-boxed, on-demand check of one radio, meant for a technician looking at a
@@ -3994,9 +4095,17 @@ after it ends, and never opens alerts or sends notifications. Start it with
 `POST`, then watch it on the stream.
 
 ```ts
-type DiagnosisVerdict = 'HEALTHY' | 'DEGRADED' | 'FAILING' | 'INCONCLUSIVE';
+type DiagnosisVerdict =
+  | 'HEALTHY'
+  | 'DEGRADED'
+  | 'FAILING'
+  | 'INCONCLUSIVE';
 // TARGET_LINK: this radio or its own link; UPSTREAM: the parent AP or backhaul
-type FaultLocation = 'NONE' | 'TARGET_LINK' | 'UPSTREAM' | 'UNDETERMINED';
+type FaultLocation =
+  | 'NONE'
+  | 'TARGET_LINK'
+  | 'UPSTREAM'
+  | 'UNDETERMINED';
 
 interface PingSampleDTO {
   hop: 'TARGET' | 'PARENT';
@@ -4073,8 +4182,16 @@ interface LinkDiagnosisDTO {
   endsAt: string;
   endedAt: string | null;
   durationSeconds: number;
-  target: { deviceId: string | null; ipAddress: string; name: string | null };
-  parent: { deviceId: string | null; ipAddress: string; name: string | null } | null;
+  target: {
+    deviceId: string | null;
+    ipAddress: string;
+    name: string | null;
+  };
+  parent: {
+    deviceId: string | null;
+    ipAddress: string;
+    name: string | null;
+  } | null;
   report: LinkDiagnosisReportDTO;
   samples?: { ping: PingSampleDTO[]; radio: RadioSampleDTO[] }; // GET and stream only
 }
@@ -4140,23 +4257,31 @@ Same transport, `?token=` authentication and connection caps as the throughput
 streams. Opening this stream only **watches**. It does not start anything, so
 start the session first. Reconnects and extra viewers add no load on the radio.
 
-| Event       | When                               | `data`                                  |
-| ----------- | ---------------------------------- | --------------------------------------- |
-| `diagnosis` | once, on connect                   | `LinkDiagnosisDTO` **with** samples     |
-| `ping`      | each probe, ~1/s per hop           | `PingSampleDTO`                         |
-| `radio`     | each radio read, ~every 2 s        | `RadioSampleDTO`                        |
-| `report`    | right after each `radio`           | `LinkDiagnosisReportDTO`                |
-| `end`       | once, when the session ends        | `LinkDiagnosisDTO` without samples      |
+| Event       | When                        | `data`                              |
+| ----------- | --------------------------- | ----------------------------------- |
+| `diagnosis` | once, on connect            | `LinkDiagnosisDTO` **with** samples |
+| `ping`      | each probe, ~1/s per hop    | `PingSampleDTO`                     |
+| `radio`     | each radio read, ~every 2 s | `RadioSampleDTO`                    |
+| `report`    | right after each `radio`    | `LinkDiagnosisReportDTO`            |
+| `end`       | once, when the session ends | `LinkDiagnosisDTO` without samples  |
 
 ```js
-await api.post(`/api/devices/${id}/wireless/diagnosis`, { durationSeconds: 60 });
+await api.post(`/api/devices/${id}/wireless/diagnosis`, {
+  durationSeconds: 60
+});
 const es = new EventSource(
   `/api/devices/${id}/wireless/diagnosis/stream?token=${jwt}`
 );
 es.addEventListener('diagnosis', (e) => hydrate(JSON.parse(e.data)));
-es.addEventListener('ping', (e) => pushLatencyPoint(JSON.parse(e.data)));
-es.addEventListener('radio', (e) => pushRadioPoint(JSON.parse(e.data)));
-es.addEventListener('report', (e) => renderVerdict(JSON.parse(e.data)));
+es.addEventListener('ping', (e) =>
+  pushLatencyPoint(JSON.parse(e.data))
+);
+es.addEventListener('radio', (e) =>
+  pushRadioPoint(JSON.parse(e.data))
+);
+es.addEventListener('report', (e) =>
+  renderVerdict(JSON.parse(e.data))
+);
 es.addEventListener('end', (e) => {
   renderVerdict(JSON.parse(e.data).report);
   es.close(); // required — otherwise EventSource reconnects into a finished session
@@ -4225,38 +4350,38 @@ interface SeverityThresholdsDTO {
 }
 
 interface AlertThresholdsDTO {
-  signalDbm: SeverityThresholdsDTO;  // whole, −100…−40; warning above critical. Rx and Tx
-  snrDb: SeverityThresholdsDTO;      // whole, 1…60; warning above critical
+  signalDbm: SeverityThresholdsDTO; // whole, −100…−40; warning above critical. Rx and Tx
+  snrDb: SeverityThresholdsDTO; // whole, 1…60; warning above critical
   ccqPercent: SeverityThresholdsDTO; // whole, 1…95; warning above critical. M-series only
-  latencyMs: SeverityThresholdsDTO;  // whole, 1…10000; warning BELOW critical
-  cpuPercent: number;                // whole, 10…99
-  memoryPercent: number;             // whole, 10…99
-  clockDriftSeconds: number;         // whole, 10…86400
-  saturationPercent: number;         // whole, 10…100 — share of link capacity
-  clientDropPercent: number;         // whole, 10…90 — share of an AP's clients lost between polls
+  latencyMs: SeverityThresholdsDTO; // whole, 1…10000; warning BELOW critical
+  cpuPercent: number; // whole, 10…99
+  memoryPercent: number; // whole, 10…99
+  clockDriftSeconds: number; // whole, 10…86400
+  saturationPercent: number; // whole, 10…100 — share of link capacity
+  clientDropPercent: number; // whole, 10…90 — share of an AP's clients lost between polls
   minCapacityMbps: Record<string, number>; // channel width (MHz) → floor; whole, 1…10000
-  maxDistanceKm: Record<string, number>;   // channel width (MHz) → maximum; 0.1…200, decimals allowed
-  confirmBeforeAlerting: boolean;    // re-read the radio before opening a flicker-prone alert (WLS-203)
+  maxDistanceKm: Record<string, number>; // channel width (MHz) → maximum; 0.1…200, decimals allowed
+  confirmBeforeAlerting: boolean; // re-read the radio before opening a flicker-prone alert (WLS-203)
 }
 ```
 
 Channel-width keys must be one of `5, 10, 20, 30, 40, 50, 60, 80, 160`. A width
 missing from a table is not checked at all. Defaults:
 
-| Group               | Default                              |
-| ------------------- | ------------------------------------ |
-| `signalDbm`         | warning −70, critical −80            |
-| `snrDb`             | warning 15, critical 10              |
-| `ccqPercent`        | warning 75, critical 50              |
-| `latencyMs`         | warning 50, critical 150             |
-| `cpuPercent`        | 80                                   |
-| `memoryPercent`     | 85                                   |
-| `clockDriftSeconds` | 300                                  |
-| `saturationPercent` | 80                                   |
-| `clientDropPercent` | 50                                   |
-| `minCapacityMbps`   | `{ "20": 50, "40": 100, "80": 200 }` |
-| `maxDistanceKm`     | `{ "20": 15, "40": 10, "80": 5 }`    |
-| `confirmBeforeAlerting` | `true`                           |
+| Group                   | Default                              |
+| ----------------------- | ------------------------------------ |
+| `signalDbm`             | warning −70, critical −80            |
+| `snrDb`                 | warning 15, critical 10              |
+| `ccqPercent`            | warning 75, critical 50              |
+| `latencyMs`             | warning 50, critical 150             |
+| `cpuPercent`            | 80                                   |
+| `memoryPercent`         | 85                                   |
+| `clockDriftSeconds`     | 300                                  |
+| `saturationPercent`     | 80                                   |
+| `clientDropPercent`     | 50                                   |
+| `minCapacityMbps`       | `{ "20": 50, "40": 100, "80": 200 }` |
+| `maxDistanceKm`         | `{ "20": 15, "40": 10, "80": 5 }`    |
+| `confirmBeforeAlerting` | `true`                               |
 
 Each rule still clears slightly past its threshold (signal and SNR 2 dB, CCQ 3 %
 warning / 5 % critical, CPU and memory 5 %), so the margin moves with the value
@@ -4297,7 +4422,7 @@ Show it as a toggle, e.g. "Confirmar antes de alertar".
 ```ts
 // Request body — every group, nothing else. Replaces the set as a whole.
 // confirmBeforeAlerting may be left out: the install keeps its current value.
-AlertThresholdsDTO
+AlertThresholdsDTO;
 
 // Response — same shape as GET
 ```
@@ -4337,7 +4462,9 @@ AlertThresholdsDTO
 
 ```ts
 // Request body — replaces the device's overrides as a whole
-{ overrides: Partial<AlertThresholdsDTO> } // {} returns the device to the install
+{
+  overrides: Partial<AlertThresholdsDTO>;
+} // {} returns the device to the install
 
 // Response — same shape as GET
 ```
@@ -4850,13 +4977,13 @@ interface ContractedServiceDetailDTO extends ContractedServiceDTO {
 
 **Contracted service status lifecycle:**
 
-| Transition                         | Requirements           | Notes                                                                                          |
-| ---------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------- |
-| (create) → `PENDING`               | —                      | only possible initial status                                                                   |
-| `PENDING` / `SUSPENDED` → `ACTIVE` | `deviceId` must be set | 409 `"Cannot activate a contracted service without a device assigned"` otherwise               |
-| `PENDING` / `ACTIVE` → `SUSPENDED` | —                      | triggers suspension side effects (see below)                                                   |
+| Transition                         | Requirements           | Notes                                                                                                                                                                                 |
+| ---------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (create) → `PENDING`               | —                      | only possible initial status                                                                                                                                                          |
+| `PENDING` / `SUSPENDED` → `ACTIVE` | `deviceId` must be set | 409 `"Cannot activate a contracted service without a device assigned"` otherwise                                                                                                      |
+| `PENDING` / `ACTIVE` → `SUSPENDED` | —                      | triggers suspension side effects (see below)                                                                                                                                          |
 | any → `CANCELLED`                  | —                      | **terminal** — every later update returns 409 `"Cannot modify a cancelled contracted service"`. Releases the device (`deviceId` → `null`) and retires it by owner — see _Device link_ |
-| any → `PENDING`                    | **not allowed**        | `PENDING` is not a valid `status` value on `PUT` — returns 400                                 |
+| any → `PENDING`                    | **not allowed**        | `PENDING` is not a valid `status` value on `PUT` — returns 400                                                                                                                        |
 
 **Suspension side effects (automatic, server-side):**
 
@@ -6404,13 +6531,13 @@ The install's subscription (ADR 0002, R17). When a payment is missed the
 install escalates in stages; drive the banner and the lock screen from
 `state`:
 
-| `state`        | What the backend does                                                     | Show                                                    |
-| -------------- | ------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `NOT_ENFORCED` | Nothing                                                                   | Nothing                                                 |
-| `ACTIVE`       | Nothing                                                                   | Optional "renews on" hint in the last 5 days            |
-| `GRACE`        | Nothing yet                                                               | Warning banner: read-only from `graceEndsAt`            |
-| `READ_ONLY`    | Every write is `402`; monitoring, agents and alerts stopped               | Notice: nothing is being monitored, locks at `lockedAt` |
-| `LOCKED`       | Every `/api` route is `402` except `/api/auth/*` and this one             | Lock screen only                                        |
+| `state`        | What the backend does                                         | Show                                                    |
+| -------------- | ------------------------------------------------------------- | ------------------------------------------------------- |
+| `NOT_ENFORCED` | Nothing                                                       | Nothing                                                 |
+| `ACTIVE`       | Nothing                                                       | Optional "renews on" hint in the last 5 days            |
+| `GRACE`        | Nothing yet                                                   | Warning banner: read-only from `graceEndsAt`            |
+| `READ_ONLY`    | Every write is `402`; monitoring, agents and alerts stopped   | Notice: nothing is being monitored, locks at `lockedAt` |
+| `LOCKED`       | Every `/api` route is `402` except `/api/auth/*` and this one | Lock screen only                                        |
 
 While read-only, disable every edit control rather than letting users hit
 `402`, and say plainly that alerts are off, so an empty alert feed is not
@@ -6693,7 +6820,7 @@ interface UserAccountDTO {
 
 > Every change signs the user out everywhere (re-enabling excepted); a
 > disabled account cannot sign in. `403` for the vendor account (`The vendor
-> account is managed by the vendor`) and for the caller's own account — hide
+account is managed by the vendor`) and for the caller's own account — hide
 > these actions on the vendor's row and on the signed-in user's row. There is
 > no delete: disable instead.
 
@@ -6716,11 +6843,11 @@ interface UserAccountDTO {
 > sign-in it sets two-factor up again. Every reset sends an alert to the
 > install's chat (IDN-173, type `two_factor_reset`).
 >
-> | Status | `error` |
-> | ------ | ------- |
-> | `403` | `Only the vendor can reset an administrator's two-factor sign-in` |
-> | `403` | `The vendor account is managed by the vendor` |
-> | `409` | `Two-factor sign-in is not on` |
+> | Status | `error`                                                           |
+> | ------ | ----------------------------------------------------------------- |
+> | `403`  | `Only the vendor can reset an administrator's two-factor sign-in` |
+> | `403`  | `The vendor account is managed by the vendor`                     |
+> | `409`  | `Two-factor sign-in is not on`                                    |
 >
 > Show the action only on rows with `twoFactorEnabled: true`, never on the
 > vendor's row, and on `ADMIN` rows only when the signed-in user is the vendor.
@@ -6810,16 +6937,16 @@ interface UserAccountDTO {
 
 ## Error Status Codes
 
-| Code | Meaning                                                                                                                                                         |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 400  | Validation error or business rule violation (e.g. duplicate MAC/IP)                                                                                             |
-| 401  | Missing, expired, or invalid JWT                                                                                                                                |
-| 403  | Valid token but insufficient role for this operation                                                                                                            |
-| 404  | Resource not found                                                                                                                                              |
-| 409  | Conflict — resource already exists, or cannot be deleted/changed while dependents exist (e.g. vendor has models, model has devices, model has wireless configs) |
+| Code | Meaning                                                                                                                                                                     |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 400  | Validation error or business rule violation (e.g. duplicate MAC/IP)                                                                                                         |
+| 401  | Missing, expired, or invalid JWT                                                                                                                                            |
+| 403  | Valid token but insufficient role for this operation                                                                                                                        |
+| 404  | Resource not found                                                                                                                                                          |
+| 409  | Conflict — resource already exists, or cannot be deleted/changed while dependents exist (e.g. vendor has models, model has devices, model has wireless configs)             |
 | 402  | Subscription expired — read-only (writes refused) or locked (everything but sign-in and `GET /api/subscription` refused). See [Subscription](#subscription-apisubscription) |
-| 429  | Rate limit exceeded                                                                                                                                             |
-| 500  | Unexpected server error                                                                                                                                         |
-| 503  | Dependent system unavailable — enforcement router unreachable or enforcement not configured (enforcement endpoints only)                                        |
+| 429  | Rate limit exceeded                                                                                                                                                         |
+| 500  | Unexpected server error                                                                                                                                                     |
+| 503  | Dependent system unavailable — enforcement router unreachable or enforcement not configured (enforcement endpoints only)                                                    |
 
 Error body: `{ success: false, error: string }` (standard endpoints) / `{ error: string }` (credentials, polling, wireless)

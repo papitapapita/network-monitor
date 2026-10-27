@@ -9,7 +9,8 @@ describe('AgentChannelConfigFetcher', () => {
     readRadio: jest.fn(),
     fetchConfig: jest.fn(),
     readTraffic: jest.fn(),
-    sweep: jest.fn()
+    sweep: jest.fn(),
+    setHostname: jest.fn()
   } satisfies jest.Mocked<IAgentProbeChannel>;
   const fetcher = new AgentChannelConfigFetcher(channel);
   const request: AgentConfigFetchRequest = {

@@ -21,6 +21,7 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 | `WLS-160` – `WLS-179` | Retention                          |
 | `WLS-180` – `WLS-199` | Live link diagnosis                |
 | `WLS-200` – `WLS-219` | Alert thresholds                   |
+| `WLS-220` – `WLS-239` | The radio's own settings           |
 
 Rationales marked _(inferred)_ were reconstructed from the code, not stated by
 the business. They are the ones to read critically.
@@ -679,13 +680,13 @@ behind an agent or not.
 
 A read through the agent ends one of these ways (AGT-103):
 
-| The agent…                                    | Scheduled poll                 | Manual poll | Message                                                     |
-| --------------------------------------------- | ------------------------------ | ----------- | ----------------------------------------------------------- |
-| Answered with a reading                       | Stored like any other          | `200`       | —                                                           |
-| Is not connected                              | Skipped, tried again next tick | `409`       | `its on-site agent is not connected`                        |
-| Is older than 0.3.0 and cannot read on demand | Skipped, tried again next tick | `409`       | `its on-site agent must be updated to read it on demand`    |
-| Did not answer within 25 seconds              | Failed, like a failed read     | `504`       | `its on-site agent did not answer in time`                  |
-| Answered with an error                        | Failed, like a failed read     | `502`       | `its on-site agent could not read it: <the agent's error>`  |
+| The agent…                                    | Scheduled poll                 | Manual poll | Message                                                    |
+| --------------------------------------------- | ------------------------------ | ----------- | ---------------------------------------------------------- |
+| Answered with a reading                       | Stored like any other          | `200`       | —                                                          |
+| Is not connected                              | Skipped, tried again next tick | `409`       | `its on-site agent is not connected`                       |
+| Is older than 0.3.0 and cannot read on demand | Skipped, tried again next tick | `409`       | `its on-site agent must be updated to read it on demand`   |
+| Did not answer within 25 seconds              | Failed, like a failed read     | `504`       | `its on-site agent did not answer in time`                 |
+| Answered with an error                        | Failed, like a failed read     | `502`       | `its on-site agent could not read it: <the agent's error>` |
 
 A reading from the agent is timed when the agent took it (AGT-104): the
 snapshot, its alerts and the next scheduled poll count from that time.
@@ -1030,15 +1031,15 @@ from the device's stored credentials. A device that does not answer
 value becomes null, as in WLS-048. Verified against a live C5c on firmware
 2.14.0 and a live C5x on 2.10.0, which answer the same OIDs.
 
-| Field                             | Source                                         | Conversion                                    |
-| --------------------------------- | ---------------------------------------------- | --------------------------------------------- |
-| `signalRxDbm` / `noiseFloorDbm`   | `mimosaRxPower` / `mimosaRxNoise`, per chain   | ÷10, averaged over chains; −100 dBm = no chain |
-| `throughputTxBps` / `RxBps`       | `mimosaPhyTxRate` / `mimosaPhyRxRate`          | ÷100 → kbps, ×1000 → bps                      |
-| `uptimeSeconds`                   | `mimosaLastRebootTime`                         | now − reboot time, honouring its UTC offset   |
-| `frequencyMhz` / `channelWidthMhz`| `mimosaChannelCenterFreq` / `mimosaChannelWidth` | null when ≤ 0                               |
-| `essid` / `macAddress`            | `mimosaWanSsid` / `mimosaWanMac`               | MAC as upper-case colon-separated             |
-| `deviceModel`                     | `sysDescr` (e.g. `AIRSPAN-C5c`)                |                                               |
-| `lanStatus` / `lanSpeedMbps`      | `ifOperStatus.1` / `ifHighSpeed.1`             | 1 = UP, 2 = DOWN                              |
+| Field                              | Source                                           | Conversion                                     |
+| ---------------------------------- | ------------------------------------------------ | ---------------------------------------------- |
+| `signalRxDbm` / `noiseFloorDbm`    | `mimosaRxPower` / `mimosaRxNoise`, per chain     | ÷10, averaged over chains; −100 dBm = no chain |
+| `throughputTxBps` / `RxBps`        | `mimosaPhyTxRate` / `mimosaPhyRxRate`            | ÷100 → kbps, ×1000 → bps                       |
+| `uptimeSeconds`                    | `mimosaLastRebootTime`                           | now − reboot time, honouring its UTC offset    |
+| `frequencyMhz` / `channelWidthMhz` | `mimosaChannelCenterFreq` / `mimosaChannelWidth` | null when ≤ 0                                  |
+| `essid` / `macAddress`             | `mimosaWanSsid` / `mimosaWanMac`                 | MAC as upper-case colon-separated              |
+| `deviceModel`                      | `sysDescr` (e.g. `AIRSPAN-C5c`)                  |                                                |
+| `lanStatus` / `lanSpeedMbps`       | `ifOperStatus.1` / `ifHighSpeed.1`               | 1 = UP, 2 = DOWN                               |
 
 CPU, memory, distance, latency, CCQ, remote signal, remote AP identity, device
 clock, PTP/PTMP mode and capacity are always null, and no client list is read.
@@ -2003,7 +2004,7 @@ mid-outage and hasn't reported anything itself.
 **Since:** 2026-09-22
 
 `GET /api/devices/:id/wireless/identity/suggestions` compares the device's
-*own* hostname and MAC as last reported by AirOS — `host.hostname` and
+_own_ hostname and MAC as last reported by AirOS — `host.hostname` and
 `wireless.mac`/`ath0.hwaddr`, persisted on `WirelessSnapshot.metrics` — against
 `Device.name` and `Device.macAddress` from device-inventory. Name comparison
 trims and lowercases both sides; MAC comparison normalizes separators and case
@@ -2015,7 +2016,7 @@ and an empty suggestion list rather than failing. Serial number is never part
 of this comparison — AirOS's `status.cgi` payload has no serial-number field
 anywhere the collector reads, so there is nothing to compare it against. This
 is unrelated to [WLS-098](#wls-098--a-change-of-identity-is-a-warning), which
-alerts when a device's *own* polled MAC/SSID/model changes between
+alerts when a device's _own_ polled MAC/SSID/model changes between
 consecutive polls — this rule instead diffs the latest poll against the
 manually-entered inventory record, regardless of whether anything changed
 since the last poll.
@@ -2506,13 +2507,13 @@ into a finished session. _(inferred)_
 Each hop is judged on everything collected so far, and only once it has at
 least 3 probes:
 
-| Finding          | Warning                           | Critical |
-| ---------------- | --------------------------------- | -------- |
-| `unreachable`    | —                                 | no reply at all |
-| `packet_loss`    | ≥ 2 %                             | ≥ 10 %   |
-| `high_latency`   | average > 50 ms                   | average > 150 ms |
-| `latency_spikes` | ≥ 5 % of replies ≥ 150 ms         | —        |
-| `jitter`         | mean delta between replies > 30 ms | —       |
+| Finding          | Warning                            | Critical         |
+| ---------------- | ---------------------------------- | ---------------- |
+| `unreachable`    | —                                  | no reply at all  |
+| `packet_loss`    | ≥ 2 %                              | ≥ 10 %           |
+| `high_latency`   | average > 50 ms                    | average > 150 ms |
+| `latency_spikes` | ≥ 5 % of replies ≥ 150 ms          | —                |
+| `jitter`         | mean delta between replies > 30 ms | —                |
 
 `latency_spikes` is only reported when `high_latency` is not, and nothing else
 is reported for an unreachable hop.
@@ -2615,20 +2616,20 @@ alerts on it through its own hysteresis. _(inferred)_
 The install has one set of thresholds, edited by its administrator and replaced
 as a whole. It covers every numeric rule:
 
-| Group               | Default                      | Allowed                              | Rule    |
-| ------------------- | ---------------------------- | ------------------------------------ | ------- |
-| `signalDbm`         | warning −70, critical −80    | whole −100…−40, warning > critical   | WLS-083 |
-| `snrDb`             | warning 15, critical 10      | whole 1…60, warning > critical       | WLS-084 |
-| `ccqPercent`        | warning 75, critical 50      | whole 1…95, warning > critical       | WLS-085 |
-| `latencyMs`         | warning 50, critical 150     | whole 1…10000, warning < critical    | WLS-086 |
-| `cpuPercent`        | 80                           | whole 10…99                          | WLS-087 |
-| `memoryPercent`     | 85                           | whole 10…99                          | WLS-087 |
-| `clientDropPercent` | 50                           | whole 10…90                          | WLS-092 |
-| `saturationPercent` | 80                           | whole 10…100                         | WLS-093 |
-| `minCapacityMbps`   | 20 → 50, 40 → 100, 80 → 200  | per width, whole 1…10000             | WLS-094 |
-| `maxDistanceKm`     | 20 → 15, 40 → 10, 80 → 5     | per width, 0.1…200                   | WLS-095 |
-| `clockDriftSeconds` | 300                          | whole 10…86400                       | WLS-096 |
-| `confirmBeforeAlerting` | on                       | on or off                            | WLS-203 |
+| Group                   | Default                     | Allowed                            | Rule    |
+| ----------------------- | --------------------------- | ---------------------------------- | ------- |
+| `signalDbm`             | warning −70, critical −80   | whole −100…−40, warning > critical | WLS-083 |
+| `snrDb`                 | warning 15, critical 10     | whole 1…60, warning > critical     | WLS-084 |
+| `ccqPercent`            | warning 75, critical 50     | whole 1…95, warning > critical     | WLS-085 |
+| `latencyMs`             | warning 50, critical 150    | whole 1…10000, warning < critical  | WLS-086 |
+| `cpuPercent`            | 80                          | whole 10…99                        | WLS-087 |
+| `memoryPercent`         | 85                          | whole 10…99                        | WLS-087 |
+| `clientDropPercent`     | 50                          | whole 10…90                        | WLS-092 |
+| `saturationPercent`     | 80                          | whole 10…100                       | WLS-093 |
+| `minCapacityMbps`       | 20 → 50, 40 → 100, 80 → 200 | per width, whole 1…10000           | WLS-094 |
+| `maxDistanceKm`         | 20 → 15, 40 → 10, 80 → 5    | per width, 0.1…200                 | WLS-095 |
+| `clockDriftSeconds`     | 300                         | whole 10…86400                     | WLS-096 |
+| `confirmBeforeAlerting` | on                          | on or off                          | WLS-203 |
 
 A channel-width table may hold any of 5, 10, 20, 30, 40, 50, 60, 80 and 160 MHz.
 A width with no entry is not checked, which is how an install turns the capacity
@@ -2772,6 +2773,167 @@ degradada … 0 Mbps" (WARNING). Both described the same fault.
 
 **Enforced at:** `src/domain/wireless-monitoring/services/rules/LanHealthRule.ts` (`hasLink`)
 **Tests:** `tests/domain/wireless-monitoring/services/rules/LanHealthRule.test.ts`
+
+---
+
+## The radio's own settings
+
+Settings the radio keeps in its own configuration, read from it or written to
+it on request. Nothing here is stored by this system. Changing the SSID or the
+frequency is not supported yet (see `docs/TODOS.md`).
+
+### WLS-220 — The Wi-Fi key is read from the radio, only after the password is typed again
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Presentation
+**Since:** 2026-10-27
+
+`POST /api/devices/:id/wireless/key/reveal` returns the radio's SSID and Wi-Fi
+key in plaintext. It needs the `reveal-credentials` permission (`IDN-035`) and
+the five-minute unlock of `IDN-086`, exactly as a device's credentials do
+(`DEV-134`). The answer is sent with `Cache-Control: no-store`. Each reveal is
+logged with the user and the device, never with the key.
+
+The key is read from the radio each time, never from a stored configuration
+backup.
+
+**Why:** The Wi-Fi key lets anyone join the network, so it gets the same
+protection as the radio's own password. A technician installing a new CPE needs
+the AP's current key. A backup can be up to a day old, and a key changed since
+then would send the technician to the site with the wrong one.
+
+**Enforced at:** `src/application/wireless-monitoring/use-cases/RevealWirelessKeyUseCase.ts`, `src/presentation/http/routes/radio-settings.routes.ts`, `src/presentation/http/controllers/RadioSettingsController.ts`
+**Message:** `Enter your password to see device credentials` (`403`)
+**Tests:** `tests/application/wireless-monitoring/use-cases/RevealWirelessKeyUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/RevealWirelessKeyUseCase.integration.test.ts`, `tests/integration/radio-settings.routes.test.ts`
+
+### WLS-221 — The radio's mode decides which key is its Wi-Fi key
+
+**Type:** Derivation · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-10-27
+
+The key comes from the radio's `system.cfg`. Which section counts depends on
+`radio.1.mode`:
+
+| Mode          | Role           | Key from                                                                          |
+| ------------- | -------------- | --------------------------------------------------------------------------------- |
+| `master`      | `ACCESS_POINT` | `aaa.1.wpa.psk`, when `aaa.status` and `aaa.1.status` are `enabled`               |
+| anything else | `STATION`      | `wpasupplicant.profile.1.network.1.psk`, when `wpasupplicant.status` is `enabled` |
+
+The SSID is `wireless.1.ssid` in both cases. The answer's `security` is:
+
+- `WPA_PSK` — WPA is on, the key management is `WPA-PSK` and a key is set.
+  The key is returned.
+- `OTHER` — WPA is on with anything else (WPA Enterprise), or a WPA-PSK
+  without a key, or WEP (`wireless.1.security.type=wep`). No key is returned.
+- `OPEN` — no security. No key.
+
+The role is the radio's own, which may differ from the role the device was
+registered with (`WLS-003`).
+
+**Why:** An AirOS radio keeps the station section after it has been switched
+to access point mode, with the key it had then. A real AP's file at Insetel had
+both. Reading the section that matches the mode avoids handing out a stale key.
+
+**Enforced at:** `src/infrastructure/wireless-monitoring/radio-settings/AirOsWirelessSecurity.ts`
+**Tests:** `tests/infrastructure/wireless-monitoring/radio-settings/AirOsWirelessSecurity.test.ts`
+
+### WLS-222 — Only AirOS radios are read and renamed
+
+**Type:** Constraint · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-10-27
+
+The Wi-Fi key and the radio name are supported for devices whose vendor is
+`ubiquiti` (AirOS). Any other vendor is refused with `400` and
+`this vendor's radios are not supported yet`, before the radio is contacted,
+including through an agent.
+
+**Why:** The key and the name are read and written in AirOS's own file format
+and shell. A Mimosa radio keeps them elsewhere. _(inferred)_
+
+**Enforced at:** `src/infrastructure/wireless-monitoring/radio-settings/RadioSettingsGateway.ts`, `src/infrastructure/di/container.ts` (`RadioHostnameWriterRegistry`)
+**Message:** `... this vendor's radios are not supported yet: vendor '<slug>'` (`400`)
+**Tests:** `tests/infrastructure/wireless-monitoring/radio-settings/RadioSettingsGateway.test.ts`
+
+### WLS-223 — A radio name is 1 to 32 plain characters
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-10-27
+
+A radio name is trimmed and must then be 1 to 32 characters, each a letter
+`A–Z`/`a–z`, a digit, a space, `.`, `-` or `_`. Accented letters such as `ñ` or
+`é` are refused.
+
+**Why:** The name is written into the radio's configuration file and set as its
+host name through its shell. A quote, a slash or a semicolon could break the
+command or run another one. Accents are refused because AirOS's own tools are
+not known to keep them intact. 32 is a safe limit for the AirOS device name.
+_(inferred)_
+
+**Enforced at:** `src/domain/wireless-monitoring/value-objects/RadioHostname.ts`, `src/infrastructure/wireless-monitoring/radio-settings/AirOsHostnameWriter.ts` (`SHELL_SAFE`, checked again before the shell)
+**Message:** `Radio name is required`, `Radio name must be at most 32 characters`, `Radio name must be letters, digits, spaces, dots, dashes or underscores, without accents` (`400`)
+**Tests:** `tests/domain/wireless-monitoring/value-objects/RadioHostname.test.ts`, `tests/application/wireless-monitoring/use-cases/RenameRadioUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/RenameRadioUseCase.integration.test.ts`, `tests/integration/radio-settings.routes.test.ts`
+
+### WLS-224 — Renaming a radio changes its own name, keeps the link up, and leaves the inventory alone
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Infrastructure · Presentation
+**Since:** 2026-10-27
+
+`PUT /api/devices/:id/wireless/hostname` changes the name the radio gives
+itself: AirOS's "Device Name", which polls report as the radio's hostname. It
+needs the `update` permission, like a reboot. The device's name in the
+inventory does not change. The new name shows in the wireless status after the
+next poll.
+
+The name is changed over SSH, on the device's `sshPort`, with its HTTP login.
+`resolv.host.1.name` is edited in the running configuration
+(`/tmp/system.cfg`), the configuration is saved to flash with `cfgmtd`, and the
+name is applied with `hostname`. Nothing restarts. If the radio has no
+`resolv.host.1.name` line, nothing is saved. The change counts only if the
+radio confirms it, and otherwise the request fails with what the radio printed.
+Each rename is logged with the user, the device and the new name.
+
+**Why:** AirOS has no documented HTTP call for changing one setting. Its own
+web UI saves the whole configuration and restarts services, which would drop
+the link for a few seconds. Over SSH only the one line changes. The inventory
+name is what operators call the device and can differ from the radio's name on
+purpose.
+
+**Enforced at:** `src/application/wireless-monitoring/use-cases/RenameRadioUseCase.ts`, `src/infrastructure/wireless-monitoring/radio-settings/AirOsHostnameWriter.ts`, `src/presentation/http/routes/radio-settings.routes.ts`
+**Message:** `The radio did not confirm the new name[: <what it printed>]` (`502`)
+**Tests:** `tests/application/wireless-monitoring/use-cases/RenameRadioUseCase.test.ts`, `tests/infrastructure/wireless-monitoring/radio-settings/AirOsHostnameWriter.test.ts`, `tests/integration/use-cases/wireless-monitoring/RenameRadioUseCase.integration.test.ts`, `tests/integration/radio-settings.routes.test.ts`
+
+### WLS-225 — A radio's settings are reached the way a wireless poll reaches it
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application · Infrastructure
+**Since:** 2026-10-27
+
+The radio is reached as for a manual poll (`WLS-029`). On site, this server
+talks to it. Off site, the agent the device sits behind does. A device with
+no agent is refused with `409` (`this server is not on the monitored network`),
+before anything is sent.
+
+Through an agent, the Wi-Fi key is read with the agent's backup request
+(`AGT-114`), which returns the radio's `system.cfg`, and this server reads the
+key out of it. The rename uses its own request (`AGT-120`). The agent's
+answers map to status codes as for a manual poll: not connected or too old
+`409`, no answer in time `504`, an error from the radio `502`.
+
+The radio's address is the one in its wireless configuration. Its login is the
+HTTP username and password in its credentials, with the stored HTTP and SSH
+ports. A device with no wireless configuration is `404`. A device with no IP
+address or no HTTP login is `400`.
+
+**Why:** An install hosted off site can reach a radio only through its agent.
+Reusing the backup request means every agent since `0.5.0` can already read
+the key, and only renaming needs an agent update.
+
+**Enforced at:** `src/application/wireless-monitoring/services/resolveRadioTarget.ts`, `src/infrastructure/wireless-monitoring/radio-settings/RadioSettingsGateway.ts`, `src/infrastructure/probe-agents/adapters/AgentChannelRadioSettings.ts`, `src/presentation/http/controllers/RadioSettingsController.ts`
+**Tests:** `tests/application/wireless-monitoring/use-cases/RevealWirelessKeyUseCase.test.ts`, `tests/application/wireless-monitoring/use-cases/RenameRadioUseCase.test.ts`, `tests/infrastructure/wireless-monitoring/radio-settings/RadioSettingsGateway.test.ts`, `tests/infrastructure/probe-agents/adapters/AgentChannelRadioSettings.test.ts`, `tests/integration/use-cases/wireless-monitoring/RevealWirelessKeyUseCase.integration.test.ts`, `tests/integration/radio-settings.routes.test.ts`, `tests/integration/agent-radio-settings.test.ts`
 
 ---
 

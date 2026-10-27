@@ -7,7 +7,8 @@ describe('AgentChannelPingProbe', () => {
     readRadio: jest.fn(),
     fetchConfig: jest.fn(),
     readTraffic: jest.fn(),
-    sweep: jest.fn()
+    sweep: jest.fn(),
+    setHostname: jest.fn()
   } satisfies jest.Mocked<IAgentProbeChannel>;
   const probe = new AgentChannelPingProbe(channel);
 

@@ -38,3 +38,4 @@ export * from './PushController';
 export * from './NetworkSweepController';
 export * from './PowerControlController';
 export * from './TopologyController';
+export * from './RadioSettingsController';

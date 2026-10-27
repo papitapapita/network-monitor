@@ -42,14 +42,16 @@ export type AgentCapability =
   | 'enforce'
   | 'backup'
   | 'traffic'
-  | 'sweep';
+  | 'sweep'
+  | 'hostname';
 
 export const AGENT_CAPABILITIES: readonly AgentCapability[] = [
   'probe',
   'enforce',
   'backup',
   'traffic',
-  'sweep'
+  'sweep',
+  'hostname'
 ];
 
 // ── Agent → backend ───────────────────────────────────────────────────────
@@ -255,6 +257,12 @@ export type ProbeResultMessage =
       // One per address of the request, in the same order.
       readings: PingReadingWire[];
     }
+  | {
+      type: 'probe.result';
+      requestId: string;
+      kind: 'hostname';
+      at: number;
+    }
   | { type: 'probe.result'; requestId: string; error: string };
 
 // The answer to one enforce request (AGT-111): the router's suspension
@@ -353,6 +361,15 @@ export interface TrafficLoginWire {
   apiPort: number;
 }
 
+// The radio's login for a hostname request, held by the agent only until it
+// answers (AGT-120). The name is changed over SSH.
+export interface RadioLoginWire {
+  username: string;
+  password: string;
+  httpPort: number;
+  sshPort: number;
+}
+
 export type BackupDeviceKindWire =
   | 'ACCESS_POINT'
   | 'STATION'
@@ -364,7 +381,8 @@ export type BackupDeviceKindWire =
 // `vendor` picks the collector the backend would have used. A `backup`
 // reads the device's configuration with the backend's own fetchers
 // (AGT-114); a `traffic` reads a router's interface rates (AGT-117); a
-// `sweep` pings a batch of addresses at once with a short wait (AGT-119).
+// `sweep` pings a batch of addresses at once with a short wait (AGT-119); a
+// `hostname` changes the name a radio gives itself (AGT-120).
 export type ProbeRequestMessage =
   | {
       type: 'probe';
@@ -404,6 +422,15 @@ export type ProbeRequestMessage =
       kind: 'sweep';
       ips: string[];
       attempts: number;
+    }
+  | {
+      type: 'probe';
+      requestId: string;
+      kind: 'hostname';
+      ip: string;
+      vendor: string;
+      hostname: string;
+      login: RadioLoginWire;
     };
 
 // The enforcement router's address and API login, sent with each enforce

@@ -22,6 +22,7 @@ import { createWirelessStreamRoutes } from './wireless-stream.routes';
 import { createWirelessDiagnosisRoutes } from './wireless-diagnosis.routes';
 import { createNetworkSweepRoutes } from './network-sweep.routes';
 import { createCredentialsRoutes } from './credentials.routes';
+import { createRadioSettingsRoutes } from './radio-settings.routes';
 import { createDeviceBackupRoutes } from './device-backup.routes';
 import { createPowerControlRoutes } from './power-control.routes';
 import { createAuthRoutes } from './auth.routes';
@@ -350,6 +351,18 @@ export function setupRoutes(
   apiRouter.use(
     '/',
     createWirelessRoutes(container.wirelessController)
+  );
+
+  // A radio's own settings: /api/devices/:id/wireless/key/reveal,
+  // /api/devices/:id/wireless/hostname
+  apiRouter.use(
+    '/devices',
+    createRadioSettingsRoutes(
+      container.radioSettingsController,
+      createRequireCredentialRevealMiddleware(
+        container.credentialRevealGate
+      )
+    )
   );
 
   // Alert thresholds: /api/wireless/alert-thresholds,

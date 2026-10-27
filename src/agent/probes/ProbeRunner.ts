@@ -1,6 +1,7 @@
 import type { ILogger } from 'application/shared/interfaces';
 import type { PingCycleOutcome } from 'application/device-monitoring/services/PingCycleProbe';
 import type {
+  IRadioHostnameWriterResolver,
   IWirelessCollectorResolver,
   WirelessCollectionResult
 } from 'application/wireless-monitoring/interfaces';
@@ -35,10 +36,15 @@ export const DEFAULT_PROBE_RUNNER_OPTIONS: ProbeRunnerOptions = {
 
 const MAX_PING_ATTEMPTS = 10;
 
+const NO_HOSTNAME_WRITERS: IRadioHostnameWriterResolver = {
+  forVendor: () => null
+};
+
 // Answers the backend's probe requests (AGT-101) with the same ping loop,
 // wireless collectors, config fetchers (AGT-114) and router traffic reader
 // (AGT-117) the backend runs in process, and sweeps a batch of addresses
-// with the quick ping the backend's own sweep uses (AGT-119). The
+// with the quick ping the backend's own sweep uses (AGT-119), and renames a
+// radio with the backend's own hostname writers (AGT-120). The
 // credentials in a request live only as long as the request (AGT-102,
 // AGT-115), except a router login, which the traffic reader holds open
 // between reads (AGT-118): nothing here stores or logs them.
@@ -54,7 +60,8 @@ export class ProbeRunner {
     private readonly logger: ILogger,
     private readonly options: ProbeRunnerOptions = DEFAULT_PROBE_RUNNER_OPTIONS,
     // MON-082: a short reply wait and no pause between attempts.
-    private readonly sweepPing: PingProbe = ping
+    private readonly sweepPing: PingProbe = ping,
+    private readonly hostnames: IRadioHostnameWriterResolver = NO_HOSTNAME_WRITERS
   ) {}
 
   async run(
@@ -144,6 +151,28 @@ export class ProbeRunner {
         kind: 'backup',
         at,
         config: fetched.value
+      };
+    }
+
+    if (request.kind === 'hostname') {
+      const writer = this.hostnames.forVendor(request.vendor);
+      if (!writer) {
+        return failed(
+          request,
+          `Renaming radios is not supported for vendor '${request.vendor}'`
+        );
+      }
+      const written = await writer.setHostname(
+        request.ip,
+        request.login,
+        request.hostname
+      );
+      if (written.isFailure) return failed(request, written.error);
+      return {
+        type: 'probe.result',
+        requestId: request.requestId,
+        kind: 'hostname',
+        at
       };
     }
 

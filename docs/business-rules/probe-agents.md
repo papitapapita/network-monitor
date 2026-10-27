@@ -42,7 +42,7 @@ Format and conventions: [README.md](README.md).
 | `AGT-040` … `AGT-059` | Connection and protocol   |
 | `AGT-060` … `AGT-079` | The agent program         |
 | `AGT-080` … `AGT-099` | Updates                   |
-| `AGT-100` … `AGT-119` | Requests from the backend |
+| `AGT-100` … `AGT-139` | Requests from the backend |
 
 ## Layer coverage
 
@@ -53,8 +53,8 @@ A rule enforced in two layers counts in both.
 | Domain                       | 11    |
 | Application                  | 19    |
 | Infrastructure (composition) | 13    |
-| Presentation                 | 17    |
-| Agent program                | 23    |
+| Presentation                 | 18    |
+| Agent program                | 24    |
 
 ---
 
@@ -1458,3 +1458,36 @@ this kind must not leave the backend waiting until its timeout.
 
 **Enforced at:** `src/agent/protocol/messages.ts` (`AGENT_CAPABILITIES`, `MAX_SWEEP_TARGETS`), `src/agent/probes/ProbeRunner.ts`, `src/agent/main.ts`, `src/presentation/ws/agent/AgentSession.ts` (`canSweep`, `canAnswer`), `src/presentation/ws/agent/ConnectedAgents.ts` (`sweep`), `src/presentation/ws/agent/agentMessageSchema.ts`
 **Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/integration/agent-sweep.test.ts`
+
+### AGT-120 — An agent that names `hostname` renames a radio when asked
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program · Presentation
+**Since:** 2026-10-27
+
+From version `0.8.0` the hello names `hostname` beside `probe`, `enforce`,
+`backup`, `traffic` and `sweep`. The backend sends a hostname request only to
+an agent that named it. Any other agent gets `PROBE_UNSUPPORTED` ("The agent
+must be updated to rename radios") without being asked.
+
+A hostname request is a probe request of kind `hostname`. It carries a request
+id, the radio's address, its vendor, the new name and the radio's login
+(username, password, HTTP and SSH ports). The agent changes the name with the
+backend's own writer for that vendor (`WLS-224`, AirOS only) and answers with
+no payload, or with the writer's error. A vendor with no writer gets an error.
+The login lives only as long as the request, like a backup login (`AGT-115`).
+The request counts as one of the 4 requests at once of `AGT-101`.
+
+The backend waits 25 seconds for the answer. Offline, timeout and error end
+the request as in `AGT-103`.
+
+Reading the radio's Wi-Fi key needs no new request: the backend asks for the
+radio's configuration with the backup request (`AGT-114`) and reads the key
+out of it itself (`WLS-225`), so agents from `0.5.0` on answer it.
+
+**Why:** Off site, only the agent can reach the radio. Renaming is the first
+request that changes a radio rather than reading it, so it is its own kind
+that an older agent is never sent, instead of an option on an existing one.
+
+**Enforced at:** `src/agent/protocol/messages.ts` (`AGENT_CAPABILITIES`, `RadioLoginWire`), `src/agent/probes/ProbeRunner.ts`, `src/agent/main.ts`, `src/agent/version.ts`, `src/presentation/ws/agent/AgentSession.ts` (`canRenameRadios`, `canAnswer`), `src/presentation/ws/agent/ConnectedAgents.ts` (`setHostname`), `src/presentation/ws/agent/agentMessageSchema.ts`
+**Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/infrastructure/probe-agents/adapters/AgentChannelRadioSettings.test.ts`, `tests/integration/agent-radio-settings.test.ts`

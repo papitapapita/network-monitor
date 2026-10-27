@@ -2,6 +2,7 @@ import { ILogger } from 'application/shared/interfaces';
 import type {
   AgentEnforceOutcome,
   AgentEnforceRequest,
+  AgentHostnameRequest,
   AgentPingOutcome,
   AgentProbeFailure,
   AgentProbeOutcome,
@@ -52,6 +53,9 @@ export interface ProbeTimeouts {
   // A batch of addresses pinged at once, each for at most a few seconds
   // (AGT-119), possibly behind other requests in the agent's queue.
   sweepMs?: number;
+  // An SSH login, one config edit and a flash write (AGT-120), asked for by
+  // hand behind the same 30 s proxy as a radio read.
+  hostnameMs?: number;
 }
 
 export const DEFAULT_PROBE_TIMEOUTS: ProbeTimeouts = {
@@ -60,13 +64,15 @@ export const DEFAULT_PROBE_TIMEOUTS: ProbeTimeouts = {
   enforceMs: 20_000,
   backupMs: 45_000,
   trafficMs: 8_000,
-  sweepMs: 20_000
+  sweepMs: 20_000,
+  hostnameMs: 25_000
 };
 
 const DEFAULT_ENFORCE_MS = 20_000;
 const DEFAULT_BACKUP_MS = 45_000;
 const DEFAULT_TRAFFIC_MS = 8_000;
 const DEFAULT_SWEEP_MS = 20_000;
+const DEFAULT_HOSTNAME_MS = 25_000;
 
 // The agents connected right now, one session each (AGT-045), and the way
 // the rest of the backend asks one of them to measure a device (AGT-103).
@@ -236,6 +242,33 @@ export class ConnectedAgents
     };
   }
 
+  async setHostname(
+    agentId: string,
+    request: AgentHostnameRequest
+  ): Promise<AgentProbeOutcome<null>> {
+    const { login } = request;
+    const answer = await this.probe(
+      agentId,
+      {
+        type: 'probe',
+        kind: 'hostname',
+        ip: request.ipAddress,
+        vendor: request.vendor,
+        hostname: request.hostname,
+        login: {
+          username: login.username,
+          password: login.password,
+          httpPort: login.httpPort,
+          sshPort: login.sshPort
+        }
+      },
+      this.probeTimeouts.hostnameMs ?? DEFAULT_HOSTNAME_MS
+    );
+    if (!answer.ok) return answer;
+    if (answer.result.kind !== 'hostname') return wrongKind();
+    return { ok: true, reading: null, measuredAt: answer.measuredAt };
+  }
+
   async enforce(
     agentId: string,
     router: RouterConnection,
@@ -332,7 +365,8 @@ const UNSUPPORTED: Record<ProbeRequest['kind'], string> = {
   wireless: 'The agent must be updated to answer this request',
   backup: 'The agent must be updated to take backups',
   traffic: 'The agent must be updated to read router traffic',
-  sweep: 'The agent must be updated to sweep the network'
+  sweep: 'The agent must be updated to sweep the network',
+  hostname: 'The agent must be updated to rename radios'
 };
 
 function fail(

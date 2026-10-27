@@ -54,6 +54,9 @@ describe('parseAgentMessage', () => {
     expect(hello(['sweep', 'probe'])).toMatchObject({
       capabilities: ['probe', 'sweep']
     });
+    expect(hello(['hostname', 'probe'])).toMatchObject({
+      capabilities: ['probe', 'hostname']
+    });
     expect(hello()).toMatchObject({ capabilities: [] });
     expect(hello('probe')).toBeNull();
   });
@@ -158,6 +161,17 @@ describe('parseAgentMessage', () => {
         }))
       })
     ).toBeNull();
+  });
+
+  it('[AGT-120] accepts a hostname answer', () => {
+    const answer = {
+      type: 'probe.result',
+      requestId: 'h-1',
+      kind: 'hostname',
+      at: 1
+    };
+
+    expect(ok(answer)).toEqual(answer);
   });
 
   it('[AGT-111] accepts every shape of enforce answer', () => {

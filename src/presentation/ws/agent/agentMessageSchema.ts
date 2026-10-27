@@ -120,7 +120,7 @@ const pingReading = z.union([
   })
 ]);
 
-// Six shapes under one type, so it is its own union inside the
+// Seven shapes under one type, so it is its own union inside the
 // discriminated one.
 const probeResult = z.union([
   z.object({
@@ -170,6 +170,12 @@ const probeResult = z.union([
     kind: z.literal('sweep'),
     at: epochMs,
     readings: z.array(pingReading).max(MAX_SWEEP_TARGETS)
+  }),
+  z.object({
+    type: z.literal('probe.result'),
+    requestId,
+    kind: z.literal('hostname'),
+    at: epochMs
   }),
   z.object({
     type: z.literal('probe.result'),

@@ -6,3 +6,4 @@ export * from './DiagnosisDuration';
 export * from './PingStatistics';
 export * from './AlertThresholds';
 export * from './AlertThresholdOverrides';
+export * from './RadioHostname';

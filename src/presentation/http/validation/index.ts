@@ -33,3 +33,4 @@ export * from './push.schemas';
 export * from './network-sweep.schemas';
 export * from './power-control.schemas';
 export * from './topology.schemas';
+export * from './radio-settings.schemas';

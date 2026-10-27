@@ -70,7 +70,7 @@ describe('agent import boundary', () => {
     // wireless collectors it runs for the backend (AGT-101), the RouterOS
     // client it changes suspension queues with (AGT-111), the config
     // fetchers it takes backups with (AGT-114), the router traffic reader
-    // (AGT-117), the logger, and Result.
+    // (AGT-117), the radio hostname writer (AGT-120), the logger, and Result.
     expect(
       backendCode
         .filter((input) => !input.startsWith('src/domain/shared/'))
@@ -96,7 +96,9 @@ describe('agent import boundary', () => {
       'src/infrastructure/wireless-monitoring/collectors/SnmpClient.ts',
       'src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts',
       'src/infrastructure/wireless-monitoring/collectors/WirelessCollectorRegistry.ts',
-      'src/infrastructure/wireless-monitoring/collectors/index.ts'
+      'src/infrastructure/wireless-monitoring/collectors/index.ts',
+      'src/infrastructure/wireless-monitoring/radio-settings/AirOsHostnameWriter.ts',
+      'src/infrastructure/wireless-monitoring/radio-settings/RadioHostnameWriterRegistry.ts'
     ]);
   });
 });

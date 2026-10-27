@@ -25,3 +25,5 @@ export * from './GetAlertThresholdsUseCase';
 export * from './UpdateAlertThresholdsUseCase';
 export * from './GetDeviceAlertThresholdsUseCase';
 export * from './UpdateDeviceAlertThresholdsUseCase';
+export * from './RevealWirelessKeyUseCase';
+export * from './RenameRadioUseCase';
