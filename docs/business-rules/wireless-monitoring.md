@@ -899,18 +899,19 @@ through to the alert rules, each of which skips a metric it cannot read
 
 **Type:** Policy · **Status:** Active
 **Layer:** Infrastructure
-**Since:** 2026-08-03 · **Revised:** 2026-09-21
+**Since:** 2026-08-03 · **Revised:** 2026-10-27
 
-Five conversions happen while parsing, so nothing downstream sees a raw AirOS
+Six conversions happen while parsing, so nothing downstream sees a raw AirOS
 unit:
 
-| Field                       | Raw                              | Stored                       |
-| --------------------------- | -------------------------------- | ---------------------------- |
-| `throughput.tx` / `.rx`     | kbps                             | bps (×1000)                  |
-| `wireless.ccq`              | 0–1000                           | percent (÷10), null when ≤ 0 |
-| `host.totalram` / `freeram` | bytes                            | `memoryUsedPercent`          |
-| `wireless.chanbw`           | MHz                              | null when ≤ 0                |
-| `wireless.frequency`        | `"5730 MHz"` (AirOS 6) or number | number of MHz                |
+| Field                        | Raw                              | Stored                       |
+| ---------------------------- | -------------------------------- | ---------------------------- |
+| `throughput.tx` / `.rx`      | kbps                             | bps (×1000)                  |
+| `wireless.ccq`               | 0–1000                           | percent (÷10), null when ≤ 0 |
+| `host.totalram` / `freeram`  | bytes                            | `memoryUsedPercent`          |
+| `wireless.chanbw`            | MHz                              | null when ≤ 0                |
+| `wireless.frequency`         | `"5730 MHz"` (AirOS 6) or number | number of MHz                |
+| `distance` (link and client) | metres                           | null when < 0 or > 200 000   |
 
 **Why:** The domain layer defines these fields in one unit each
 (`throughputTxBps`, `ccqPercent`), and the conversion has to live somewhere the
@@ -918,6 +919,9 @@ radio's quirks are already known. `ccq` and `chanbw` are guarded at zero because
 AirOS reports `0` for "not measured" rather than omitting the key, and a zero
 that reaches the rules is a breach of every threshold rather than a missing
 reading.
+`distance` is guarded above 200 km — the furthest airMax ACK timing reaches —
+because AirOS reports a sentinel such as `10000000` while it has no measured
+distance, and that number opened a WLS-095 distance alert on a short link.
 
 **Enforced at:** `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:73`, `:126`, `:129`, `:135`, `:220`
 **Reached from:** `parseStatusCgi`

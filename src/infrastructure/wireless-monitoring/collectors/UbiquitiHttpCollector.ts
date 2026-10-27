@@ -141,7 +141,7 @@ export class UbiquitiHttpCollector
         rxThroughputRaw !== null ? rxThroughputRaw * 1000 : null,
       wirelessTxBytes: big(ath0Status, 'tx_bytes'),
       wirelessRxBytes: big(ath0Status, 'rx_bytes'),
-      distanceM: num(wireless, 'distance'),
+      distanceM: distance(wireless),
       clientsConnected:
         deviceType === 'ACCESS_POINT' ? num(wireless, 'count') : null,
       ccqPercent: ccqRaw !== null && ccqRaw > 0 ? ccqRaw / 10 : null,
@@ -207,6 +207,17 @@ function num(
   return isNaN(n) ? null : n;
 }
 
+// airMax ACK timing tops out at about 200 km; AirOS reports a far larger
+// sentinel (seen: 10,000,000) while the link has no measured distance.
+const MAX_PLAUSIBLE_DISTANCE_M = 200_000;
+
+function distance(source: Record<string, unknown>): number | null {
+  const d = num(source, 'distance');
+  return d !== null && d >= 0 && d <= MAX_PLAUSIBLE_DISTANCE_M
+    ? d
+    : null;
+}
+
 function str(
   source: Record<string, unknown>,
   key: string
@@ -269,7 +280,7 @@ function parseClientEntry(
     ipAddress: str(s, 'lastip'),
     signalRxDbm: num(s, 'signal'),
     noiseFloorDbm: num(s, 'noisefloor'),
-    distanceM: num(s, 'distance'),
+    distanceM: distance(s),
     uptimeSeconds: num(s, 'uptime'),
     txLatencyMs: num(s, 'tx_latency'),
     dlLinkScore: num(s, 'dl_linkscore'),

@@ -501,6 +501,48 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
       expect(result.value.channelWidthMhz).toBeNull();
     });
 
+    it('should return null distanceM when AirOS reports an implausible distance', async () => {
+      const body = JSON.parse(JSON.stringify(staStatusBody));
+      body.wireless.distance = 10000000;
+      const collector = new UbiquitiHttpCollector(makeClient(body));
+
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
+
+      expect(result.value.distanceM).toBeNull();
+    });
+
+    it('should keep distanceM at the 200 km limit', async () => {
+      const body = JSON.parse(JSON.stringify(staStatusBody));
+      body.wireless.distance = 200000;
+      const collector = new UbiquitiHttpCollector(makeClient(body));
+
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
+
+      expect(result.value.distanceM).toBe(200000);
+    });
+
+    it('should return null client distanceM when AirOS reports an implausible distance', async () => {
+      const body = JSON.parse(JSON.stringify(apStatusBody));
+      body.wireless.sta[0].distance = 10000000;
+      const collector = new UbiquitiHttpCollector(makeClient(body));
+
+      const result = await collector.collect(
+        '192.168.1.1',
+        credentials,
+        'ACCESS_POINT'
+      );
+
+      expect(result.value.clients[0]!.distanceM).toBeNull();
+    });
+
     it('should return null memoryUsedPercent when totalram is 0', async () => {
       const body = JSON.parse(JSON.stringify(staStatusBody));
       body.host.totalram = 0;
