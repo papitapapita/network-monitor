@@ -33,3 +33,5 @@ export * from './AssignDevicesToAgentUseCase';
 export * from './RetireDeviceAfterCancellationUseCase';
 export * from './GetTopologyUseCase';
 export * from './GetDeviceDescendantsUseCase';
+export * from './ListUpstreamSuggestionsUseCase';
+export * from './AcceptUpstreamSuggestionsUseCase';

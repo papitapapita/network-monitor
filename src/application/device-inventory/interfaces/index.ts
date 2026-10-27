@@ -4,3 +4,4 @@ export * from './IDeviceCredentialsRepository';
 export * from './IDeviceListQuery';
 export * from './IAgentAssignmentQuery';
 export * from './ITopologyQuery';
+export * from './IUpstreamEvidenceQuery';

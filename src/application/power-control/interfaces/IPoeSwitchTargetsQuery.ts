@@ -38,6 +38,8 @@ export interface PoePoweredDevice {
 export interface IPoeSwitchTargetsQuery {
   // null when the location does not exist.
   findSite(locationId: string): Promise<Result<PoeSite | null>>;
+  // The locations holding at least one PoE switch in service (PWR-010).
+  listSwitchSites(): Promise<Result<string[]>>;
   // PWR-010: the PoE switches in service at the site, by name.
   listSwitchesAtSite(
     locationId: string

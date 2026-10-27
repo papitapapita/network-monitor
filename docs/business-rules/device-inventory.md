@@ -38,11 +38,11 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Domain**                            |    47 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162, DEV-164, DEV-169, DEV-180, DEV-181 |
-| **Application**                       |    53 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-134, DEV-135, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172, DEV-173, DEV-184 |
-| **Application + Domain**              |    10 | DEV-031, DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160, DEV-182, DEV-183, DEV-185 |
+| **Application**                       |    57 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-134, DEV-135, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172, DEV-173, DEV-184, DEV-191, DEV-192, DEV-193, DEV-195 |
+| **Application + Domain**              |    11 | DEV-031, DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160, DEV-182, DEV-183, DEV-185, DEV-194 |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
 | **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
-| **Infrastructure + Application**      |     5 | DEV-072, DEV-084, DEV-148, DEV-149, DEV-186 |
+| **Infrastructure + Application**      |     6 | DEV-072, DEV-084, DEV-148, DEV-149, DEV-186, DEV-190 |
 | **Presentation**                      |     3 | DEV-140, DEV-146, DEV-170                                                                                                                                                                                                                                                                                                                                                                         |
 
 **Half the book sits outside the domain, and most of it belongs there.** The
@@ -3222,6 +3222,134 @@ above it.
 
 **Enforced at:** `src/infrastructure/persistence/PrismaTopologyQuery.ts`, `src/application/device-inventory/services/TopologyTree.ts`
 **Tests:** `tests/application/device-inventory/services/TopologyTree.test.ts`, `tests/application/device-inventory/use-cases/GetTopologyUseCase.test.ts`, `tests/application/device-inventory/use-cases/GetDeviceDescendantsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/GetTopologyUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/GetDeviceDescendantsUseCase.integration.test.ts`, `tests/integration/topology.routes.test.ts`
+
+### Suggested links
+
+Nobody types in three hundred upstreams by hand, so the network proposes them
+from what other contexts already observe: the AP each station's radio reports,
+and the switch port that powers each antenna. `GET /api/topology/suggestions`
+lists the proposals and `POST /api/topology/suggestions/accept` makes the ones
+an operator picks. Nothing is linked automatically, the same stance as the AP
+drift warning (WLS-013).
+
+### DEV-190 — A station is offered the AP its radio reports
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure + Application
+**Since:** 2026-10-29
+
+For every device with a STATION wireless config, the latest wireless reading is
+read. The AP it names is the device the poll matched by the AP's MAC
+(`remoteApDeviceId`, `matchedBy: 'MAC'`). Failing that, it is the live device
+holding the AP IP the radio reports (`matchedBy: 'IP'`). This is the same
+resolution as the identity suggestion (WLS-151). Only the latest reading
+counts, and `observedAt` says when it was taken.
+
+**Why:** The radio knows which AP it is associated with, which is better
+evidence than anything typed in. An IP match is weaker, because IPs can repeat
+across sites behind different routers. It is offered but labelled, so the
+operator can treat it with care.
+
+**Enforced at:** `src/infrastructure/persistence/PrismaReportedApQuery.ts`, `src/application/device-inventory/services/UpstreamSuggester.ts`
+**Tests:** `tests/application/device-inventory/services/UpstreamSuggester.test.ts`, `tests/application/device-inventory/use-cases/ListUpstreamSuggestionsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ListUpstreamSuggestionsUseCase.integration.test.ts`, `tests/integration/topology.routes.test.ts`
+
+### DEV-191 — Any other device is offered the PoE switch that powers it
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-29
+
+A device is offered the switch whose PoE port is labelled with its IP, but only
+for a `MATCHED` port: one port, on a switch at the device's own location
+(PWR-031..034). A device with a STATION wireless config is never offered a PoE
+switch, even one whose radio was never read.
+
+**Why:** On a tower the switch feeds the AP, so power and data flow the same
+way. At the far end of a backhaul it is the other way round: the station
+powered there carries the link, and the switch beside it hangs off the station.
+Offering that switch as the station's upstream would turn the tree upside down.
+
+**Enforced at:** `src/application/power-control/services/PoweredDeviceSurvey.ts`, `src/application/device-inventory/services/UpstreamSuggester.ts`
+**Tests:** `tests/application/power-control/services/PoweredDeviceSurvey.test.ts`, `tests/application/device-inventory/services/UpstreamSuggester.test.ts`, `tests/application/device-inventory/use-cases/ListUpstreamSuggestionsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ListUpstreamSuggestionsUseCase.integration.test.ts`
+
+### DEV-192 — Only a suggestion that would change something, on the network
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-29
+
+A proposal is left out when:
+
+- the device already hangs off the suggested upstream;
+- it names the device itself;
+- the device or the suggested upstream is not `ACTIVE` or `COMMISSIONING`.
+
+A device gets at most one suggestion. A suggestion for a device that already
+has a different upstream carries both names, because accepting it is a change.
+
+**Why:** A list padded with links already in place, or with links DEV-181/183
+would refuse, wastes the reviewer's attention on rows that can't help.
+
+**Enforced at:** `src/application/device-inventory/services/UpstreamSuggester.ts`
+**Tests:** `tests/application/device-inventory/services/UpstreamSuggester.test.ts`, `tests/integration/use-cases/device-inventory/ListUpstreamSuggestionsUseCase.integration.test.ts`
+
+### DEV-193 — A suggestion that would close a loop is left out
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-29
+
+If the suggested upstream already hangs, at any depth, below the device, the
+proposal is dropped. The walk is guarded, so looped data can't hang it.
+
+**Why:** DEV-182 would refuse it on accept. A loop between the evidence and the
+links already made usually means one of them is wrong, and that is better
+fixed on the device page than by clicking through a refusal.
+
+**Enforced at:** `src/application/device-inventory/services/UpstreamSuggester.ts`
+**Tests:** `tests/application/device-inventory/services/UpstreamSuggester.test.ts`
+
+### DEV-194 — Accepting makes each link under the usual rules, one by one
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application + Domain
+**Since:** 2026-10-29
+
+`POST /api/topology/suggestions/accept` takes 1 to 500 `{ deviceId,
+upstreamDeviceId }` pairs, each device at most once. Each link goes through the
+same checks as a single edit (DEV-181..183, `UpstreamAssignment` and
+`UpstreamLinkPolicy`), in request order. A later link is therefore judged
+against those already made. Each pair reports `LINKED`, `UNCHANGED` (already
+there) or `FAILED` with the reason. A refused or failed link does not stop the
+others or undo them. The pairs are not checked against the current suggestions.
+
+**Why:** A review screen accepts dozens of rows at once, and one stale row
+shouldn't throw the rest away. Applying the links in order, through the same
+rules as a single edit, means the bulk path can't create a link that a
+`PATCH` would refuse.
+
+**Enforced at:** `src/application/device-inventory/use-cases/AcceptUpstreamSuggestionsUseCase.ts`, `src/presentation/http/validation/topology.schemas.ts`
+**Message:** `Each device can appear only once in a request`, `At least one link is required`, `At most 500 links can be accepted at once`
+**Tests:** `tests/application/device-inventory/use-cases/AcceptUpstreamSuggestionsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/AcceptUpstreamSuggestionsUseCase.integration.test.ts`, `tests/integration/topology.routes.test.ts`
+
+### DEV-195 — PoE switches are read live, and an unread one is reported
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-29
+
+Port labels are not stored, so each listing reads the switches live: every site
+with a PoE switch in service, or only the one given as `locationId`, which also
+limits the suggestions to devices at that location. A switch that can't be read
+(no login, off site, timeout) is listed in `unreadSwitches` instead of failing
+the listing.
+
+**Why:** A label edited on the switch a minute ago should count. One
+unreachable switch shouldn't hide the station suggestions, but the operator
+needs to know the PoE side may be incomplete.
+
+**Enforced at:** `src/application/power-control/services/PoweredDeviceSurvey.ts`, `src/application/device-inventory/use-cases/ListUpstreamSuggestionsUseCase.ts`
+**Tests:** `tests/application/power-control/services/PoweredDeviceSurvey.test.ts`, `tests/application/device-inventory/services/UpstreamSuggester.test.ts`, `tests/application/device-inventory/use-cases/ListUpstreamSuggestionsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ListUpstreamSuggestionsUseCase.integration.test.ts`
 
 ---
 

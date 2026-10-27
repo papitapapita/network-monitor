@@ -1306,7 +1306,9 @@ would otherwise trip the "MAC already assigned to another device" check.
 > note under [Alerts](#alerts-apialerts)).
 >
 > The link is set with `upstreamDeviceId` on `POST /api/devices` and
-> `PATCH /api/devices/:id`. It replaces the wireless config's
+> `PATCH /api/devices/:id`, or in bulk from the
+> [suggestions](#get-apitopologysuggestions--links-the-network-suggests) the
+> network offers (since 2026-10-29). It replaces the wireless config's
 > `parentApDeviceId` — see the breaking change under Wireless Monitoring.
 
 ### Upstream link rules
@@ -1405,6 +1407,106 @@ interface TopologyNodeDTO {
 - `400` — malformed UUID
 
 > **Frontend:** use it for an "affected devices" panel on an AP or switch page.
+
+### `GET /api/topology/suggestions` — Links the network suggests
+
+**Status:** 200 | 400 | 401 · **Role:** any (`read`) · **New (2026-10-29)**
+
+Proposes an upstream for devices from data the system already collects, so
+nobody has to type in hundreds of parents by hand. **Nothing is linked until an
+operator accepts** (see the next endpoint).
+
+```ts
+// Query
+?locationId=<uuid>   // optional: only devices at this location, and only this
+                     // location's PoE switches are read
+
+// Response
+{
+  success: true,
+  data: {
+    suggestions: UpstreamSuggestionDTO[]
+    total: number
+    // PoE switches that could not be read: POE suggestions for antennas they
+    // power are missing. Show a notice when non-empty.
+    unreadSwitches: { deviceId: string; name: string; reason: string }[]
+  }
+}
+
+interface UpstreamSuggestionDTO {
+  deviceId: string
+  deviceName: string
+  ipAddress: string | null
+  locationName: string | null
+  currentUpstreamDeviceId: string | null   // null = currently a root
+  currentUpstreamDeviceName: string | null
+  suggestedUpstreamDeviceId: string
+  suggestedUpstreamDeviceName: string
+  source: 'WIRELESS' | 'POE'
+  matchedBy: 'MAC' | 'IP' | null   // WIRELESS only
+  observedAt: string | null        // WIRELESS only: ISO 8601 of the radio reading
+  port: string | null              // POE only: the switch port, e.g. "ether3"
+}
+```
+
+| `source`   | Where it comes from (rule)                                                                                                                                                                                                   |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WIRELESS` | A STATION radio's latest reading names its AP: by the AP's MAC (`matchedBy: 'MAC'`) or, failing that, by its IP (`'IP'`, less certain) (DEV-190)                                                                               |
+| `POE`      | A PoE switch port at the device's own location is labelled with the device's IP, and no other port is (DEV-191). Never offered for a STATION: at the far end of a backhaul the switch hangs off the station, not the other way |
+
+- At most **one suggestion per device**. A device already linked to the
+  suggested upstream, a proposal that would close a loop, and devices or
+  upstreams that are not `ACTIVE`/`COMMISSIONING` are left out (DEV-192,
+  DEV-193). When `currentUpstreamDeviceId` is set, the suggestion is a
+  **change**, so show both names.
+- The PoE switches are **read live** (DEV-195), so without `locationId` the call
+  can take a few seconds on a large network. Sorted by device IP.
+- `400` — malformed `locationId`.
+
+> **Frontend:** a review table with a checkbox per row (default checked for
+> `matchedBy: 'MAC'` and `POE` rows with no current upstream; unchecked for
+> `IP` matches and for changes), a location filter, and an "Aceptar
+> seleccionados" button that posts the checked rows to the endpoint below.
+
+### `POST /api/topology/suggestions/accept` — Make the chosen links
+
+**Status:** 200 | 400 | 401 | 403 · **Role:** `update` (operator, admin) · **New (2026-10-29)**
+
+```ts
+// Request
+{
+  links: { deviceId: string; upstreamDeviceId: string }[]   // 1–500, each device once
+}
+
+// Response — 200 even when some links were refused
+{
+  success: true,
+  data: {
+    results: {
+      deviceId: string
+      upstreamDeviceId: string
+      outcome: 'LINKED' | 'UNCHANGED' | 'FAILED'
+      error: string | null   // FAILED only: the same messages as the link rules table
+    }[]                      // same order as the request
+    linked: number
+    failed: number
+  }
+}
+```
+
+- Each link goes through the same rules as `PATCH /api/devices/:id`
+  (DEV-181..183), one after another in request order, so a later link is
+  judged against the ones already made: accepting `A → B` and `B → A` together
+  links the first and refuses the second as a loop (DEV-194).
+- One refused link does not stop the rest. `UNCHANGED` = the device already hung
+  there.
+- Any pair can be sent, not only ones the suggestions listed. The suggestion is
+  not re-checked.
+- `400` — empty list, more than 500, a malformed UUID, or
+  `Each device can appear only once in a request`.
+
+> **Frontend:** after posting, keep the `FAILED` rows on screen with their
+> `error`, and reload the suggestions.
 
 ---
 

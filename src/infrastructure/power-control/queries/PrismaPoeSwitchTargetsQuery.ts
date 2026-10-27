@@ -60,6 +60,28 @@ export class PrismaPoeSwitchTargetsQuery
     }
   }
 
+  async listSwitchSites(): Promise<Result<string[]>> {
+    try {
+      const rows = await this.prisma.$queryRaw<
+        { location_id: string }[]
+      >`
+        SELECT DISTINCT d.location_id::text AS location_id
+        FROM devices d
+        JOIN device_models dm ON dm.id = d.device_model_id
+        WHERE d.deleted_at IS NULL
+          AND d.location_id IS NOT NULL
+          AND dm.poe_switch_os IS NOT NULL
+          AND d.status IN ('ACTIVE', 'COMMISSIONING')
+        ORDER BY location_id
+      `;
+      return Result.ok(rows.map((r) => r.location_id));
+    } catch (error) {
+      return Result.fail(
+        `Database error listing PoE switch sites: ${(error as Error).message}`
+      );
+    }
+  }
+
   // PWR-010: devices whose model is marked as a PoE switch, in service.
   async listSwitchesAtSite(
     locationId: string

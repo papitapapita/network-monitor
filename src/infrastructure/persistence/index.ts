@@ -17,3 +17,4 @@ export * from './PrismaAlertListQuery';
 export * from './PrismaPollingStatusListQuery';
 export * from './PrismaPushSubscriptionRepository';
 export * from './PrismaOutageTopologyQuery';
+export * from './PrismaReportedApQuery';

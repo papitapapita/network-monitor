@@ -2,13 +2,17 @@ import { Request, Response } from 'express';
 import { ILogger } from 'application/shared/interfaces';
 import {
   GetTopologyUseCase,
-  GetDeviceDescendantsUseCase
+  GetDeviceDescendantsUseCase,
+  ListUpstreamSuggestionsUseCase,
+  AcceptUpstreamSuggestionsUseCase
 } from 'application/device-inventory/use-cases';
 
 export class TopologyController {
   constructor(
     private readonly getTopologyUseCase: GetTopologyUseCase,
     private readonly getDescendantsUseCase: GetDeviceDescendantsUseCase,
+    private readonly listSuggestionsUseCase: ListUpstreamSuggestionsUseCase,
+    private readonly acceptSuggestionsUseCase: AcceptUpstreamSuggestionsUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -40,6 +44,49 @@ export class TopologyController {
         res
           .status(this.getErrorStatusCode(result.error))
           .json({ success: false, error: result.error });
+        return;
+      }
+      res.status(200).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public listSuggestions = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const locationId =
+        typeof req.query.locationId === 'string'
+          ? req.query.locationId
+          : undefined;
+      const result = await this.listSuggestionsUseCase.execute({
+        locationId
+      });
+      if (result.isFailure) {
+        res
+          .status(this.getErrorStatusCode(result.error))
+          .json({ success: false, error: result.error });
+        return;
+      }
+      res.status(200).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  // 200 even when some links were refused: each one carries its own outcome.
+  public acceptSuggestions = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.acceptSuggestionsUseCase.execute({
+        links: req.body.links
+      });
+      if (result.isFailure) {
+        res.status(400).json({ success: false, error: result.error });
         return;
       }
       res.status(200).json({ success: true, data: result.value });

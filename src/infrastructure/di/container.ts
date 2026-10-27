@@ -127,6 +127,7 @@ import {
   PrismaDeviceListQuery,
   PrismaTopologyQuery,
   PrismaOutageTopologyQuery,
+  PrismaReportedApQuery,
   PrismaDeviceModelRepository,
   PrismaVendorRepository,
   PrismaPollingConfigurationRepository,
@@ -307,6 +308,8 @@ import {
   DeleteDeviceCredentialsUseCase,
   GetMapLocationsUseCase,
   GetTopologyUseCase,
+  ListUpstreamSuggestionsUseCase,
+  AcceptUpstreamSuggestionsUseCase,
   GetDeviceDescendantsUseCase,
   DeleteLocationUseCase
 } from 'application/device-inventory/use-cases';
@@ -559,11 +562,13 @@ import { DeviceBackupController } from 'presentation/http/controllers/DeviceBack
 import {
   GetDevicePowerSourceUseCase,
   ListSitePoePortsUseCase,
-  SitePoeInspector
+  SitePoeInspector,
+  PoweredDeviceSurvey
 } from 'application/power-control';
 import {
   PoeSwitchReaderRegistry,
   PrismaPoeSwitchTargetsQuery,
+  PoweringSwitchQueryAdapter,
   RouterOsPoeReader,
   SwOsPoeReader
 } from '../power-control';
@@ -1472,16 +1477,6 @@ export class DependencyContainer {
     const deleteVendorUseCase = new DeleteVendorUseCase(
       this.vendorRepository,
       this.deviceModelRepository,
-      this.logger
-    );
-
-    const topologyQuery = new PrismaTopologyQuery(
-      this.prisma,
-      this.serverOnSite
-    );
-    this.topologyController = new TopologyController(
-      new GetTopologyUseCase(topologyQuery, this.logger),
-      new GetDeviceDescendantsUseCase(topologyQuery, this.logger),
       this.logger
     );
 
@@ -2512,6 +2507,28 @@ export class DependencyContainer {
         ROUTEROS: new RouterOsPoeReader(this.logger),
         SWOS: new SwOsPoeReader(this.logger)
       })
+    );
+    // Built after power control: suggestions read the PoE switches live.
+    const topologyQuery = new PrismaTopologyQuery(
+      this.prisma,
+      this.serverOnSite
+    );
+    this.topologyController = new TopologyController(
+      new GetTopologyUseCase(topologyQuery, this.logger),
+      new GetDeviceDescendantsUseCase(topologyQuery, this.logger),
+      new ListUpstreamSuggestionsUseCase(
+        topologyQuery,
+        new PrismaReportedApQuery(this.prisma),
+        new PoweringSwitchQueryAdapter(
+          new PoweredDeviceSurvey(poeSwitchTargets, sitePoeInspector)
+        ),
+        this.logger
+      ),
+      new AcceptUpstreamSuggestionsUseCase(
+        this.deviceRepository,
+        this.logger
+      ),
+      this.logger
     );
     this.powerControlController = new PowerControlController(
       new ListSitePoePortsUseCase(
