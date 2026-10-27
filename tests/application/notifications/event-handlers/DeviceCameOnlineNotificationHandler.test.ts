@@ -55,7 +55,8 @@ const STUB_ALERT_DTO = {
   resolvedAt: FIXED_DATE.toISOString(),
   notifiedAt: null,
   recoveryNotifiedAt: null,
-  durationSecs: 100
+  durationSecs: 100,
+  causedByAlertId: null
 };
 
 describe('DeviceCameOnlineNotificationHandler', () => {

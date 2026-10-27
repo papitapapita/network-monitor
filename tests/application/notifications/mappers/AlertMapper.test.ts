@@ -232,7 +232,8 @@ describe('AlertMapper', () => {
         ...AlertMapper.toDTO(alert),
         deviceName: 'Router A',
         ticket: null,
-        ticketSuggested: true
+        ticketSuggested: true,
+        affectedCount: 0
       };
     }
 

@@ -26,7 +26,8 @@ export class AlertMapper {
       recoveryNotifiedAt: alert.recoveryNotifiedAt
         ? alert.recoveryNotifiedAt.toISOString()
         : null,
-      durationSecs: alert.durationSecs
+      durationSecs: alert.durationSecs,
+      causedByAlertId: alert.causedByAlertId?.toString() ?? null
     };
   }
 

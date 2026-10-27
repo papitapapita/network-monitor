@@ -31,6 +31,7 @@ type RawAlertRecord = {
   resolvedAt: Date | null;
   notifiedAt: Date | null;
   recoveryNotifiedAt: Date | null;
+  causedByAlertId?: string | null;
 };
 
 function makeRawAlertRecord(
@@ -283,6 +284,40 @@ describe('AlertMapper', () => {
   });
 
   // =========================================================================
+  describe('[NOT-241] causedByAlertId', () => {
+    const CAUSE_UUID = '550e8400-e29b-41d4-a716-446655440099';
+
+    it('maps a missing or null cause to null', () => {
+      expect(
+        AlertMapper.toDomain(makeRawAlertRecord()).causedByAlertId
+      ).toBeNull();
+      expect(
+        AlertMapper.toDomain(
+          makeRawAlertRecord({ causedByAlertId: null })
+        ).causedByAlertId
+      ).toBeNull();
+    });
+
+    it('round-trips a cause', () => {
+      const alert = AlertMapper.toDomain(
+        makeRawAlertRecord({ causedByAlertId: CAUSE_UUID })
+      );
+
+      expect(alert.causedByAlertId?.toString()).toBe(CAUSE_UUID);
+      expect(AlertMapper.toPersistence(alert).causedByAlertId).toBe(
+        CAUSE_UUID
+      );
+    });
+
+    it('throws on a malformed cause id', () => {
+      expect(() =>
+        AlertMapper.toDomain(
+          makeRawAlertRecord({ causedByAlertId: 'not-a-uuid' })
+        )
+      ).toThrow('Data integrity violation');
+    });
+  });
+
   describe('toPersistence()', () => {
     // -----------------------------------------------------------------------
     function buildFullyPopulatedAlert(): Alert {

@@ -1301,8 +1301,9 @@ would otherwise trip the "MAC already assigned to another device" check.
 > network — its **upstream** (`DeviceDTO.upstreamDeviceId`): a CPE's AP, an
 > AP's switch, a switch's router. Following the links up from any device ends at
 > a root (`upstreamDeviceId: null` — the gateway, or a device nobody has linked
-> yet). The tree is the network map, and from the next release it is also what
-> keeps the devices behind a failed AP from paging one by one.
+> yet). The tree is the network map, and it is also what keeps the devices
+> behind a failed AP from paging one by one (since 2026-10-29 — see the outage
+> note under [Alerts](#alerts-apialerts)).
 >
 > The link is set with `upstreamDeviceId` on `POST /api/devices` and
 > `PATCH /api/devices/:id`. It replaces the wireless config's
@@ -2936,8 +2937,42 @@ interface AlertDTO {
   notifiedAt: string | null; // ISO 8601 — null if Telegram send failed
   recoveryNotifiedAt: string | null; // ISO 8601 — null if not yet resolved/sent
   durationSecs: number | null; // seconds device was offline; null while open
+  // since 2026-10-29 — the upstream device's alert this outage is part of; null on its own
+  causedByAlertId: string | null;
+  // since 2026-10-29 — only on GET /api/alerts/:id; [] when nothing went down behind it
+  affectedDevices?: AffectedDeviceDTO[];
+}
+
+interface AffectedDeviceDTO {
+  deviceId: string;
+  name: string;
+  ipAddress: string | null;
+  status: 'DOWN' | 'UP'; // UP once the device answered again
+  viaDeviceId: string | null; // nearest affected device between it and the root
+  viaDeviceName: string | null; // null when it hangs straight off the root
 }
 ```
+
+> **Outages behind an upstream device (since 2026-10-29, NOT-240..247).** When
+> an AP, switch or backhaul goes down, the devices behind it (per
+> [Topology](#topology-apitopology)) are **not** paged one by one. Their
+> `device_unreachable` alerts are still recorded, but each one is attached to
+> the alert of the **highest** device down above it, the *root alert*, through
+> `causedByAlertId`, and is never notified (`notifiedAt` stays `null`).
+> Only the root pages, and its message names the affected devices: up to 30 in
+> Telegram, grouped under the intermediate device they hang from, then
+> `…y N más (ver panel)`. A phone gets the first three. The ticket gets all of
+> them. When the root recovers, its message says who came back and who is still
+> down (`Volvieron 6 de 7. Siguen caídos: …`). A device still down once its own
+> alert delay has passed since the root came back is detached
+> (`causedByAlertId → null`) and pages on its own.
+>
+> **Frontend:** in the alert list, show an alert with `causedByAlertId` set
+> under its root, or hide it behind the root's `affectedCount`, instead of as
+> its own row. On the root's detail, `affectedDevices` is the full list, each
+> with its current status. Group by `viaDeviceName` to match the Telegram
+> message. If the root alert is deleted, its affected alerts fall back to
+> `causedByAlertId: null`.
 
 **Producers** — who writes alerts and what they put in `type` / `details`:
 
@@ -2984,13 +3019,15 @@ interface AlertListItemDTO extends AlertDTO {
   ticket: { id: string; code: number; status: TicketStatus } | null;
   // since 2026-10-14 — open alert with no ticket of its own: offer "Crear ticket"
   ticketSuggested: boolean;
+  // since 2026-10-29 — how many devices went down behind this one (NOT-243)
+  affectedCount: number;
 }
 ```
 
 > **Tickets (NOT-206).** When `ticketSuggested` is `true`, show a "Crear ticket" action that calls `POST /api/tickets/from-alert`. When `ticket` is set, link to it (`#code`) instead. Only a ticket opened from **this** alert counts: two alerts on the same device each get their own suggestion. `ticketSuggested` is always `false` on a resolved alert and on an install without the tickets module. Re-fetch the list after creating a ticket.  
 > Results are ordered by `startedAt` descending (newest first).  
 > Omit `deviceId` to list alerts across all devices. Filters combine with AND, so `?status=OPEN&severity=CRITICAL` is the open critical alerts, wireless-link alerts included. An unknown `status` or `severity` is a `400`.  
-> `deviceName` is the device's **current** name, so a renamed device's old alerts show the new name. Only the list carries it; `GET /api/alerts/:id` returns a plain `AlertDTO`.  
+> `deviceName` is the device's **current** name, so a renamed device's old alerts show the new name. Only the list carries it; `GET /api/alerts/:id` returns an `AlertDTO`.  
 > **`total` is fixed since 2026-09-26.** It used to be the length of the page, so `hasMore` was always `false`. It now counts every alert matching the filters, and paging on `hasMore` works.
 
 ---
@@ -3001,10 +3038,12 @@ interface AlertListItemDTO extends AlertDTO {
 
 ```ts
 // Response
-{ success: true, data: AlertDTO }
+{ success: true, data: AlertDTO } // with affectedDevices (since 2026-10-29)
 ```
 
 > Returns 400 if the id is not a valid UUID, 404 if no alert exists with that id.
+> `affectedDevices` lists every device attached to this alert (NOT-243), with
+> whether it is still down; `[]` for an ordinary alert.
 
 ---
 

@@ -1,8 +1,11 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
+import { AlertSeverity } from 'domain/shared/enums';
 import { DeviceState } from 'domain/device-monitoring/aggregates';
+import { Alert, OutageAttribution } from 'domain/notifications';
 import { IDeviceStateRepository } from 'domain/device-monitoring/repository';
 import {
+  IAlertRepository,
   IDeviceNotificationPolicyRepository,
   INotificationSettingsRepository
 } from 'domain/notifications/repository';
@@ -10,7 +13,10 @@ import {
   IAgentStatusQuery,
   ILogger
 } from 'application/shared/interfaces';
+import { IOutageTopologyQuery } from '../interfaces';
 import { SendDeviceDownAlertUseCase } from './SendDeviceDownAlertUseCase';
+
+const ALERT_TYPE = 'device_unreachable';
 
 // Scans every device currently DOWN and opens the down alert for any that
 // has been down for at least its effective alert delay — the per-device
@@ -23,6 +29,9 @@ import { SendDeviceDownAlertUseCase } from './SendDeviceDownAlertUseCase';
 // A device behind an agent that is not reporting is skipped (ADR 0002, R7):
 // its DOWN is the last thing the agent saw, not what is true now. It alerts
 // normally once the agent is back and still finds it down.
+//
+// A device down behind a device that is also down is not paged on its own:
+// its alert joins the upstream's (NOT-240..245, OutageAttribution).
 export class RaiseOverdueDeviceDownAlertsUseCase {
   constructor(
     private readonly deviceStateRepository: IDeviceStateRepository,
@@ -30,7 +39,9 @@ export class RaiseOverdueDeviceDownAlertsUseCase {
     private readonly sendDeviceDownAlertUseCase: SendDeviceDownAlertUseCase,
     private readonly settingsRepository: INotificationSettingsRepository,
     private readonly logger: ILogger,
-    private readonly agentStatusQuery: IAgentStatusQuery
+    private readonly agentStatusQuery: IAgentStatusQuery,
+    private readonly alertRepository: IAlertRepository,
+    private readonly topology: IOutageTopologyQuery
   ) {}
 
   async execute(): Promise<Result<number>> {
@@ -59,6 +70,11 @@ export class RaiseOverdueDeviceDownAlertsUseCase {
       );
     }
     const unmeasured = unmeasuredResult.value;
+    const measuredDown = new Set(
+      downResult.value
+        .map((s) => s.deviceId.toString())
+        .filter((id) => !unmeasured.has(id))
+    );
 
     const now = Date.now();
     let raised = 0;
@@ -74,6 +90,14 @@ export class RaiseOverdueDeviceDownAlertsUseCase {
 
       const current = await this.stillInSameDownStreak(state);
       if (current === null) continue;
+
+      const handled = await this.attributedUpstream(
+        state.deviceId,
+        measuredDown,
+        delayMs,
+        new Date(now)
+      );
+      if (handled) continue;
 
       const result = await this.sendDeviceDownAlertUseCase.execute({
         deviceId: current.deviceId.toString(),
@@ -128,6 +152,119 @@ export class RaiseOverdueDeviceDownAlertsUseCase {
       return null;
     }
     return current;
+  }
+
+  // True when the outage belongs to an upstream device, and so is not paged
+  // here. A failed read of the device's own alert or its chain pages — a
+  // stray page is cheaper than a missed outage; once an upstream is known to
+  // be involved, a failed read holds until the next scan instead.
+  private async attributedUpstream(
+    deviceId: DeviceId,
+    measuredDown: Set<string>,
+    delayMs: number,
+    now: Date
+  ): Promise<boolean> {
+    const ownResult =
+      await this.alertRepository.findOpenByDeviceAndType(
+        deviceId,
+        ALERT_TYPE
+      );
+    if (ownResult.isFailure) {
+      this.warnUnattributed(deviceId, ownResult.error);
+      return false;
+    }
+    const own = ownResult.value;
+    if (own !== null && own.notifiedAt !== null) return false;
+
+    if (own !== null && own.causedByAlertId !== null) {
+      const causeResult = await this.alertRepository.findById(
+        own.causedByAlertId
+      );
+      if (causeResult.isFailure) {
+        this.warnUnattributed(deviceId, causeResult.error);
+        return true;
+      }
+      if (
+        OutageAttribution.stillHeld(causeResult.value, now, delayMs)
+      ) {
+        return true;
+      }
+      own.detachFromCause();
+      await this.saveAlert(own);
+    }
+
+    const upstreamResult = await this.topology.findUpstreamIds(
+      deviceId.toString()
+    );
+    if (upstreamResult.isFailure) {
+      this.warnUnattributed(deviceId, upstreamResult.error);
+      return false;
+    }
+
+    const rootId = OutageAttribution.rootCause(
+      upstreamResult.value.map((id) => ({
+        deviceId: id,
+        down: measuredDown.has(id)
+      }))
+    );
+    let rootAlert: Alert | null = null;
+    if (rootId !== null) {
+      const rootDeviceId = DeviceId.parse(rootId);
+      if (rootDeviceId.isFailure) return false;
+      const rootResult =
+        await this.alertRepository.findOpenByDeviceAndType(
+          rootDeviceId.value,
+          ALERT_TYPE
+        );
+      if (rootResult.isFailure) {
+        this.warnUnattributed(deviceId, rootResult.error);
+        return true;
+      }
+      rootAlert = rootResult.value;
+    }
+
+    const decision = OutageAttribution.decide(rootId, rootAlert);
+    if (decision.kind === 'ALERT_SELF') return false;
+    if (decision.kind === 'WAIT') return true;
+
+    const affected = own ?? this.openRecord(deviceId);
+    if (affected === null) return true;
+    if (affected.attachTo(decision.causeId).isSuccess) {
+      await this.saveAlert(affected);
+    }
+    return true;
+  }
+
+  // The record opens on the transition (NOT-097); this covers the rare
+  // device whose transition was never recorded, so it still shows under the
+  // root.
+  private openRecord(deviceId: DeviceId): Alert | null {
+    const result = Alert.open(
+      deviceId,
+      AlertSeverity.CRITICAL,
+      'Disponibilidad',
+      ALERT_TYPE,
+      'Sin conexión.'
+    );
+    return result.isSuccess ? result.value : null;
+  }
+
+  private async saveAlert(alert: Alert): Promise<void> {
+    const result = await this.alertRepository.save(alert);
+    if (result.isFailure) {
+      this.logger.error(
+        'RaiseOverdueDeviceDownAlertsUseCase: failed to save an attributed alert',
+        undefined,
+        { alertId: alert.id.toString(), error: result.error }
+      );
+    }
+  }
+
+  private warnUnattributed(deviceId: DeviceId, error: string): void {
+    this.logger.warn(
+      'RaiseOverdueDeviceDownAlertsUseCase: could not check the upstream outage',
+      { deviceId: deviceId.toString(), error }
+    );
   }
 
   private async effectiveAlertDelayMs(

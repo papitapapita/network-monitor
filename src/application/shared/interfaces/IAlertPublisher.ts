@@ -13,6 +13,9 @@ export interface AlertNotification {
   summary: string;
   // Anything worth reading after the summary; null when it says it all.
   detail: string | null;
+  // The detail cut down to a phone notification's few lines; absent when
+  // the detail already fits.
+  shortDetail?: string | null;
   occurredAt: Date;
   resolved: boolean;
   // The producer's own alert-type vocabulary (`device_unreachable`,

@@ -4,6 +4,7 @@ import { IAlertRepository } from 'domain/notifications/repository';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { AlertMapper } from '../mappers';
+import { OutageRollup } from '../shared';
 import { AlertResponseDTO, GetAlertByIdDTO } from '../dtos';
 
 export class GetAlertByIdUseCase extends UseCase<
@@ -12,7 +13,8 @@ export class GetAlertByIdUseCase extends UseCase<
 > {
   constructor(
     private readonly alertRepository: IAlertRepository,
-    logger: ILogger
+    logger: ILogger,
+    private readonly outageRollup?: OutageRollup
   ) {
     super(logger, 'GetAlertByIdUseCase');
   }
@@ -33,6 +35,15 @@ export class GetAlertByIdUseCase extends UseCase<
       return this.fail('Alert not found');
     }
 
-    return this.ok(AlertMapper.toDTO(found.value));
+    const dto = AlertMapper.toDTO(found.value);
+    if (this.outageRollup === undefined) return this.ok(dto);
+
+    const affected = await this.outageRollup.affected(found.value);
+    if (affected.isFailure) {
+      return this.fail(
+        `Failed to load the affected devices: ${affected.error}`
+      );
+    }
+    return this.ok({ ...dto, affectedDevices: affected.value });
   }
 }

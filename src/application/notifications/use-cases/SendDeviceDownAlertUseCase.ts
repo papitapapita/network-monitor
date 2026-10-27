@@ -14,8 +14,17 @@ import {
 } from 'application/shared/interfaces';
 import { ITicketOpener } from 'application/tickets/interfaces';
 import { AlertMapper } from '../mappers';
-import { openTicketForAlert, TelegramFormatting } from '../shared';
-import { AlertResponseDTO, SendDeviceDownAlertDTO } from '../dtos';
+import {
+  openTicketForAlert,
+  OutageMessages,
+  OutageRollup,
+  TelegramFormatting
+} from '../shared';
+import {
+  AffectedDeviceDTO,
+  AlertResponseDTO,
+  SendDeviceDownAlertDTO
+} from '../dtos';
 
 const SOURCE = 'Disponibilidad';
 const ALERT_TYPE = 'device_unreachable';
@@ -35,7 +44,8 @@ export class SendDeviceDownAlertUseCase extends UseCase<
     // wired in. Ticketing is deferred here (rather than at record time — see
     // DeviceWentOfflineAlertRecordHandler) so a blip that never gets
     // notified never opens a work order either.
-    private readonly ticketOpener?: ITicketOpener
+    private readonly ticketOpener?: ITicketOpener,
+    private readonly outageRollup?: OutageRollup
   ) {
     super(logger, 'SendDeviceDownAlertUseCase');
   }
@@ -143,12 +153,14 @@ export class SendDeviceDownAlertUseCase extends UseCase<
       );
     }
 
+    const affected = await this.affectedDevices(alert);
     const publishResult = await this.alertPublisher.publish({
       deviceId: alert.deviceId.toString(),
       severity: AlertSeverity.CRITICAL,
       source: SOURCE,
       summary: `${deviceName} no responde desde ${TelegramFormatting.formatSince(request.occurredAt)}`,
-      detail: null,
+      detail: OutageMessages.chatList(affected),
+      shortDetail: OutageMessages.pushList(affected),
       occurredAt: request.occurredAt,
       resolved: false,
       type: ALERT_TYPE
@@ -172,7 +184,12 @@ export class SendDeviceDownAlertUseCase extends UseCase<
         deviceId: alert.deviceId.toString(),
         type: ALERT_TYPE,
         severity: AlertSeverity.CRITICAL,
-        message: alert.description
+        message: [
+          alert.description,
+          OutageMessages.ticketList(affected)
+        ]
+          .filter((part) => part !== null)
+          .join('\n\n')
       });
     }
 
@@ -183,6 +200,30 @@ export class SendDeviceDownAlertUseCase extends UseCase<
     }
 
     return this.ok(AlertMapper.toDTO(saveResult.value));
+  }
+
+  // NOT-243: the root's message names every device down behind it. A list
+  // that cannot be read must not cost the page itself.
+  private async affectedDevices(
+    alert: Alert
+  ): Promise<AffectedDeviceDTO[]> {
+    if (this.outageRollup === undefined) return [];
+    // The affected alerts point at this one, so its row must exist first.
+    const saved = await this.alertRepository.save(alert);
+    if (saved.isFailure) return [];
+    await this.outageRollup.attachDownstream(alert);
+    const result = await this.outageRollup.affected(alert);
+    if (result.isFailure) {
+      this.logger.warn(
+        'Could not list the devices behind a down alert',
+        {
+          alertId: alert.id.toString(),
+          error: result.error
+        }
+      );
+      return [];
+    }
+    return result.value;
   }
 
   // Polling selects devices off a flag an event handler was supposed to have

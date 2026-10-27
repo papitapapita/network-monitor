@@ -28,7 +28,10 @@ export class PrismaAlertListQuery implements IAlertListQuery {
     try {
       const records = await this.prisma.alertEvent.findMany({
         where: this.buildWhere(criteria),
-        include: { device: { select: { name: true } } },
+        include: {
+          device: { select: { name: true } },
+          _count: { select: { affected: true } }
+        },
         orderBy: { startedAt: 'desc' },
         take: criteria.limit,
         skip: criteria.offset
@@ -42,7 +45,8 @@ export class PrismaAlertListQuery implements IAlertListQuery {
         records.map((record) => ({
           ...AlertDTOMapper.toDTO(AlertMapper.toDomain(record)),
           deviceName: record.device.name,
-          ticket: tickets.get(record.id) ?? null
+          ticket: tickets.get(record.id) ?? null,
+          affectedCount: record._count.affected
         }))
       );
     } catch (error) {

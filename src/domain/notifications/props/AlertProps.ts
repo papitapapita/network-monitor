@@ -1,4 +1,4 @@
-import { DeviceId } from 'domain/shared/ids';
+import { AlertId, DeviceId } from 'domain/shared/ids';
 import { AlertSeverity } from 'domain/shared/enums';
 
 export interface AlertProps {
@@ -12,4 +12,7 @@ export interface AlertProps {
   resolvedAt: Date | null;
   notifiedAt: Date | null;
   recoveryNotifiedAt: Date | null;
+  // The upstream device's alert this outage is part of (NOT-241). Optional
+  // so the many producers that never attach one need not say so.
+  causedByAlertId?: AlertId | null;
 }

@@ -26,3 +26,4 @@ export * from './SetMutedAlertTypesDTO';
 export * from './NotificationSettingsDTO';
 export * from './PushSubscriptionDTOs';
 export * from './SendPushAlertDTO';
+export * from './AffectedDeviceDTO';

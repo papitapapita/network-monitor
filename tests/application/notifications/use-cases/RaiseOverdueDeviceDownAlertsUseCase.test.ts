@@ -15,9 +15,17 @@ import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { IAgentStatusQuery } from '../../../../src/application/shared/interfaces/IAgentStatusQuery';
 import { INotificationSettingsRepository } from '../../../../src/domain/notifications/repository/INotificationSettingsRepository';
 import { NotificationSettings } from '../../../../src/domain/notifications/value-objects/NotificationSettings';
+import { IAlertRepository } from '../../../../src/domain/notifications/repository/IAlertRepository';
+import { Alert } from '../../../../src/domain/notifications/aggregates/Alert';
+import { AlertProps } from '../../../../src/domain/notifications/props/AlertProps';
+import { AlertId } from '../../../../src/domain/shared/ids/AlertId';
+import { AlertSeverity } from '../../../../src/domain/shared/enums';
+import { IOutageTopologyQuery } from '../../../../src/application/notifications/interfaces/IOutageTopologyQuery';
 
 const VALID_DEVICE_UUID_1 = '550e8400-e29b-41d4-a716-446655440070';
 const VALID_DEVICE_UUID_2 = '550e8400-e29b-41d4-a716-446655440071';
+const UPSTREAM_UUID = '550e8400-e29b-41d4-a716-446655440080';
+const TOP_UUID = '550e8400-e29b-41d4-a716-446655440081';
 const FIXED_DATE = new Date('2024-06-01T10:00:00.000Z');
 const ALERT_DELAY_MS = 60 * 60 * 1_000;
 
@@ -95,7 +103,8 @@ const STUB_ALERT_DTO = {
   resolvedAt: null,
   notifiedAt: null,
   recoveryNotifiedAt: null,
-  durationSecs: null
+  durationSecs: null,
+  causedByAlertId: null
 };
 
 // The re-read before raising sees what the scan saw unless a test says
@@ -132,6 +141,54 @@ function makeSendDeviceDownAlertUseCase(): jest.Mocked<
   return { execute: jest.fn() };
 }
 
+function makeAlert(
+  uuid: string,
+  overrides: Partial<AlertProps> = {}
+): Alert {
+  return Alert.reconstitute(AlertId.create(), {
+    deviceId: makeDeviceId(uuid),
+    severity: AlertSeverity.CRITICAL,
+    source: 'Disponibilidad',
+    type: 'device_unreachable',
+    description: 'Sin conexión.',
+    details: {},
+    startedAt: new Date(FIXED_DATE.getTime() - ALERT_DELAY_MS),
+    resolvedAt: null,
+    notifiedAt: null,
+    recoveryNotifiedAt: null,
+    causedByAlertId: null,
+    ...overrides
+  });
+}
+
+function makeAlertRepo(): jest.Mocked<IAlertRepository> {
+  return {
+    save: jest.fn(async (alert: Alert) => Result.ok(alert)),
+    findById: jest.fn().mockResolvedValue(Result.ok(null)),
+    findOpenByDeviceAndType: jest
+      .fn()
+      .mockResolvedValue(Result.ok(null)),
+    findAllOpenByDeviceId: jest.fn(),
+    findAllOpenByType: jest.fn(),
+    findAffectedBy: jest.fn().mockResolvedValue(Result.ok([])),
+    deleteById: jest.fn(),
+    deleteResolvedOlderThan: jest.fn()
+  };
+}
+
+// Open alerts by device, as findOpenByDeviceAndType would answer.
+function answerOpenAlerts(
+  repo: jest.Mocked<IAlertRepository>,
+  alerts: Alert[]
+): void {
+  repo.findOpenByDeviceAndType.mockImplementation(async (deviceId) =>
+    Result.ok(
+      alerts.find((a) => a.isOpen && a.deviceId.equals(deviceId)) ??
+        null
+    )
+  );
+}
+
 function makeLogger(): jest.Mocked<ILogger> {
   return {
     debug: jest.fn(),
@@ -153,6 +210,8 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
   let logger: jest.Mocked<ILogger>;
   let agentStatusQuery: jest.Mocked<IAgentStatusQuery>;
   let settingsRepo: jest.Mocked<INotificationSettingsRepository>;
+  let alertRepo: jest.Mocked<IAlertRepository>;
+  let topology: jest.Mocked<IOutageTopologyQuery>;
   let useCase: RaiseOverdueDeviceDownAlertsUseCase;
 
   beforeEach(() => {
@@ -167,13 +226,21 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
         .mockResolvedValue(Result.ok(new Set()))
     };
     settingsRepo = makeSettingsRepo();
+    alertRepo = makeAlertRepo();
+    topology = {
+      findUpstreamIds: jest.fn().mockResolvedValue(Result.ok([])),
+      findDownstream: jest.fn().mockResolvedValue(Result.ok([])),
+      findByIds: jest.fn().mockResolvedValue(Result.ok([]))
+    };
     useCase = new RaiseOverdueDeviceDownAlertsUseCase(
       deviceStateRepo,
       policyRepo,
       sendDeviceDownAlertUseCase as unknown as SendDeviceDownAlertUseCase,
       settingsRepo,
       logger,
-      agentStatusQuery
+      agentStatusQuery,
+      alertRepo,
+      topology
     );
   });
 
@@ -634,6 +701,241 @@ describe('RaiseOverdueDeviceDownAlertsUseCase', () => {
           occurredAt: snapshot.downSince
         }
       );
+    });
+  });
+  describe('outage behind an upstream device (NOT-240..245)', () => {
+    beforeEach(() => {
+      sendDeviceDownAlertUseCase.execute.mockResolvedValue(
+        Result.ok(STUB_ALERT_DTO)
+      );
+    });
+
+    it('pages a device whose upstream chain is all up', async () => {
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([makeDeviceState(VALID_DEVICE_UUID_1)])
+      );
+      topology.findUpstreamIds.mockResolvedValue(
+        Result.ok([UPSTREAM_UUID])
+      );
+
+      await useCase.execute();
+
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    it('[NOT-240] [NOT-241] attaches the device to its down upstream alert instead of paging', async () => {
+      const own = makeAlert(VALID_DEVICE_UUID_1);
+      const upstream = makeAlert(UPSTREAM_UUID);
+      answerOpenAlerts(alertRepo, [own, upstream]);
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([
+          makeDeviceState(VALID_DEVICE_UUID_1),
+          makeDeviceState(UPSTREAM_UUID, {
+            downSince: new Date(FIXED_DATE.getTime() - 60_000)
+          })
+        ])
+      );
+      topology.findUpstreamIds.mockImplementation(async (id) =>
+        Result.ok(id === VALID_DEVICE_UUID_1 ? [UPSTREAM_UUID] : [])
+      );
+
+      await useCase.execute();
+
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).not.toHaveBeenCalled();
+      expect(own.causedByAlertId?.equals(upstream.id)).toBe(true);
+      expect(alertRepo.save).toHaveBeenCalledWith(own);
+    });
+
+    it('attaches to the highest down upstream, past an up one in between', async () => {
+      const own = makeAlert(VALID_DEVICE_UUID_1);
+      const nearest = makeAlert(UPSTREAM_UUID);
+      const top = makeAlert(TOP_UUID);
+      answerOpenAlerts(alertRepo, [own, nearest, top]);
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([
+          makeDeviceState(VALID_DEVICE_UUID_1),
+          makeDeviceState(UPSTREAM_UUID, {
+            downSince: FIXED_DATE
+          }),
+          makeDeviceState(TOP_UUID, { downSince: FIXED_DATE })
+        ])
+      );
+      topology.findUpstreamIds.mockImplementation(async (id) =>
+        Result.ok(
+          id === VALID_DEVICE_UUID_1
+            ? [UPSTREAM_UUID, VALID_DEVICE_UUID_2, TOP_UUID]
+            : []
+        )
+      );
+
+      await useCase.execute();
+
+      expect(own.causedByAlertId?.equals(top.id)).toBe(true);
+    });
+
+    it('skips an upstream behind an agent that is not reporting', async () => {
+      agentStatusQuery.findUnmeasuredDevices.mockResolvedValue(
+        Result.ok(new Set([UPSTREAM_UUID]))
+      );
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([
+          makeDeviceState(VALID_DEVICE_UUID_1),
+          makeDeviceState(UPSTREAM_UUID)
+        ])
+      );
+      topology.findUpstreamIds.mockResolvedValue(
+        Result.ok([UPSTREAM_UUID])
+      );
+
+      await useCase.execute();
+
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits while the down upstream has no open alert yet (NOT-242)', async () => {
+      answerOpenAlerts(alertRepo, [makeAlert(VALID_DEVICE_UUID_1)]);
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([
+          makeDeviceState(VALID_DEVICE_UUID_1),
+          makeDeviceState(UPSTREAM_UUID, { downSince: FIXED_DATE })
+        ])
+      );
+      topology.findUpstreamIds.mockImplementation(async (id) =>
+        Result.ok(id === VALID_DEVICE_UUID_1 ? [UPSTREAM_UUID] : [])
+      );
+
+      await useCase.execute();
+
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).not.toHaveBeenCalled();
+      expect(alertRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('leaves an attached device alone while its root alert is open', async () => {
+      const root = makeAlert(UPSTREAM_UUID);
+      const own = makeAlert(VALID_DEVICE_UUID_1, {
+        causedByAlertId: root.id
+      });
+      answerOpenAlerts(alertRepo, [own, root]);
+      alertRepo.findById.mockResolvedValue(Result.ok(root));
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([makeDeviceState(VALID_DEVICE_UUID_1)])
+      );
+
+      await useCase.execute();
+
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).not.toHaveBeenCalled();
+      expect(topology.findUpstreamIds).not.toHaveBeenCalled();
+    });
+
+    it('holds a device still down after its root recovered, until its own delay passes (NOT-245)', async () => {
+      const root = makeAlert(UPSTREAM_UUID, {
+        resolvedAt: new Date(
+          FIXED_DATE.getTime() - ALERT_DELAY_MS + 1
+        )
+      });
+      const own = makeAlert(VALID_DEVICE_UUID_1, {
+        causedByAlertId: root.id
+      });
+      answerOpenAlerts(alertRepo, [own]);
+      alertRepo.findById.mockResolvedValue(Result.ok(root));
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([makeDeviceState(VALID_DEVICE_UUID_1)])
+      );
+
+      await useCase.execute();
+
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).not.toHaveBeenCalled();
+      expect(own.causedByAlertId).not.toBeNull();
+    });
+
+    it('detaches and pages a device still down its own delay after the root recovered (NOT-245)', async () => {
+      const root = makeAlert(UPSTREAM_UUID, {
+        resolvedAt: new Date(FIXED_DATE.getTime() - ALERT_DELAY_MS)
+      });
+      const own = makeAlert(VALID_DEVICE_UUID_1, {
+        causedByAlertId: root.id
+      });
+      answerOpenAlerts(alertRepo, [own]);
+      alertRepo.findById.mockResolvedValue(Result.ok(root));
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([makeDeviceState(VALID_DEVICE_UUID_1)])
+      );
+      topology.findUpstreamIds.mockResolvedValue(
+        Result.ok([UPSTREAM_UUID])
+      );
+
+      await useCase.execute();
+
+      expect(own.causedByAlertId).toBeNull();
+      expect(alertRepo.save).toHaveBeenCalledWith(own);
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not re-attribute a device already paged on its own', async () => {
+      const own = makeAlert(VALID_DEVICE_UUID_1, {
+        notifiedAt: FIXED_DATE
+      });
+      answerOpenAlerts(alertRepo, [own]);
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([makeDeviceState(VALID_DEVICE_UUID_1)])
+      );
+
+      await useCase.execute();
+
+      expect(topology.findUpstreamIds).not.toHaveBeenCalled();
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    it('pages when the upstream chain cannot be read', async () => {
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([makeDeviceState(VALID_DEVICE_UUID_1)])
+      );
+      topology.findUpstreamIds.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      await useCase.execute();
+
+      expect(
+        sendDeviceDownAlertUseCase.execute
+      ).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalled();
+    });
+
+    it('opens a record to attach when the transition was never recorded', async () => {
+      const upstream = makeAlert(UPSTREAM_UUID);
+      answerOpenAlerts(alertRepo, [upstream]);
+      deviceStateRepo.findAllDown.mockResolvedValue(
+        Result.ok([
+          makeDeviceState(VALID_DEVICE_UUID_1),
+          makeDeviceState(UPSTREAM_UUID, { downSince: FIXED_DATE })
+        ])
+      );
+      topology.findUpstreamIds.mockImplementation(async (id) =>
+        Result.ok(id === VALID_DEVICE_UUID_1 ? [UPSTREAM_UUID] : [])
+      );
+
+      await useCase.execute();
+
+      const saved = alertRepo.save.mock.calls[0][0];
+      expect(saved.deviceId.toString()).toBe(VALID_DEVICE_UUID_1);
+      expect(saved.causedByAlertId?.equals(upstream.id)).toBe(true);
     });
   });
 });

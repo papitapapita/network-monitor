@@ -8,6 +8,7 @@ import {
   seedTicket,
   seedDeviceModel,
   seedMonitoredDevice,
+  seedNetworkDevice,
   GHOST_ID,
   INVALID_ID
 } from './helpers/db';
@@ -355,6 +356,155 @@ describe('Alert Routes — GET /api/alerts', () => {
       expect(res.status).toBe(400);
     }
   );
+});
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/alerts/:id
+// ─────────────────────────────────────────────────────────────
+
+describe('GET /api/alerts/:id', () => {
+  let app: Application;
+  let container: DependencyContainer;
+  let prisma: PrismaClient;
+  let deviceModelId: string;
+  let deviceId: string;
+  let rootAlertId: string;
+  let adminToken: string;
+
+  beforeAll(async () => {
+    ({ app, container } = await createTestApp());
+    prisma = container.getPrisma();
+    deviceModelId = await seedDeviceModel(prisma);
+  });
+
+  afterAll(async () => {
+    await container.disconnect();
+  });
+
+  beforeEach(async () => {
+    await cleanDatabase(prisma);
+    adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
+    const seeded = await seedMonitoredDevice(prisma, deviceModelId);
+    deviceId = seeded.deviceId;
+    const root = await prisma.alertEvent.create({
+      data: {
+        deviceId,
+        severity: 'CRITICAL',
+        type: 'device_unreachable'
+      }
+    });
+    rootAlertId = root.id;
+  });
+
+  async function seedAffected(
+    name: string,
+    ipAddress: string,
+    resolved: boolean
+  ): Promise<string> {
+    const childId = await seedNetworkDevice(prisma, deviceModelId, {
+      name,
+      ipAddress,
+      upstreamDeviceId: deviceId,
+      status: 'ACTIVE'
+    });
+    await prisma.alertEvent.create({
+      data: {
+        deviceId: childId,
+        severity: 'CRITICAL',
+        type: 'device_unreachable',
+        causedByAlertId: rootAlertId,
+        resolvedAt: resolved ? new Date() : null
+      }
+    });
+    return childId;
+  }
+
+  it('401 — rejects a request with no Authorization header', async () => {
+    const res = await request(app).get(`/api/alerts/${rootAlertId}`);
+
+    expect(res.status).toBe(401);
+  });
+
+  it('[NOT-243] 200 — lists the devices behind the alert with their status', async () => {
+    const down = await seedAffected(
+      'Cliente Ruiz',
+      '10.0.3.21',
+      false
+    );
+    const back = await seedAffected(
+      'Cliente Perez',
+      '10.0.3.22',
+      true
+    );
+
+    const res = await request(app)
+      .get(`/api/alerts/${rootAlertId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.causedByAlertId).toBeNull();
+    expect(res.body.data.affectedDevices).toHaveLength(2);
+    expect(res.body.data.affectedDevices).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          deviceId: down,
+          name: 'Cliente Ruiz',
+          ipAddress: '10.0.3.21',
+          status: 'DOWN',
+          viaDeviceName: null
+        }),
+        expect.objectContaining({ deviceId: back, status: 'UP' })
+      ])
+    );
+  });
+
+  it('[NOT-241] 200 — an affected alert points at its root', async () => {
+    const childId = await seedAffected(
+      'Cliente Ruiz',
+      '10.0.3.21',
+      false
+    );
+    const child = await prisma.alertEvent.findFirst({
+      where: { deviceId: childId }
+    });
+
+    const res = await request(app)
+      .get(`/api/alerts/${child!.id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.causedByAlertId).toBe(rootAlertId);
+    expect(res.body.data.affectedDevices).toEqual([]);
+  });
+
+  it('[NOT-243] 200 — the list counts the devices behind each alert', async () => {
+    await seedAffected('Cliente Ruiz', '10.0.3.21', false);
+
+    const res = await request(app)
+      .get('/api/alerts')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    const root = res.body.data.alerts.find(
+      (a: { id: string }) => a.id === rootAlertId
+    );
+    expect(root.affectedCount).toBe(1);
+  });
+
+  it('404 — alert does not exist', async () => {
+    const res = await request(app)
+      .get(`/api/alerts/${GHOST_ID}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('400 — invalid alert UUID', async () => {
+    const res = await request(app)
+      .get(`/api/alerts/${INVALID_ID}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(400);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────

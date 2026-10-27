@@ -1,3 +1,5 @@
+import { AffectedDeviceDTO } from './AffectedDeviceDTO';
+
 export interface AlertResponseDTO {
   id: string;
   deviceId: string;
@@ -12,4 +14,8 @@ export interface AlertResponseDTO {
   notifiedAt: string | null;
   recoveryNotifiedAt: string | null;
   durationSecs: number | null;
+  // The upstream outage this alert is part of (NOT-241), null on its own.
+  causedByAlertId: string | null;
+  // Only on a single alert read: every device attached to this one.
+  affectedDevices?: AffectedDeviceDTO[];
 }

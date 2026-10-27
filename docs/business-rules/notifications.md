@@ -25,13 +25,14 @@ Format and conventions: [README.md](README.md).
 | `NOT-190` … `NOT-199` | Global alert-type muting                                 |
 | `NOT-200` … `NOT-219` | Install notification settings (dashboard)                |
 | `NOT-220` … `NOT-239` | Phone notifications (Web Push)                           |
+| `NOT-240` … `NOT-259` | Outages behind an upstream device (topology)             |
 
 ## Layer coverage
 
 | Layer                        | Rules |
 | ---------------------------- | ----- |
-| Application                  | 41    |
-| Domain (aggregate/entity/VO) | 19    |
+| Application                  | 46    |
+| Domain (aggregate/entity/VO) | 22    |
 | Presentation                 | 5     |
 | Infrastructure (database)    | 2     |
 | Infrastructure (composition) | 3     |
@@ -1982,3 +1983,174 @@ alert later instead of failing at startup.
 
 **Enforced at:** `src/infrastructure/notifications/config/webPushConfig.ts`, `src/infrastructure/di/container.ts`, `src/presentation/http/controllers/PushController.ts`
 **Tests:** `tests/infrastructure/notifications/config/webPushConfig.test.ts`, `tests/integration/push.routes.test.ts`
+
+---
+
+## Outages behind an upstream device
+
+Every device can hang off an upstream device (DEV-180). When an AP, a switch or
+a backhaul goes down, everything behind it stops answering too. These rules make
+that one page for the device that actually failed, naming everything that went
+down with it, instead of one page per client.
+
+The order of events for a typical outage: the AP and its clients go down, and
+each gets its alert record at once (NOT-097). The scan finds the clients past
+their delay first and attaches them to the AP's record without paging. When
+the AP's own delay runs out, it pages once, naming every client down behind it.
+Clients that drop later join silently. When the AP comes back, one message says
+who came back with it and who did not.
+
+### NOT-240 — A device down behind a device that is also down is not paged on its own
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-29
+
+When a device's down alert is due, the scan walks its upstream chain (DEV-180)
+to the root. If any device on the chain is down, this device is *affected*:
+its alert is recorded, but no Telegram message, phone notification or ticket
+goes out for it, now or later. A device on the chain that is not down, or whose
+state nobody is measuring (behind an agent that is not reporting, NOT-101), is
+walked past rather than blamed.
+
+If a read the decision needs fails (the device's own alert, or the chain),
+the device pages as before. A stray page is cheaper than a missed outage.
+
+**Why:** An AP with 40 clients that loses power used to send 41 messages. The
+one that matters, the AP, was buried among the rest.
+
+**Enforced at:** `src/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.ts` (`attributedUpstream`), `src/infrastructure/persistence/PrismaOutageTopologyQuery.ts`
+**Tests:** `tests/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.test.ts`, `tests/integration/use-cases/notifications/RaiseOverdueDeviceDownAlertsUseCase.integration.test.ts`
+
+### NOT-241 — An affected device's alert joins the alert of the highest device down above it
+
+**Type:** Invariant · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-10-29
+
+The affected device's alert is linked (`causedByAlertId`) to the open alert of
+the **highest** down device on its chain, the *root*. With a switch and the AP
+below it both down, the AP and its clients all join the switch's alert. An alert
+can be linked only while it is open and has not been notified, and never to
+itself. Deleting the root alert unlinks the alerts that joined it.
+
+**Why:** The highest device down is the real fault. The AP below a dead switch
+is down only because the switch is.
+
+**Enforced at:** `src/domain/notifications/services/OutageAttribution.ts` (`rootCause`), `src/domain/notifications/aggregates/Alert.ts` (`attachTo`), `prisma/migrations/20261029120000_alert_caused_by`
+**Tests:** `tests/domain/notifications/services/OutageAttribution.test.ts`, `tests/domain/notifications/aggregates/Alert.test.ts`, `tests/integration/use-cases/notifications/RaiseOverdueDeviceDownAlertsUseCase.integration.test.ts`, `tests/integration/use-cases/notifications/GetAlertByIdUseCase.integration.test.ts`
+
+### NOT-242 — An affected device waits while its root has no alert yet
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-10-29
+
+If the root is down but has no open alert yet, the affected device is neither
+paged nor linked. It is decided again on the next scan. The root's alert record
+opens the moment it goes down (NOT-097), so in practice the wait is a few
+seconds. A root that is down with a longer alert delay than its clients does
+not let them page: they are linked to its record and stay silent until it
+pages.
+
+**Why:** Which device the scan notices first must not decide who pages.
+
+**Enforced at:** `src/domain/notifications/services/OutageAttribution.ts` (`decide`)
+**Tests:** `tests/domain/notifications/services/OutageAttribution.test.ts`, `tests/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.test.ts`, `tests/integration/use-cases/notifications/RaiseOverdueDeviceDownAlertsUseCase.integration.test.ts`
+
+### NOT-243 — The root's message names the devices down behind it
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-29
+
+Just before the root pages, every device in its subtree that has an open,
+unnotified down alert is linked to it, even one whose own delay has not run out.
+The message then names them. Each channel gets a different amount of detail:
+
+| Channel                       | What it names                                                                              |
+| ----------------------------- | ------------------------------------------------------------------------------------------ |
+| Telegram                      | Up to 30, one line per device hanging off the root, with what is behind it after an arrow; then `…y N más (ver panel)` |
+| Phone notification            | The first 3, then `y N más`                                                                |
+| Ticket                        | All of them, each with the device it hangs from                                            |
+| `GET /api/alerts/:id`         | All of them, each with whether it is still down; the list shows `affectedCount`            |
+
+A device that already paged on its own before the root went down keeps its own
+alert and is not named. If the list cannot be read, the root still pages,
+without it.
+
+**Why:** "AP Torre Norte caído" alone does not tell the team which customers
+are affected. A bare count ("23 afectados") does not either.
+
+**Enforced at:** `src/application/notifications/shared/OutageRollup.ts`, `src/application/notifications/shared/OutageMessages.ts`, `src/application/notifications/use-cases/SendDeviceDownAlertUseCase.ts`, `src/application/notifications/use-cases/GetAlertByIdUseCase.ts`, `src/infrastructure/notifications/PushAlertPublisher.ts`, `src/infrastructure/persistence/PrismaAlertListQuery.ts`
+**Reached from:** `GET /api/alerts`, `GET /api/alerts/:id`
+**Tests:** `tests/application/notifications/shared/OutageRollup.test.ts`, `tests/application/notifications/shared/OutageMessages.test.ts`, `tests/application/notifications/use-cases/SendDeviceDownAlertUseCase.test.ts`, `tests/application/notifications/use-cases/GetAlertByIdUseCase.test.ts`, `tests/infrastructure/notifications/PushAlertPublisher.test.ts`, `tests/integration/use-cases/notifications/SendDeviceDownAlertUseCase.integration.test.ts`, `tests/integration/use-cases/notifications/GetAlertByIdUseCase.integration.test.ts`, `tests/integration/alert.routes.test.ts`
+
+### NOT-244 — A device that goes down after the root paged joins silently
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-29
+
+A device behind the root that goes down after the root's page is linked to it
+when its own delay runs out. It shows under the root on the dashboard, but
+nothing new is sent.
+
+**Why:** One page per outage. A client losing power ten minutes into an AP
+outage is not news.
+
+**Enforced at:** `src/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.ts`
+**Tests:** `tests/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.test.ts`, `tests/integration/use-cases/notifications/RaiseOverdueDeviceDownAlertsUseCase.integration.test.ts`
+
+### NOT-245 — The root's recovery says who is still down; they page on their own once their delay passes again
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-10-29
+
+The root's recovery message adds who came back and who did not:
+`Volvieron 6 de 7. Siguen caídos: Cliente Ruiz` (or `Volvieron los 7
+afectados.`). Devices still down stay linked to the resolved root until their
+own alert delay has passed since the root came back. Then they are unlinked and
+judged like any other device: they page on their own, or join a new root if one
+is down above them.
+
+**Why:** A CPE takes a minute or two to reconnect after its AP boots. Paging
+for it on the next scan would bring back the flood this was meant to stop. A
+client still down a full delay after its AP is back is a separate fault.
+
+**Enforced at:** `src/domain/notifications/services/OutageAttribution.ts` (`stillHeld`), `src/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.ts`, `src/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.ts`
+**Tests:** `tests/domain/notifications/services/OutageAttribution.test.ts`, `tests/application/notifications/use-cases/RaiseOverdueDeviceDownAlertsUseCase.test.ts`, `tests/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.test.ts`, `tests/application/notifications/shared/OutageMessages.test.ts`, `tests/integration/use-cases/notifications/RaiseOverdueDeviceDownAlertsUseCase.integration.test.ts`, `tests/integration/use-cases/notifications/SendDeviceRecoveryAlertUseCase.integration.test.ts`
+
+### NOT-246 — An affected device that recovers is closed silently
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-29
+
+An affected device was never paged, so its recovery closes its alert without a
+message, the same as a blip shorter than the delay (NOT-098). It is reported in
+the root's recovery message instead (NOT-245).
+
+**Why:** Nobody was told it went down, so a message saying it is back would
+make no sense.
+
+**Enforced at:** `src/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.ts`
+**Tests:** `tests/application/notifications/use-cases/SendDeviceRecoveryAlertUseCase.test.ts`, `tests/integration/use-cases/notifications/SendDeviceRecoveryAlertUseCase.integration.test.ts`
+
+### NOT-247 — Quiet hours and mutes apply to the root alert only
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-29
+
+The root's page goes through quiet hours (NOT-170) and muted types (NOT-190)
+like any other down alert, and is sent once they lift. Affected devices are
+never paged, so there is nothing of theirs to hold back. While the root's page
+waits out quiet hours, the devices behind it stay linked and silent.
+
+**Why:** An outage at 3 a.m. under quiet hours should wake nobody. Neither
+should the 40 clients behind it.
+
+**Enforced at:** `src/application/notifications/use-cases/SendDeviceDownAlertUseCase.ts`, `src/infrastructure/notifications/QuietHoursAlertPublisher.ts`
+**Tests:** `tests/application/notifications/use-cases/SendDeviceDownAlertUseCase.test.ts`

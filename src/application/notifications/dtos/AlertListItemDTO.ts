@@ -12,4 +12,6 @@ export interface AlertListItemDTO extends AlertResponseDTO {
   // same device does not count: each alert can become its own job (TKT-115).
   ticket: AlertTicketRefDTO | null;
   ticketSuggested: boolean;
+  // How many devices went down behind this one (NOT-243).
+  affectedCount: number;
 }

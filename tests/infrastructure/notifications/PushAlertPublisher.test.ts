@@ -53,6 +53,28 @@ describe('PushAlertPublisher', () => {
     });
   });
 
+  it('[NOT-243] sends the shortened detail when there is one', async () => {
+    const execute = jest
+      .fn()
+      .mockResolvedValue(Result.ok({ delivered: 1 }));
+    const publisher = new PushAlertPublisher(
+      { execute } as unknown as SendPushAlertUseCase,
+      makeLogger()
+    );
+
+    await publisher.publish({
+      ...NOTIFICATION,
+      detail: 'Afectados (5):\n• A\n• B\n• C\n• D\n• E',
+      shortDetail: 'Afectados (5): A, B, C y 2 más'
+    });
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: 'Afectados (5): A, B, C y 2 más'
+      })
+    );
+  });
+
   it('[NOT-222] reports success even when push fails, so Telegram is not resent', async () => {
     const logger = makeLogger();
     const publisher = new PushAlertPublisher(

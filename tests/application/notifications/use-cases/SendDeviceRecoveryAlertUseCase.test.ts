@@ -12,6 +12,8 @@ import { AlertId } from '../../../../src/domain/shared/ids/AlertId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
 import { SendDeviceRecoveryAlertDTO } from '../../../../src/application/notifications/dtos/SendDeviceRecoveryAlertDTO';
+import { AffectedDeviceDTO } from '../../../../src/application/notifications/dtos/AffectedDeviceDTO';
+import { OutageRollup } from '../../../../src/application/notifications/shared/OutageRollup';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -47,6 +49,7 @@ function makeAlertRepo(): jest.Mocked<IAlertRepository> {
     findOpenByDeviceAndType: jest.fn(),
     findAllOpenByDeviceId: jest.fn(),
     findAllOpenByType: jest.fn(),
+    findAffectedBy: jest.fn().mockResolvedValue(Result.ok([])),
     deleteById: jest.fn(),
     deleteResolvedOlderThan: jest.fn()
   };
@@ -410,6 +413,101 @@ describe('SendDeviceRecoveryAlertUseCase', () => {
       expect(alertPublisher.publish.mock.calls[0][0].detail).toBe(
         'Latencia: N/A'
       );
+    });
+  });
+  // ===========================================================================
+  describe('[NOT-245] [NOT-246] executeImpl — devices behind the recovered one', () => {
+    const affectedDevice = (
+      name: string,
+      status: 'UP' | 'DOWN'
+    ): AffectedDeviceDTO => ({
+      deviceId: AlertId.create().toString(),
+      name,
+      ipAddress: null,
+      status,
+      viaDeviceId: null,
+      viaDeviceName: null
+    });
+    let rollup: { affected: jest.Mock };
+    let withRollup: SendDeviceRecoveryAlertUseCase;
+
+    beforeEach(() => {
+      rollup = {
+        affected: jest
+          .fn()
+          .mockResolvedValue(
+            Result.ok([
+              affectedDevice('Cliente Pérez', 'UP'),
+              affectedDevice('Cliente Ruiz', 'DOWN')
+            ])
+          )
+      };
+      withRollup = new SendDeviceRecoveryAlertUseCase(
+        alertRepo,
+        deviceRepo as unknown as IDeviceRepository,
+        alertPublisher,
+        logger,
+        rollup as unknown as OutageRollup
+      );
+      deviceRepo.findById.mockResolvedValue(
+        Result.ok(makeDevice() as never)
+      );
+      alertRepo.save.mockImplementation(async (a) => Result.ok(a));
+    });
+
+    it('says who came back and who is still down', async () => {
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(makeOpenAlert())
+      );
+
+      await withRollup.execute(makeRequest({ latencyMs: 42 }));
+
+      const envelope = alertPublisher.publish.mock.calls[0][0];
+      expect(envelope.detail).toBe(
+        'Latencia: 42 ms\nVolvieron 1 de 2. Siguen caídos: Cliente Ruiz'
+      );
+      expect(envelope.shortDetail).toBe(
+        'Volvieron 1 de 2. Siguen caídos: Cliente Ruiz'
+      );
+    });
+
+    it('keeps the plain message when nothing was behind it', async () => {
+      rollup.affected.mockResolvedValue(Result.ok([]));
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(makeOpenAlert())
+      );
+
+      await withRollup.execute(makeRequest({ latencyMs: 42 }));
+
+      const envelope = alertPublisher.publish.mock.calls[0][0];
+      expect(envelope.detail).toBe('Latencia: 42 ms');
+      expect(envelope.shortDetail).toBeNull();
+    });
+
+    it('still announces the recovery when the list cannot be read', async () => {
+      rollup.affected.mockResolvedValue(Result.fail('db down'));
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(makeOpenAlert())
+      );
+
+      await withRollup.execute(makeRequest({ latencyMs: 42 }));
+
+      expect(alertPublisher.publish).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalled();
+    });
+
+    it('resolves an affected device silently — it was never paged (NOT-246)', async () => {
+      const affected = makeOpenAlert(null);
+      affected.attachTo(AlertId.create());
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(affected)
+      );
+
+      const result = await withRollup.execute(makeRequest());
+
+      expect(result.value.status).toBe('RESOLVED');
+      expect(alertPublisher.publish).not.toHaveBeenCalled();
+      expect(rollup.affected).not.toHaveBeenCalled();
     });
   });
 });

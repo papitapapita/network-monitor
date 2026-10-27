@@ -49,7 +49,9 @@ function makeItem(
     notifiedAt: null,
     recoveryNotifiedAt: null,
     durationSecs: null,
+    causedByAlertId: null,
     ticket: null,
+    affectedCount: 0,
     ...overrides
   };
 }

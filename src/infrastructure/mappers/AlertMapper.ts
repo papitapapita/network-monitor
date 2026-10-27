@@ -14,6 +14,7 @@ type PrismaAlertRecord = {
   resolvedAt: Date | null;
   notifiedAt: Date | null;
   recoveryNotifiedAt: Date | null;
+  causedByAlertId?: string | null;
 };
 
 export class AlertMapper {
@@ -42,7 +43,8 @@ export class AlertMapper {
       startedAt: raw.startedAt,
       resolvedAt: raw.resolvedAt,
       notifiedAt: raw.notifiedAt,
-      recoveryNotifiedAt: raw.recoveryNotifiedAt
+      recoveryNotifiedAt: raw.recoveryNotifiedAt,
+      causedByAlertId: AlertMapper.parseCause(raw.causedByAlertId)
     });
   }
 
@@ -58,8 +60,22 @@ export class AlertMapper {
       startedAt: alert.startedAt,
       resolvedAt: alert.resolvedAt,
       notifiedAt: alert.notifiedAt,
-      recoveryNotifiedAt: alert.recoveryNotifiedAt
+      recoveryNotifiedAt: alert.recoveryNotifiedAt,
+      causedByAlertId: alert.causedByAlertId?.toString() ?? null
     };
+  }
+
+  private static parseCause(
+    raw: string | null | undefined
+  ): AlertId | null {
+    if (raw === null || raw === undefined) return null;
+    const parsed = AlertId.parse(raw);
+    if (parsed.isFailure) {
+      throw new Error(
+        `Data integrity violation: invalid causedByAlertId "${raw}" in alert_events`
+      );
+    }
+    return parsed.value;
   }
 
   private static mapSeverity(raw: string): AlertSeverity {

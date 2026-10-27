@@ -369,11 +369,15 @@ model AlertEvent {
   resolvedAt         DateTime?     @map("resolved_at") @db.Timestamptz
   notifiedAt         DateTime?     @map("notified_at") @db.Timestamptz
   recoveryNotifiedAt DateTime?     @map("recovery_notified_at") @db.Timestamptz
+  causedByAlertId    String?       @map("caused_by_alert_id") @db.Uuid
 
   // Relations
-  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  device   Device       @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  causedBy AlertEvent?  @relation("AlertCause", fields: [causedByAlertId], references: [id], onDelete: SetNull)
+  affected AlertEvent[] @relation("AlertCause")
 
   @@index([deviceId, startedAt(sort: Desc)])
+  @@index([causedByAlertId])
   @@index([resolvedAt])
   @@index([deviceId, type, resolvedAt])
   @@map("alert_events")
@@ -413,12 +417,12 @@ model DeviceNotificationPolicy {
   id       String @id @default(uuid()) @db.Uuid
   deviceId String @unique @map("device_id") @db.Uuid
 
-  quietHoursMode QuietHoursMode @default(INHERIT) @map("quiet_hours_mode")
+  quietHoursMode  QuietHoursMode @default(INHERIT) @map("quiet_hours_mode")
   // Set exactly when the mode is CUSTOM, both or neither — enforced by CHECK
   // constraints (migrations 20260902120000, 20261026120000), not expressible
   // in the Prisma schema DSL.
-  quietHoursStart String? @map("quiet_hours_start") @db.VarChar(5)
-  quietHoursEnd   String? @map("quiet_hours_end") @db.VarChar(5)
+  quietHoursStart String?        @map("quiet_hours_start") @db.VarChar(5)
+  quietHoursEnd   String?        @map("quiet_hours_end") @db.VarChar(5)
 
   // null = use the system default (DEVICE_DOWN_ALERT_DELAY_MINUTES).
   // Range also enforced by the same migration's CHECK constraint.

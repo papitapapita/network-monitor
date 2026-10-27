@@ -126,6 +126,7 @@ import {
   PrismaDeviceRepository,
   PrismaDeviceListQuery,
   PrismaTopologyQuery,
+  PrismaOutageTopologyQuery,
   PrismaDeviceModelRepository,
   PrismaVendorRepository,
   PrismaPollingConfigurationRepository,
@@ -450,6 +451,7 @@ import {
   UpdateNotificationSettingsUseCase,
   SendTestNotificationUseCase
 } from 'application/notifications/use-cases';
+import { OutageRollup } from 'application/notifications/shared';
 import {
   DeviceCameOnlineNotificationHandler,
   DeviceWentOfflineAlertRecordHandler,
@@ -1964,6 +1966,14 @@ export class DependencyContainer {
       this.logger
     );
 
+    const outageTopologyQuery = new PrismaOutageTopologyQuery(
+      this.prisma
+    );
+    const outageRollup = new OutageRollup(
+      this.alertRepository,
+      outageTopologyQuery,
+      this.logger
+    );
     const sendDeviceDownAlertUseCase = new SendDeviceDownAlertUseCase(
       this.alertRepository,
       this.pollingConfigRepository,
@@ -1971,14 +1981,16 @@ export class DependencyContainer {
       deviceEligibilityService,
       alertPublisher,
       this.logger,
-      this.ticketOpener
+      this.ticketOpener,
+      outageRollup
     );
     const sendDeviceRecoveryAlertUseCase =
       new SendDeviceRecoveryAlertUseCase(
         this.alertRepository,
         this.deviceRepository,
         alertPublisher,
-        this.logger
+        this.logger,
+        outageRollup
       );
 
     const raiseOverdueDeviceDownAlertsUseCase =
@@ -1988,7 +2000,9 @@ export class DependencyContainer {
         sendDeviceDownAlertUseCase,
         this.notificationSettingsRepository,
         this.logger,
-        agentStatusQuery
+        agentStatusQuery,
+        this.alertRepository,
+        outageTopologyQuery
       );
     const resolveStrandedDeviceDownAlertsUseCase =
       new ResolveStrandedDeviceDownAlertsUseCase(
@@ -2019,7 +2033,8 @@ export class DependencyContainer {
     );
     const getAlertByIdUseCase = new GetAlertByIdUseCase(
       this.alertRepository,
-      this.logger
+      this.logger,
+      outageRollup
     );
     const deleteAlertUseCase = new DeleteAlertUseCase(
       this.alertRepository,

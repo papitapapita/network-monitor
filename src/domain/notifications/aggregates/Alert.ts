@@ -48,6 +48,10 @@ export class Alert extends AggregateRoot<AlertProps, AlertId> {
     return this.props.recoveryNotifiedAt;
   }
 
+  get causedByAlertId(): AlertId | null {
+    return this.props.causedByAlertId ?? null;
+  }
+
   get durationSecs(): number | null {
     if (!this.props.resolvedAt) return null;
     return Math.floor(
@@ -118,14 +122,38 @@ export class Alert extends AggregateRoot<AlertProps, AlertId> {
   // delay elapses — NOT-097). Details captured at open time (consecutive
   // failures, in particular) would otherwise go stale by the time anyone is
   // actually told, so the notify path refreshes them right before publishing.
-  public refreshDetails(details: Record<string, unknown>): Result<void> {
+  public refreshDetails(
+    details: Record<string, unknown>
+  ): Result<void> {
     if (this.props.resolvedAt !== null) {
-      return Result.fail(
-        'Cannot update details on a resolved alert'
-      );
+      return Result.fail('Cannot update details on a resolved alert');
     }
     this.props.details = details;
     return Result.ok<void>();
+  }
+
+  // An affected device is never paged on its own (NOT-240), so only an
+  // open alert nobody has been told about can join an upstream's outage.
+  public attachTo(causeId: AlertId): Result<void> {
+    if (causeId.equals(this.id)) {
+      return Result.fail('An alert cannot be caused by itself');
+    }
+    if (this.props.resolvedAt !== null) {
+      return Result.fail(
+        'Cannot attach a resolved alert to an outage'
+      );
+    }
+    if (this.props.notifiedAt !== null) {
+      return Result.fail(
+        'Cannot attach an alert that was already notified'
+      );
+    }
+    this.props.causedByAlertId = causeId;
+    return Result.ok<void>();
+  }
+
+  public detachFromCause(): void {
+    this.props.causedByAlertId = null;
   }
 
   public resolve(resolvedAt: Date): Result<void> {

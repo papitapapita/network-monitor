@@ -8,11 +8,14 @@ import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceR
 import { PrismaPollingConfigurationRepository } from 'infrastructure/persistence/PrismaPollingConfigurationRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
+import { OutageRollup } from 'application/notifications/shared';
+import { PrismaOutageTopologyQuery } from 'infrastructure/persistence';
 import {
   cleanDatabase,
   createTestPrisma,
   seedDeviceModel,
   seedMonitoredDevice,
+  seedNetworkDevice,
   INVALID_ID
 } from '../../helpers/db';
 import { FakeNotificationService } from '../../helpers/FakeNotificationService';
@@ -46,19 +49,27 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
         logger
       )
     );
+    const rollup = new OutageRollup(
+      alertRepo,
+      new PrismaOutageTopologyQuery(prisma),
+      logger
+    );
     downUseCase = new SendDeviceDownAlertUseCase(
       alertRepo,
       pollingConfigRepo,
       deviceRepo,
       new DeviceEligibilityService(),
       alertPublisher,
-      logger
+      logger,
+      undefined,
+      rollup
     );
     recoveryUseCase = new SendDeviceRecoveryAlertUseCase(
       alertRepo,
       deviceRepo,
       alertPublisher,
-      logger
+      logger,
+      rollup
     );
   });
 
@@ -275,5 +286,97 @@ describe('SendDeviceRecoveryAlertUseCase — integration', () => {
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/invalid device id/i);
+  });
+  async function seedDownBehind(
+    name: string,
+    ipAddress: string,
+    upstreamDeviceId: string,
+    alert: { notifiedAt?: Date | null } = {}
+  ): Promise<{ deviceId: string; alertId: string }> {
+    const childId = await seedNetworkDevice(prisma, deviceModelId, {
+      name,
+      ipAddress,
+      upstreamDeviceId,
+      status: 'ACTIVE'
+    });
+    const row = await prisma.alertEvent.create({
+      data: {
+        deviceId: childId,
+        severity: 'CRITICAL',
+        source: 'Disponibilidad',
+        type: 'device_unreachable',
+        description: 'Sin conexión.',
+        notifiedAt: alert.notifiedAt ?? null
+      }
+    });
+    return { deviceId: childId, alertId: row.id };
+  }
+
+  describe('[NOT-245] [NOT-246] devices behind the recovered one', () => {
+    it('names who is still down and leaves them attached', async () => {
+      const back = await seedDownBehind(
+        'Cliente Vuelve',
+        '10.0.4.2',
+        deviceId
+      );
+      const stuck = await seedDownBehind(
+        'Cliente Sigue',
+        '10.0.4.3',
+        deviceId
+      );
+      await downUseCase.execute({
+        deviceId,
+        consecutiveFailures: 3,
+        occurredAt: new Date()
+      });
+      await recoveryUseCase.execute({
+        deviceId: back.deviceId,
+        latencyMs: 2,
+        occurredAt: new Date()
+      });
+      fakeNotification.reset();
+
+      await recoveryUseCase.execute({
+        deviceId,
+        latencyMs: 2,
+        occurredAt: new Date()
+      });
+
+      const body = fakeNotification.lastMessage!.body;
+      expect(body).toContain('Volvieron 1 de 2');
+      expect(body).toContain('Cliente Sigue');
+      const stuckAlert = await prisma.alertEvent.findUnique({
+        where: { id: stuck.alertId }
+      });
+      expect(stuckAlert!.resolvedAt).toBeNull();
+      expect(stuckAlert!.causedByAlertId).not.toBeNull();
+    });
+
+    it('resolves an affected device without telling anyone (NOT-246)', async () => {
+      const child = await seedDownBehind(
+        'Cliente Vuelve',
+        '10.0.4.2',
+        deviceId
+      );
+      await downUseCase.execute({
+        deviceId,
+        consecutiveFailures: 3,
+        occurredAt: new Date()
+      });
+      fakeNotification.reset();
+
+      const result = await recoveryUseCase.execute({
+        deviceId: child.deviceId,
+        latencyMs: 2,
+        occurredAt: new Date()
+      });
+
+      expect(result.value.status).toBe('RESOLVED');
+      expect(fakeNotification.callCount).toBe(0);
+      const row = await prisma.alertEvent.findUnique({
+        where: { id: child.alertId }
+      });
+      expect(row!.recoveryNotifiedAt).toBeNull();
+    });
   });
 });

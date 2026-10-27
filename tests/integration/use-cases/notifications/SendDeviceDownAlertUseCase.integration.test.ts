@@ -7,11 +7,14 @@ import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceR
 import { PrismaPollingConfigurationRepository } from 'infrastructure/persistence/PrismaPollingConfigurationRepository';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
+import { OutageRollup } from 'application/notifications/shared';
+import { PrismaOutageTopologyQuery } from 'infrastructure/persistence';
 import {
   cleanDatabase,
   createTestPrisma,
   seedDeviceModel,
   seedMonitoredDevice,
+  seedNetworkDevice,
   INVALID_ID
 } from '../../helpers/db';
 import { FakeNotificationService } from '../../helpers/FakeNotificationService';
@@ -50,7 +53,13 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
       deviceRepo,
       new DeviceEligibilityService(),
       alertPublisher,
-      logger
+      logger,
+      undefined,
+      new OutageRollup(
+        alertRepo,
+        new PrismaOutageTopologyQuery(prisma),
+        logger
+      )
     );
   });
 
@@ -293,5 +302,132 @@ describe('SendDeviceDownAlertUseCase — integration', () => {
 
     expect(result.isFailure).toBe(true);
     expect(result.error).toMatch(/consecutiveFailures/i);
+  });
+  async function seedDownBehind(
+    name: string,
+    ipAddress: string,
+    upstreamDeviceId: string,
+    alert: { notifiedAt?: Date | null } = {}
+  ): Promise<{ deviceId: string; alertId: string }> {
+    const childId = await seedNetworkDevice(prisma, deviceModelId, {
+      name,
+      ipAddress,
+      upstreamDeviceId,
+      status: 'ACTIVE'
+    });
+    const row = await prisma.alertEvent.create({
+      data: {
+        deviceId: childId,
+        severity: 'CRITICAL',
+        source: 'Disponibilidad',
+        type: 'device_unreachable',
+        description: 'Sin conexión.',
+        notifiedAt: alert.notifiedAt ?? null
+      }
+    });
+    return { deviceId: childId, alertId: row.id };
+  }
+
+  describe('[NOT-243] a root alert names the devices down behind it', () => {
+    it('attaches every unnotified down device in its subtree and lists them', async () => {
+      const ap = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'AP Norte',
+        ipAddress: '10.0.3.2',
+        upstreamDeviceId: deviceId,
+        status: 'ACTIVE'
+      });
+      const viaAp = await seedDownBehind(
+        'Cliente Ruiz',
+        '10.0.3.21',
+        ap
+      );
+      const direct = await seedDownBehind(
+        'Cliente Perez',
+        '10.0.3.22',
+        deviceId
+      );
+      const pagedAlready = await seedDownBehind(
+        'Cliente Previo',
+        '10.0.3.23',
+        deviceId,
+        { notifiedAt: new Date() }
+      );
+
+      await useCase.execute({
+        deviceId,
+        consecutiveFailures: 3,
+        occurredAt: new Date()
+      });
+
+      const root = await prisma.alertEvent.findFirst({
+        where: { deviceId }
+      });
+      const caused = async (alertId: string) =>
+        (await prisma.alertEvent.findUnique({
+          where: { id: alertId }
+        }))!.causedByAlertId;
+      expect(await caused(viaAp.alertId)).toBe(root!.id);
+      expect(await caused(direct.alertId)).toBe(root!.id);
+      expect(await caused(pagedAlready.alertId)).toBeNull();
+      const body = fakeNotification.lastMessage!.body;
+      expect(body).toContain('Cliente Ruiz');
+      expect(body).toContain('Cliente Perez');
+      expect(body).not.toContain('Cliente Previo');
+    });
+
+    it('leaves out a down device that is not behind it', async () => {
+      const elsewhere = await seedNetworkDevice(
+        prisma,
+        deviceModelId,
+        {
+          name: 'Otro Nodo',
+          ipAddress: '10.0.9.1',
+          status: 'ACTIVE'
+        }
+      );
+      const unrelated = await seedDownBehind(
+        'Cliente Lejano',
+        '10.0.9.2',
+        elsewhere
+      );
+
+      await useCase.execute({
+        deviceId,
+        consecutiveFailures: 3,
+        occurredAt: new Date()
+      });
+
+      expect(
+        (await prisma.alertEvent.findUnique({
+          where: { id: unrelated.alertId }
+        }))!.causedByAlertId
+      ).toBeNull();
+      expect(fakeNotification.lastMessage!.body).not.toContain(
+        'Afectados'
+      );
+    });
+
+    it("terminates on a loop closed behind the policy's back", async () => {
+      const a = await seedNetworkDevice(prisma, deviceModelId, {
+        name: 'Nodo A',
+        ipAddress: '10.0.7.1',
+        upstreamDeviceId: deviceId,
+        status: 'ACTIVE'
+      });
+      const b = await seedDownBehind('Nodo B', '10.0.7.2', a);
+      await prisma.device.update({
+        where: { id: deviceId },
+        data: { upstreamDeviceId: b.deviceId }
+      });
+
+      const result = await useCase.execute({
+        deviceId,
+        consecutiveFailures: 3,
+        occurredAt: new Date()
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(fakeNotification.lastMessage!.body).toContain('Nodo B');
+    });
   });
 });

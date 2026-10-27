@@ -26,6 +26,8 @@ import {
   SerialNumber
 } from '../../../../src/domain/device-inventory';
 import { DeviceModelId } from '../../../../src/domain/shared';
+import { OutageRollup } from '../../../../src/application/notifications/shared/OutageRollup';
+import { AffectedDeviceDTO } from '../../../../src/application/notifications/dtos/AffectedDeviceDTO';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -60,6 +62,7 @@ function makeAlertRepo(): jest.Mocked<IAlertRepository> {
     findOpenByDeviceAndType: jest.fn(),
     findAllOpenByDeviceId: jest.fn(),
     findAllOpenByType: jest.fn(),
+    findAffectedBy: jest.fn().mockResolvedValue(Result.ok([])),
     deleteById: jest.fn(),
     deleteResolvedOlderThan: jest.fn()
   };
@@ -158,7 +161,8 @@ describe('SendDeviceDownAlertUseCase', () => {
 
   function buildUseCase(
     repo = deviceRepo,
-    ticketOpener?: { openFromAlert: jest.Mock }
+    ticketOpener?: { openFromAlert: jest.Mock },
+    outageRollup?: Pick<OutageRollup, 'attachDownstream' | 'affected'>
   ): SendDeviceDownAlertUseCase {
     return new SendDeviceDownAlertUseCase(
       alertRepo,
@@ -167,7 +171,8 @@ describe('SendDeviceDownAlertUseCase', () => {
       new DeviceEligibilityService(),
       alertPublisher,
       logger,
-      ticketOpener
+      ticketOpener,
+      outageRollup as OutageRollup | undefined
     );
   }
 
@@ -623,6 +628,126 @@ describe('SendDeviceDownAlertUseCase', () => {
 
       await useCase.execute(makeRequest());
       expect(logger.error).not.toHaveBeenCalled();
+    });
+  });
+  // ===========================================================================
+  describe('[NOT-243] executeImpl — the root alert names the devices behind it', () => {
+    const affected: AffectedDeviceDTO[] = [
+      {
+        deviceId: '550e8400-e29b-41d4-a716-446655440040',
+        name: 'Cliente Pérez',
+        ipAddress: '10.0.3.21',
+        status: 'DOWN',
+        viaDeviceId: null,
+        viaDeviceName: null
+      },
+      {
+        deviceId: '550e8400-e29b-41d4-a716-446655440041',
+        name: 'Cliente Gómez',
+        ipAddress: null,
+        status: 'DOWN',
+        viaDeviceId: null,
+        viaDeviceName: null
+      }
+    ];
+    let rollup: {
+      attachDownstream: jest.Mock;
+      affected: jest.Mock;
+    };
+
+    beforeEach(() => {
+      rollup = {
+        attachDownstream: jest.fn().mockResolvedValue(undefined),
+        affected: jest.fn().mockResolvedValue(Result.ok(affected))
+      };
+      alertRepo.findOpenByDeviceAndType.mockResolvedValue(
+        Result.ok(makeOpenAlert(null))
+      );
+      alertRepo.save.mockImplementation(async (a) => Result.ok(a));
+    });
+
+    it('saves the root, then attaches the devices down behind it', async () => {
+      await buildUseCase(deviceRepo, undefined, rollup).execute(
+        makeRequest()
+      );
+
+      expect(alertRepo.save.mock.invocationCallOrder[0]).toBeLessThan(
+        rollup.attachDownstream.mock.invocationCallOrder[0]
+      );
+    });
+
+    it('lists them in the chat message and shortens them for phones', async () => {
+      await buildUseCase(deviceRepo, undefined, rollup).execute(
+        makeRequest()
+      );
+
+      expect(alertPublisher.publish).toHaveBeenCalledWith(
+        expect.objectContaining({
+          detail:
+            'Afectados (2):\n• Cliente Pérez — 10.0.3.21\n• Cliente Gómez',
+          shortDetail: 'Afectados (2): Cliente Pérez, Cliente Gómez'
+        })
+      );
+    });
+
+    it('puts the full list in the ticket', async () => {
+      const ticketOpener = {
+        openFromAlert: jest.fn().mockResolvedValue(Result.ok())
+      };
+
+      await buildUseCase(deviceRepo, ticketOpener, rollup).execute(
+        makeRequest()
+      );
+
+      expect(ticketOpener.openFromAlert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining(
+            'Afectados (2):\n- Cliente Pérez — 10.0.3.21\n- Cliente Gómez'
+          )
+        })
+      );
+    });
+
+    it('still pages, with no list, when the list cannot be read', async () => {
+      rollup.affected.mockResolvedValue(Result.fail('db down'));
+
+      await buildUseCase(deviceRepo, undefined, rollup).execute(
+        makeRequest()
+      );
+
+      expect(alertPublisher.publish).toHaveBeenCalledWith(
+        expect.objectContaining({ detail: null, shortDetail: null })
+      );
+    });
+
+    it('[NOT-247] keeps the devices behind it attached while quiet hours hold the page', async () => {
+      alertPublisher.publish.mockResolvedValue(
+        Result.fail(QUIET_HOURS_SUPPRESSED)
+      );
+      let saved: Alert | null = null;
+      alertRepo.save.mockImplementation(async (a) => {
+        saved = a;
+        return Result.ok(a);
+      });
+
+      await buildUseCase(deviceRepo, undefined, rollup).execute(
+        makeRequest()
+      );
+
+      expect(rollup.attachDownstream).toHaveBeenCalledTimes(1);
+      expect(saved!.notifiedAt).toBeNull();
+    });
+
+    it('sends no list for a device with nothing behind it', async () => {
+      rollup.affected.mockResolvedValue(Result.ok([]));
+
+      await buildUseCase(deviceRepo, undefined, rollup).execute(
+        makeRequest()
+      );
+
+      expect(alertPublisher.publish).toHaveBeenCalledWith(
+        expect.objectContaining({ detail: null })
+      );
     });
   });
 });

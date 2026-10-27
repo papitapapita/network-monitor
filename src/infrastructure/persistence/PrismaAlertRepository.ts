@@ -21,7 +21,8 @@ export class PrismaAlertRepository implements IAlertRepository {
         update: {
           resolvedAt: data.resolvedAt ?? undefined,
           notifiedAt: data.notifiedAt ?? undefined,
-          recoveryNotifiedAt: data.recoveryNotifiedAt ?? undefined
+          recoveryNotifiedAt: data.recoveryNotifiedAt ?? undefined,
+          causedByAlertId: data.causedByAlertId
         },
         // Prisma's generated type expects enum literal for severity and a JSON
         // input value for details — casts required from the mapper's plain shape
@@ -108,6 +109,21 @@ export class PrismaAlertRepository implements IAlertRepository {
     } catch (error) {
       return Result.fail(
         `Database error finding open alerts by type: ${(error as Error).message}`
+      );
+    }
+  }
+
+  async findAffectedBy(causeId: AlertId): Promise<Result<Alert[]>> {
+    try {
+      const records = await this.prisma.alertEvent.findMany({
+        where: { causedByAlertId: causeId.toString() },
+        orderBy: { startedAt: 'asc' }
+      });
+
+      return Result.ok(records.map(AlertMapper.toDomain));
+    } catch (error) {
+      return Result.fail(
+        `Database error finding affected alerts: ${(error as Error).message}`
       );
     }
   }

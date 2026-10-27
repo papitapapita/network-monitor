@@ -21,7 +21,7 @@ export class PushAlertPublisher implements IAlertPublisher {
       deviceId: notification.deviceId,
       severity: notification.severity,
       summary: notification.summary,
-      detail: notification.detail,
+      detail: notification.shortDetail ?? notification.detail,
       resolved: notification.resolved,
       type: notification.type
     });

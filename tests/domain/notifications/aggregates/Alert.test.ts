@@ -626,10 +626,62 @@ describe('Alert', () => {
       const alert = openAlert();
       alert.resolve(RESOLVED_AT);
 
-      const result = alert.refreshDetails({ consecutiveFailures: 99 });
+      const result = alert.refreshDetails({
+        consecutiveFailures: 99
+      });
 
       expect(result.isFailure).toBe(true);
       expect(result.error).toContain('resolved alert');
+    });
+  });
+  describe('[NOT-241] attachTo() / detachFromCause()', () => {
+    const causeId = () =>
+      AlertId.parse('550e8400-e29b-41d4-a716-446655440099').value;
+
+    it('links an open, unnotified alert to its cause', () => {
+      const alert = openAlert();
+
+      const result = alert.attachTo(causeId());
+
+      expect(result.isSuccess).toBe(true);
+      expect(alert.causedByAlertId?.equals(causeId())).toBe(true);
+    });
+
+    it('starts with no cause', () => {
+      expect(openAlert().causedByAlertId).toBeNull();
+    });
+
+    it('refuses to be its own cause', () => {
+      const alert = reconstituteAlert();
+
+      const result = alert.attachTo(makeAlertId());
+
+      expect(result.isFailure).toBe(true);
+      expect(alert.causedByAlertId).toBeNull();
+    });
+
+    it('refuses a resolved alert', () => {
+      const alert = reconstituteAlert({ resolvedAt: RESOLVED_AT });
+
+      expect(alert.attachTo(causeId()).isFailure).toBe(true);
+    });
+
+    it('refuses an alert that was already notified', () => {
+      const alert = reconstituteAlert({ notifiedAt: STARTED_AT });
+
+      const result = alert.attachTo(causeId());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('already notified');
+    });
+
+    it('detaches back to no cause', () => {
+      const alert = openAlert();
+      alert.attachTo(causeId());
+
+      alert.detachFromCause();
+
+      expect(alert.causedByAlertId).toBeNull();
     });
   });
 });

@@ -159,7 +159,7 @@ describe('PrismaAlertRepository', () => {
         );
       });
 
-      it('should include only resolvedAt, notifiedAt, recoveryNotifiedAt in the update clause', async () => {
+      it('should update only the lifecycle timestamps and the cause link', async () => {
         prisma.alertEvent.upsert.mockResolvedValue(
           fakePersistenceData
         );
@@ -170,6 +170,7 @@ describe('PrismaAlertRepository', () => {
           .calls[0][0] as Record<string, Record<string, unknown>>;
 
         expect(Object.keys(call.update).sort()).toEqual([
+          'causedByAlertId',
           'notifiedAt',
           'recoveryNotifiedAt',
           'resolvedAt'

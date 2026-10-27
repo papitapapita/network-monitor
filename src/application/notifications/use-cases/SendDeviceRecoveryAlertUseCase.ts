@@ -1,6 +1,7 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import { formatDuration } from 'domain/shared/utils';
+import { Alert } from 'domain/notifications/aggregates';
 import { IAlertRepository } from 'domain/notifications/repository';
 import { IDeviceRepository } from 'domain/device-inventory/repository';
 import { UseCase } from 'application/shared/core';
@@ -10,7 +11,9 @@ import {
   isSuppressedPublish
 } from 'application/shared/interfaces';
 import { AlertMapper } from '../mappers';
+import { OutageMessages, OutageRollup } from '../shared';
 import {
+  AffectedDeviceDTO,
   AlertResponseDTO,
   SendDeviceRecoveryAlertDTO
 } from '../dtos';
@@ -26,7 +29,8 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
     private readonly alertRepository: IAlertRepository,
     private readonly deviceRepository: IDeviceRepository,
     private readonly alertPublisher: IAlertPublisher,
-    logger: ILogger
+    logger: ILogger,
+    private readonly outageRollup?: OutageRollup
   ) {
     super(logger, 'SendDeviceRecoveryAlertUseCase');
   }
@@ -78,7 +82,9 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
 
     // A blip that self-resolved inside the alert delay was recorded
     // (NOT-097) but never notified — nobody was told it started, so nobody
-    // needs to be told it ended. Resolve the record and stop there.
+    // needs to be told it ended. Resolve the record and stop there. A device
+    // that went down behind its upstream is never notified either, so it
+    // lands here too (NOT-246).
     if (openAlert.notifiedAt === null) {
       const saveResult = await this.alertRepository.save(openAlert);
       if (saveResult.isFailure) {
@@ -94,13 +100,20 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
         : `${deviceName} volvió a responder tras ${formatDuration(openAlert.durationSecs)} sin conexión`;
     const latency =
       request.latencyMs !== null ? `${request.latencyMs} ms` : 'N/A';
+    const affected = await this.affectedDevices(openAlert);
 
     const publishResult = await this.alertPublisher.publish({
       deviceId: deviceId.toString(),
       severity: openAlert.severity,
       source: SOURCE,
       summary,
-      detail: `Latencia: ${latency}`,
+      detail: [
+        `Latencia: ${latency}`,
+        OutageMessages.recoveryChat(affected)
+      ]
+        .filter((part) => part !== null)
+        .join('\n'),
+      shortDetail: OutageMessages.recoveryPush(affected),
       occurredAt: request.occurredAt,
       resolved: true,
       type: ALERT_TYPE
@@ -130,6 +143,24 @@ export class SendDeviceRecoveryAlertUseCase extends UseCase<
     }
 
     return this.ok(AlertMapper.toDTO(saveResult.value));
+  }
+
+  // NOT-245: who came back with this device and who is still down. The
+  // ones still down stay attached until their own delay has passed since
+  // this recovery — RaiseOverdueDeviceDownAlertsUseCase lets them go.
+  private async affectedDevices(
+    alert: Alert
+  ): Promise<AffectedDeviceDTO[]> {
+    if (this.outageRollup === undefined) return [];
+    const result = await this.outageRollup.affected(alert);
+    if (result.isFailure) {
+      this.logger.warn(
+        'Could not list the devices behind a recovered alert',
+        { alertId: alert.id.toString(), error: result.error }
+      );
+      return [];
+    }
+    return result.value;
   }
 
   private async resolveDeviceName(

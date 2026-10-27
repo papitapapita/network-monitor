@@ -6,6 +6,7 @@ import { Alert } from '../../../../src/domain/notifications/aggregates/Alert';
 import { AlertId } from '../../../../src/domain/shared/ids/AlertId';
 import { DeviceId } from '../../../../src/domain/shared/ids/DeviceId';
 import { AlertSeverity } from '../../../../src/domain/shared/enums/AlertSeverity';
+import { OutageRollup } from '../../../../src/application/notifications/shared/OutageRollup';
 
 const VALID_ALERT_UUID = '550e8400-e29b-41d4-a716-446655440061';
 const VALID_DEVICE_UUID = '550e8400-e29b-41d4-a716-446655440060';
@@ -30,6 +31,7 @@ function makeAlertRepo(): jest.Mocked<IAlertRepository> {
     findOpenByDeviceAndType: jest.fn(),
     findAllOpenByDeviceId: jest.fn(),
     findAllOpenByType: jest.fn(),
+    findAffectedBy: jest.fn().mockResolvedValue(Result.ok([])),
     deleteById: jest.fn(),
     deleteResolvedOlderThan: jest.fn()
   };
@@ -91,6 +93,56 @@ describe('GetAlertByIdUseCase', () => {
       type: 'device_unreachable',
       description: 'Sin conexión',
       status: 'OPEN'
+    });
+  });
+  describe('[NOT-243] the devices behind the alert', () => {
+    const listed = [
+      {
+        deviceId: '550e8400-e29b-41d4-a716-446655440077',
+        name: 'Cliente Ruiz',
+        ipAddress: null,
+        status: 'DOWN' as const,
+        viaDeviceId: null,
+        viaDeviceName: null
+      }
+    ];
+
+    it('lists them with their current status', async () => {
+      const rollup = {
+        affected: jest.fn().mockResolvedValue(Result.ok(listed))
+      };
+      const withRollup = new GetAlertByIdUseCase(
+        alertRepo,
+        makeLogger(),
+        rollup as unknown as OutageRollup
+      );
+      alertRepo.findById.mockResolvedValue(Result.ok(makeAlert()));
+
+      const result = await withRollup.execute({
+        id: VALID_ALERT_UUID
+      });
+
+      expect(result.value.affectedDevices).toEqual(listed);
+      expect(result.value.causedByAlertId).toBeNull();
+    });
+
+    it('fails when the list cannot be read', async () => {
+      const rollup = {
+        affected: jest.fn().mockResolvedValue(Result.fail('db down'))
+      };
+      const withRollup = new GetAlertByIdUseCase(
+        alertRepo,
+        makeLogger(),
+        rollup as unknown as OutageRollup
+      );
+      alertRepo.findById.mockResolvedValue(Result.ok(makeAlert()));
+
+      const result = await withRollup.execute({
+        id: VALID_ALERT_UUID
+      });
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toContain('affected devices');
     });
   });
 });
