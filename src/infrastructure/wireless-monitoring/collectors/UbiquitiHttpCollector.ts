@@ -47,22 +47,43 @@ export class UbiquitiHttpCollector
     if (fetchResult.isFailure) {
       return Result.fail(fetchResult.error!);
     }
-    return Result.ok(
-      this.parseStatusCgi(
-        fetchResult.value as Record<string, unknown>,
-        deviceType
-      )
+    const data = fetchResult.value as Record<string, unknown>;
+    const stations =
+      deviceType === 'ACCESS_POINT' &&
+      !Array.isArray(obj(data, 'wireless')['sta'])
+        ? await this.fetchLegacyStations(ipAddress, credentials)
+        : null;
+    return Result.ok(this.parseStatusCgi(data, deviceType, stations));
+  }
+
+  // A station list that will not load leaves the AP's reading without
+  // clients rather than failing it: the link figures are still good.
+  private async fetchLegacyStations(
+    ipAddress: string,
+    credentials: DecryptedCredentials
+  ): Promise<Record<string, unknown>[]> {
+    const result = await this.client.fetchStations(
+      ipAddress,
+      credentials.httpPort,
+      {
+        username: credentials.httpUsername!,
+        password: credentials.httpPassword!
+      }
     );
+    return result.isSuccess && Array.isArray(result.value)
+      ? (result.value as Record<string, unknown>[])
+      : [];
   }
 
   private parseStatusCgi(
     data: Record<string, unknown>,
-    deviceType: 'STATION' | 'ACCESS_POINT'
+    deviceType: 'STATION' | 'ACCESS_POINT',
+    legacyStations: Record<string, unknown>[] | null
   ): WirelessCollectionResult {
     const host = obj(data, 'host');
     const wireless = obj(data, 'wireless');
     const throughput = obj(wireless, 'throughput');
-    const sta = arr(wireless, 'sta');
+    const sta = legacyStations ?? arr(wireless, 'sta');
     const interfaces = arr(data, 'interfaces');
 
     const eth0 = (interfaces.find(
@@ -293,7 +314,7 @@ function parseClientEntry(
     rxBytesTotal: big(stats, 'rx_bytes'),
     txPps: num(stats, 'tx_pps'),
     rxPps: num(stats, 'rx_pps'),
-    remoteHostname: str(remote, 'hostname'),
+    remoteHostname: str(remote, 'hostname') ?? str(s, 'name'),
     remotePlatform: str(remote, 'platform'),
     remoteVersion: str(remote, 'version'),
     remoteCpuLoad: num(remote, 'cpuload'),

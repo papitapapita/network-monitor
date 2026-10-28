@@ -5,6 +5,7 @@ import {
   ListDiscoveredDevicesUseCase,
   IgnoreDiscoveredDeviceUseCase,
   UnignoreDiscoveredDeviceUseCase,
+  GetDiscoveredDevicePrefillUseCase,
   DISCOVERED_DEVICE_NOT_FOUND
 } from 'application/device-inventory/use-cases';
 
@@ -13,6 +14,7 @@ export class DiscoveredDeviceController {
     private readonly listUseCase: ListDiscoveredDevicesUseCase,
     private readonly ignoreUseCase: IgnoreDiscoveredDeviceUseCase,
     private readonly unignoreUseCase: UnignoreDiscoveredDeviceUseCase,
+    private readonly prefillUseCase: GetDiscoveredDevicePrefillUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -31,6 +33,11 @@ export class DiscoveredDeviceController {
   public unignore = (req: Request, res: Response): Promise<void> =>
     this.run(res, () =>
       this.unignoreUseCase.execute({ id: req.params.id })
+    );
+
+  public prefill = (req: Request, res: Response): Promise<void> =>
+    this.run(res, () =>
+      this.prefillUseCase.execute({ id: req.params.id })
     );
 
   private async run<T>(

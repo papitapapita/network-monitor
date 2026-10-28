@@ -10,3 +10,4 @@ export * from './ILinkDiagnosisRunner';
 export * from './IDeviceReach';
 export * from './IAgentRadioReader';
 export * from './IRadioSettingsGateway';
+export * from './IStationSightings';

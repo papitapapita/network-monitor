@@ -42,7 +42,9 @@ import {
   WirelessCollectionResult,
   WirelessReader,
   IWirelessCollector,
-  DecryptedCredentials
+  DecryptedCredentials,
+  IStationSightings,
+  NoStationSightings
 } from '../interfaces';
 import {
   PollWirelessDeviceRequestDTO,
@@ -117,7 +119,8 @@ export class PollWirelessDeviceUseCase
     private readonly alertPublisher: IAlertPublisher | null,
     logger: ILogger,
     private readonly agentReader: IAgentRadioReader = NoAgentRadioReader,
-    private readonly confirmation: AlertConfirmationConfig = DEFAULT_ALERT_CONFIRMATION
+    private readonly confirmation: AlertConfirmationConfig = DEFAULT_ALERT_CONFIRMATION,
+    private readonly stationSightings: IStationSightings = NoStationSightings
   ) {
     super(logger, 'PollWirelessDeviceUseCase');
   }
@@ -532,6 +535,15 @@ export class PollWirelessDeviceUseCase
       );
     }
 
+    if (config.deviceType === 'ACCESS_POINT') {
+      await this.recordStations(
+        deviceId,
+        ctx.deviceName,
+        collected,
+        collectedAt
+      );
+    }
+
     config.markPolled(collectedAt);
     const configSaveResult =
       await this.wirelessDeviceConfigRepo.save(config);
@@ -811,6 +823,37 @@ export class PollWirelessDeviceUseCase
       declared: declaredInfo.value.name,
       reported: reportedInfo.value.name
     };
+  }
+
+  // Best effort: a station list inventory could not take in is no reason to
+  // fail the AP's poll (DEV-208).
+  private async recordStations(
+    deviceId: DeviceId,
+    radioName: string,
+    collected: WirelessCollectionResult,
+    seenAt: Date
+  ): Promise<void> {
+    if (collected.clients.length === 0) return;
+
+    const info = await this.deviceRepo.findBasicInfoById(deviceId);
+    const result = await this.stationSightings.record({
+      accessPointId: deviceId,
+      accessPointName:
+        (info.isSuccess ? info.value?.name : null) ?? radioName,
+      seenAt,
+      stations: collected.clients.map((c) => ({
+        macAddress: c.macAddress,
+        ipAddress: c.ipAddress ?? c.remoteIpAddresses[0] ?? null,
+        hostname: c.remoteHostname,
+        model: c.remotePlatform
+      }))
+    });
+    if (result.isFailure) {
+      this.logger.warn("Could not record the AP's stations", {
+        deviceId: deviceId.toString(),
+        error: result.error
+      });
+    }
   }
 
   private skipped(

@@ -30,6 +30,7 @@ import {
 } from '../../../../src/application/wireless-monitoring/interfaces/IAgentRadioReader';
 import { AGENT_READ_FAILURES } from '../../../../src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase';
 import { IContractedCapacityProvider } from '../../../../src/application/wireless-monitoring/interfaces/IContractedCapacityProvider';
+import { IStationSightings } from '../../../../src/application/wireless-monitoring/interfaces/IStationSightings';
 import { IAlertPublisher } from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { WirelessDeviceConfig } from '../../../../src/domain/wireless-monitoring/aggregates/WirelessDeviceConfig';
 import { WirelessDeviceConfigId } from '../../../../src/domain/shared/ids/WirelessDeviceConfigId';
@@ -289,6 +290,10 @@ function makeMocks() {
 
   const logger = makeLogger();
 
+  const stationSightings: jest.Mocked<IStationSightings> = {
+    record: jest.fn().mockResolvedValue(Result.ok())
+  };
+
   return {
     wirelessDeviceConfigRepo,
     snapshotRepo,
@@ -304,7 +309,8 @@ function makeMocks() {
     contractedCapacity,
     alertThresholdsRepo,
     alertPublisher,
-    logger
+    logger,
+    stationSightings
   };
 }
 
@@ -326,7 +332,8 @@ function makeUseCase(
     mocks.alertPublisher,
     mocks.logger,
     mocks.agentReader,
-    { samples: 5, intervalMs: 0, cooldownMs: 600_000 }
+    { samples: 5, intervalMs: 0, cooldownMs: 600_000 },
+    mocks.stationSightings
   );
 }
 
@@ -2186,6 +2193,109 @@ describe('[WLS-021] [WLS-024] [WLS-028] [WLS-125] PollWirelessDeviceUseCase', ()
       const saved = mocks.snapshotRepo.save.mock.calls[0]![0];
       expect(saved.clients).toHaveLength(1);
       expect(saved.clients[0]!.macAddress).toBe('11:22:33:44:55:66');
+    });
+  });
+
+  describe("[DEV-208] an AP's stations go to inventory as sightings", () => {
+    it('hands over each station with its radio name, model and IP', async () => {
+      configureHappyPath(mocks, { deviceType: 'ACCESS_POINT' });
+      mocks.collector.collect.mockResolvedValue(
+        Result.ok(makeHttpResult({ clients: [makeHttpClient()] }))
+      );
+      mocks.deviceRepo.findBasicInfoById.mockResolvedValue(
+        Result.ok({ name: 'AP Norte', macAddress: null })
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      const listing = mocks.stationSightings.record.mock.calls[0]![0];
+      expect(listing.accessPointId.toString()).toBe(
+        VALID_DEVICE_UUID
+      );
+      expect(listing.accessPointName).toBe('AP Norte');
+      expect(listing.stations).toEqual([
+        {
+          macAddress: '11:22:33:44:55:66',
+          ipAddress: '10.0.0.5',
+          hostname: 'CPE-remote',
+          model: 'NanoStation'
+        }
+      ]);
+    });
+
+    it("falls back to the station's own address when the AP saw no last IP", async () => {
+      configureHappyPath(mocks, { deviceType: 'ACCESS_POINT' });
+      mocks.collector.collect.mockResolvedValue(
+        Result.ok(
+          makeHttpResult({
+            clients: [
+              makeHttpClient({
+                ipAddress: null,
+                remoteIpAddresses: ['10.0.0.9']
+              })
+            ]
+          })
+        )
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      const listing = mocks.stationSightings.record.mock.calls[0]![0];
+      expect(listing.stations[0]!.ipAddress).toBe('10.0.0.9');
+    });
+
+    it('names the AP by its radio name when inventory has none', async () => {
+      configureHappyPath(mocks, { deviceType: 'ACCESS_POINT' });
+      mocks.collector.collect.mockResolvedValue(
+        Result.ok(makeHttpResult({ clients: [makeHttpClient()] }))
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      const listing = mocks.stationSightings.record.mock.calls[0]![0];
+      expect(listing.accessPointName).toBe(
+        makeHttpResult().deviceName
+      );
+    });
+
+    it('records nothing for a STATION', async () => {
+      configureHappyPath(mocks, { deviceType: 'STATION' });
+      mocks.collector.collect.mockResolvedValue(
+        Result.ok(makeHttpResult({ clients: [makeHttpClient()] }))
+      );
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(mocks.stationSightings.record).not.toHaveBeenCalled();
+    });
+
+    it('records nothing for an AP with no stations', async () => {
+      configureHappyPath(mocks, { deviceType: 'ACCESS_POINT' });
+
+      await useCase.execute({ deviceId: VALID_DEVICE_UUID });
+
+      expect(mocks.stationSightings.record).not.toHaveBeenCalled();
+    });
+
+    it('still succeeds when inventory cannot take the stations in', async () => {
+      configureHappyPath(mocks, { deviceType: 'ACCESS_POINT' });
+      mocks.collector.collect.mockResolvedValue(
+        Result.ok(makeHttpResult({ clients: [makeHttpClient()] }))
+      );
+      mocks.stationSightings.record.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await useCase.execute({
+        deviceId: VALID_DEVICE_UUID
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.metricsCollected).toBe(true);
+      expect(mocks.logger.warn).toHaveBeenCalledWith(
+        "Could not record the AP's stations",
+        expect.objectContaining({ error: 'db down' })
+      );
     });
   });
 

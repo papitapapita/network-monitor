@@ -3686,7 +3686,7 @@ interface AlertListItemDTO extends AlertDTO {
 
 > Probes every host in the CIDR range via ICMP ping and returns all responsive hosts with their latency, MAC address, and manufacturer (where resolvable).  
 > Each host is matched against inventory: `knownDeviceId` is the live device with its MAC, or else its IP (DEV-201) — link it to that device. A host inventory lacks, with a MAC, becomes a suggestion listed at `GET /api/network/discovered` (`discoveredDeviceId`, DEV-200); show it with a "Crear dispositivo" action. A host with no MAC is shown but never suggested.  
-> When a scan finds hosts never suggested before, every user gets one inbox notice (type `device_discovered`, category `device`, `deviceId: null`) — link it to the discovered devices screen (DEV-206).  
+> When a scan or an AP poll finds hosts never suggested before, every user gets one inbox notice (type `device_discovered`, category `device`, `deviceId: null`) — link it to the discovered devices screen (DEV-206).  
 > Returns 400 if the segment is invalid or the range exceeds /22 (1 024 usable hosts).  
 > Returns 500 on unexpected infrastructure errors.
 > Returns 409 `{ success: false, error: "Network scan is not available — this server is not on the monitored network" }`
@@ -3697,7 +3697,7 @@ interface AlertListItemDTO extends AlertDTO {
 
 ## Discovered Devices `/api/network/discovered`
 
-Hosts the network shows that inventory lacks, as suggestions to create a device (DEV-200 – DEV-207). Standard `{ success, data }` envelope.
+Hosts the network shows that inventory lacks, as suggestions to create a device (DEV-200 – DEV-209). They come from network scans and from every polled access point's station list (DEV-208). Standard `{ success, data }` envelope.
 
 ```ts
 type DiscoveredDevice = {
@@ -3705,8 +3705,12 @@ type DiscoveredDevice = {
   macAddress: string            // upper-case, colons — the suggestion's identity
   ipAddress: string | null      // where it was seen last
   manufacturer: string | null   // from the MAC's OUI, e.g. "Ubiquiti Inc"
-  source: 'SCAN' | 'AP_STATION' // AP_STATION arrives in a later release
-  segment: string | null        // the CIDR whose scan saw it last
+  source: 'SCAN' | 'AP_STATION' // what saw it last
+  segment: string | null        // the CIDR a scan last saw it on; null if only APs saw it
+  hostname: string | null       // AP_STATION: the radio's own name
+  model: string | null          // AP_STATION: AirOS platform, e.g. "LiteBeam 5AC Gen2"
+  accessPointId: string | null  // the AP whose station list showed it
+  accessPointName: string | null // that AP's name; list only, null once the AP is deleted
   firstSeenAt: string           // ISO 8601
   lastSeenAt: string
   ignoredAt: string | null      // set on the ignored list only
@@ -3724,14 +3728,39 @@ Query: `ignored` — `"true"` lists the ignored ones; default `"false"` lists th
 { success: true, data: DiscoveredDevice[] }
 ```
 
-> A suggestion drops out of the list as soon as a live device owns its MAC or IP (DEV-203), so after "Crear dispositivo" just refetch. To create, open the device form pre-filled with `macAddress`, `ipAddress` and, as a hint, `manufacturer`.  
+> A suggestion drops out of the list as soon as a live device owns its MAC or IP (DEV-203), so after "Crear dispositivo" just refetch. To create, open the device form with the values from `GET /:id/prefill`.  
 > Pending suggestions unseen for 30 days are removed; ignored ones stay (DEV-205).
+
+### `GET /api/network/discovered/:id/prefill` — Create-form values
+
+**Status:** 200 | 400 | 401 | 404 · **Role:** any signed-in user
+
+The starting values for `POST /api/devices` built from the suggestion (DEV-209). All are suggestions for the operator to review; `null` means "no guess, leave the field empty".
+
+```ts
+// Response
+{
+  success: true,
+  data: {
+    name: string | null            // the radio's name
+    macAddress: string
+    ipAddress: string | null
+    deviceModelId: string | null   // catalog model guessed from the reported platform
+    deviceModelName: string | null // its name, to show next to the guess
+    category: 'WIRELESS_CPE' | null // set for a station seen on an AP
+    upstreamDeviceId: string | null // that AP, unless it has been deleted
+    agentId?: string | null        // present only with an upstream: the AP's agent (null = this server)
+  }
+}
+```
+
+> Send `agentId` to `POST /api/devices` only when it is present here; leaving it out keeps that endpoint's default.
 
 ### `POST /api/network/discovered/:id/ignore` — Ignore a suggestion
 
 **Status:** 200 | 400 | 401 | 403 | 404 · **Role:** OPERATOR, ADMIN, VENDOR
 
-No body. Returns the `DiscoveredDevice` with `ignoredAt` set. Ignoring is permanent until undone: later scans never bring it back or notify about it (DEV-204). Ignoring an already ignored one keeps the first `ignoredAt`.
+No body. Returns the `DiscoveredDevice` with `ignoredAt` set (its `accessPointName` is always `null` here). Ignoring is permanent until undone: later sightings never bring it back or notify about it (DEV-204). Ignoring an already ignored one keeps the first `ignoredAt`.
 
 ### `DELETE /api/network/discovered/:id/ignore` — Stop ignoring
 

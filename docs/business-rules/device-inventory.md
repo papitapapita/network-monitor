@@ -43,7 +43,7 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 | **Application + Domain**              |    12 | DEV-031, DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160, DEV-182, DEV-183, DEV-185, DEV-194, DEV-200 |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
 | **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
-| **Infrastructure + Application**      |     9 | DEV-072, DEV-084, DEV-148, DEV-149, DEV-186, DEV-190, DEV-201, DEV-203, DEV-206 |
+| **Infrastructure + Application**      |    11 | DEV-072, DEV-084, DEV-148, DEV-149, DEV-186, DEV-190, DEV-201, DEV-203, DEV-206, DEV-208, DEV-209 |
 | **Presentation**                      |     3 | DEV-140, DEV-146, DEV-170                                                                                                                                                                                                                                                                                                                                                                         |
 
 **Half the book sits outside the domain, and most of it belongs there.** The
@@ -3359,8 +3359,8 @@ needs to know the PoE side may be incomplete.
 
 Hosts the network shows that inventory lacks, kept as suggestions to create a
 device (`/api/network/discovered`). Every source of sightings — a network scan
-today, an AP's station list next — goes through the same recorder, so they all
-agree on what is new.
+and each AP's station list — goes through the same recorder, so they all agree
+on what is new.
 
 ### DEV-200 — A host inventory lacks becomes a suggestion, keyed by its MAC
 
@@ -3370,7 +3370,7 @@ agree on what is new.
 
 A sighting whose MAC no live device owns (DEV-201) is stored as one discovered
 device per MAC, with its IP, OUI manufacturer, source (`SCAN` or `AP_STATION`)
-and the segment it was seen on. The MAC is normalized like a device's
+and the segment or AP it was seen on. The MAC is normalized like a device's
 (DEV-046). A host with no readable MAC, which is the case on a routed segment
 where the server's ARP table cannot see it, is never stored.
 
@@ -3379,7 +3379,7 @@ DHCP, and a suggestion keyed by IP would turn into a different device every
 lease. Without a MAC there is nothing to say a later sighting is the same host.
 
 **Enforced at:** `src/application/device-inventory/services/DeviceSightingRecorder.ts`, `src/domain/device-inventory/aggregates/DiscoveredDevice.ts` (`create`)
-**Reached from:** `POST /api/network/scan` via `ScanNetworkSegmentUseCase`
+**Reached from:** `POST /api/network/scan` via `ScanNetworkSegmentUseCase`; an access point's wireless poll (DEV-208)
 **Tests:** `tests/domain/device-inventory/aggregates/DiscoveredDevice.test.ts`, `tests/application/device-inventory/services/DeviceSightingRecorder.test.ts`, `tests/integration/use-cases/device-inventory/ScanNetworkSegmentUseCase.integration.test.ts`, `tests/integration/scan.routes.test.ts`
 
 ### DEV-201 — A host is the inventory device with its MAC, or else its IP
@@ -3403,12 +3403,13 @@ the first choice, because a MAC match is certain and an IP match is only likely.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Domain
-**Since:** 2026-10-27
+**Since:** 2026-10-27 · **Revised:** 2026-10-27
 
-A later sighting of a suggested MAC updates its IP, source, segment and last
-seen time; a field the new sighting lacks (no IP, no manufacturer) keeps its
-earlier value. A sighting older than the last one changes nothing. First seen
-never changes.
+A later sighting of a suggested MAC updates its source and last seen time, and
+every other field it saw: IP, manufacturer, segment, AP, radio name, model. A
+field the new sighting lacks keeps its earlier value, so a scan does not erase
+the AP an AP's station list recorded, nor an AP poll the scan's segment. A
+sighting older than the last one changes nothing. First seen never changes.
 
 **Why:** The list should show where the host is now, without one partial
 sighting erasing what an earlier one learned.
@@ -3474,9 +3475,10 @@ appearance, undoing DEV-204.
 **Layer:** Infrastructure + Application
 **Since:** 2026-10-27
 
-When a scan finds MACs it has never suggested before, every user's inbox gets
-one notice (type `device_discovered`, category `device`) naming the count and
-the segment, e.g. "Se detectaron 3 dispositivos nuevos en 192.168.1.0/24".
+When a scan or an AP poll finds MACs it has never suggested before, every
+user's inbox gets one notice (type `device_discovered`, category `device`)
+naming the count and the segment or AP's name, e.g. "Se detectaron 3
+dispositivos nuevos en 192.168.1.0/24".
 Refreshed and ignored suggestions send nothing. The notice never goes to
 Telegram or phones, and a failure to record it never fails the scan. Each host
 in the scan response says whether this scan found it first (`isNew`).
@@ -3503,6 +3505,59 @@ make one suggestion out of many devices.
 
 **Enforced at:** `src/application/device-inventory/services/DeviceSightingRecorder.ts` (`uniqueMacs`)
 **Tests:** `tests/application/device-inventory/services/DeviceSightingRecorder.test.ts`, `tests/integration/use-cases/device-inventory/ScanNetworkSegmentUseCase.integration.test.ts`
+
+### DEV-208 — Every station on a polled access point is a sighting
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure + Application
+**Since:** 2026-10-27
+
+Each wireless poll of an `ACCESS_POINT` hands its station list to the recorder
+as one `AP_STATION` batch. Each station brings its wireless MAC, its last IP
+(or else the first address the station reports for itself), its radio name
+(`remote.hostname`), its model (`remote.platform`) and the OUI manufacturer.
+The suggestion keeps the AP it was seen on, and the list names that AP while
+it is not deleted. This holds the same for an AP read through an agent, since
+the reading carries the stations. A recorder failure is logged and the poll
+still succeeds.
+
+**Why:** An AP already lists every radio connected to it at each poll, with
+its name and model, so a new customer CPE shows up within one polling
+interval without a scan. The station list is a side effect of the poll: if
+inventory cannot take it in, the radio's own metrics still matter.
+
+**Enforced at:** `src/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.ts` (`recordStations`), `src/infrastructure/wireless-monitoring/adapters/StationSightingsAdapter.ts`, `src/domain/device-inventory/aggregates/DiscoveredDevice.ts`, `src/infrastructure/persistence/PrismaDiscoveredDeviceListQuery.ts`
+**Reached from:** the wireless poll scheduler and `POST /api/devices/:id/wireless/poll`
+**Message:** `accessPointId must be a device id`
+**Tests:** `tests/application/wireless-monitoring/use-cases/PollWirelessDeviceUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/PollWirelessDeviceUseCase.integration.test.ts`, `tests/domain/device-inventory/aggregates/DiscoveredDevice.test.ts`, `tests/application/device-inventory/services/DeviceSightingRecorder.test.ts`, `tests/integration/use-cases/device-inventory/ListDiscoveredDevicesUseCase.integration.test.ts`, `tests/integration/discovered-device.routes.test.ts`
+
+### DEV-209 — A suggestion pre-fills the create-device form
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure + Application
+**Since:** 2026-10-27
+
+`GET /api/network/discovered/:id/prefill` gives the create form's starting
+values. The name is the radio name, and MAC and IP are as last seen. A station
+seen on an AP is a `WIRELESS_CPE`, upstream of that AP (DEV-180), and polled by
+the AP's agent; once that AP is deleted, upstream is null and no agent is
+proposed. The model is the catalog model whose name matches the reported
+platform, ignoring case, spaces and punctuation. Failing that, it is the one
+catalog model that radios reporting that same name are on file as, counting
+only radios whose MAC matches their reading (the WLS-155 pairing). When several
+models qualify, or nothing matches, no model is guessed. A scan sighting fills
+only MAC, IP and nothing else.
+
+**Why:** Creating a device from a suggestion should take one look and one
+click, not retyping what the radio already said. AirOS and the catalog spell
+the same hardware differently ("LiteBeam 5AC Gen2" against "LBE-5AC-Gen2"),
+so the name alone often misses. Radios already on file show which name maps
+to which model. An ambiguous guess is worse than none, because a wrong model
+picks the wrong collector.
+
+**Enforced at:** `src/application/device-inventory/use-cases/GetDiscoveredDevicePrefillUseCase.ts`, `src/infrastructure/persistence/PrismaDiscoveryPrefillQuery.ts`
+**Message:** `Discovered device not found` / `Invalid discovered device ID: <reason>`
+**Tests:** `tests/integration/use-cases/device-inventory/GetDiscoveredDevicePrefillUseCase.integration.test.ts`, `tests/integration/discovered-device.routes.test.ts`
 
 ---
 

@@ -47,7 +47,23 @@ export class AirOsHttpClient {
       '/status.cgi'
     );
     if (response.isFailure) return Result.fail(response.error!);
-    return this.parseJson(response.value.body);
+    return this.parseJson(response.value.body, 'status.cgi');
+  }
+
+  // airOS 6 lists an AP's stations here rather than in status.cgi.
+  async fetchStations(
+    ip: string,
+    port: number,
+    creds: AirOsCredentials
+  ): Promise<Result<unknown>> {
+    const response = await this.getWithSession(
+      ip,
+      port,
+      creds,
+      '/sta.cgi'
+    );
+    if (response.isFailure) return Result.fail(response.error!);
+    return this.parseJson(response.value.body, 'sta.cgi');
   }
 
   // The same file the web UI's "Download backup" saves: system.cfg, which the
@@ -413,13 +429,11 @@ export class AirOsHttpClient {
     });
   }
 
-  private parseJson(body: string): Result<unknown> {
+  private parseJson(body: string, name: string): Result<unknown> {
     try {
       return Result.ok(JSON.parse(body));
     } catch {
-      return Result.fail(
-        'Failed to parse status.cgi response as JSON'
-      );
+      return Result.fail(`Failed to parse ${name} response as JSON`);
     }
   }
 }

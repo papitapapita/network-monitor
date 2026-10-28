@@ -299,16 +299,20 @@ enum DiscoverySource {
 // A MAC the network shows that no device in inventory owns (DEV-200). One row
 // per MAC; deleted once a device claims it (DEV-203).
 model DiscoveredDevice {
-  id           String          @id @default(uuid()) @db.Uuid
-  macAddress   String          @unique @map("mac_address") @db.VarChar(17)
-  ipAddress    String?         @map("ip_address") @db.VarChar(45)
-  manufacturer String?         @db.VarChar(150)
-  source       DiscoverySource
-  // The CIDR whose scan saw it last; null for a sighting from an AP.
-  segment      String?         @db.VarChar(18)
-  firstSeenAt  DateTime        @map("first_seen_at") @db.Timestamptz
-  lastSeenAt   DateTime        @map("last_seen_at") @db.Timestamptz
-  ignoredAt    DateTime?       @map("ignored_at") @db.Timestamptz
+  id            String          @id @default(uuid()) @db.Uuid
+  macAddress    String          @unique @map("mac_address") @db.VarChar(17)
+  ipAddress     String?         @map("ip_address") @db.VarChar(45)
+  manufacturer  String?         @db.VarChar(150)
+  source        DiscoverySource
+  // The CIDR a scan last saw it on; null until a scan sees it.
+  segment       String?         @db.VarChar(18)
+  hostname      String?         @db.VarChar(100)
+  model         String?         @db.VarChar(100)
+  // The AP whose station list showed it last; no FK, a deleted AP is skipped.
+  accessPointId String?         @map("access_point_id") @db.Uuid
+  firstSeenAt   DateTime        @map("first_seen_at") @db.Timestamptz
+  lastSeenAt    DateTime        @map("last_seen_at") @db.Timestamptz
+  ignoredAt     DateTime?       @map("ignored_at") @db.Timestamptz
 
   @@index([lastSeenAt])
   @@map("discovered_devices")

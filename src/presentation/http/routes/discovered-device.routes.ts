@@ -11,7 +11,7 @@ import {
 } from '../validation';
 
 // Hosts the network shows that inventory lacks, mounted at
-// /api/network/discovered (DEV-200..207). Deciding on one is the same
+// /api/network/discovered (DEV-200..209). Deciding on one is the same
 // permission as creating the device it suggests.
 export function createDiscoveredDeviceRoutes(
   controller: DiscoveredDeviceController
@@ -24,6 +24,14 @@ export function createDiscoveredDeviceRoutes(
     createRateLimiter('read'),
     validateRequest(listDiscoveredDevicesSchema),
     controller.list
+  );
+
+  router.get(
+    '/:id/prefill',
+    authorize('read'),
+    createRateLimiter('read'),
+    validateRequest(discoveredDeviceIdSchema),
+    controller.prefill
   );
 
   router.post(

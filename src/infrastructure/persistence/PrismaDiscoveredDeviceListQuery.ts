@@ -11,6 +11,10 @@ type Row = {
   manufacturer: string | null;
   source: DiscoverySource;
   segment: string | null;
+  hostname: string | null;
+  model: string | null;
+  access_point_id: string | null;
+  access_point_name: string | null;
   first_seen_at: Date;
   last_seen_at: Date;
   ignored_at: Date | null;
@@ -27,9 +31,12 @@ export class PrismaDiscoveredDeviceListQuery
     try {
       const rows = await this.prisma.$queryRaw<Row[]>`
         SELECT dd.id::text, dd.mac_address, dd.ip_address, dd.manufacturer,
-               dd.source::text AS source, dd.segment, dd.first_seen_at,
-               dd.last_seen_at, dd.ignored_at
+               dd.source::text AS source, dd.segment, dd.hostname, dd.model,
+               dd.access_point_id::text, ap.name AS access_point_name,
+               dd.first_seen_at, dd.last_seen_at, dd.ignored_at
         FROM discovered_devices dd
+        LEFT JOIN devices ap
+          ON ap.id = dd.access_point_id AND ap.deleted_at IS NULL
         WHERE (dd.ignored_at IS NOT NULL) = ${ignored}
           AND NOT EXISTS (
             SELECT 1 FROM devices d
@@ -48,6 +55,10 @@ export class PrismaDiscoveredDeviceListQuery
           manufacturer: r.manufacturer,
           source: r.source,
           segment: r.segment,
+          hostname: r.hostname,
+          model: r.model,
+          accessPointId: r.access_point_id,
+          accessPointName: r.access_point_name,
           firstSeenAt: r.first_seen_at.toISOString(),
           lastSeenAt: r.last_seen_at.toISOString(),
           ignoredAt: r.ignored_at?.toISOString() ?? null

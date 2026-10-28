@@ -146,6 +146,7 @@ import {
   PrismaDiscoveredDeviceRepository,
   PrismaKnownDeviceLookup,
   PrismaDiscoveredDeviceListQuery,
+  PrismaDiscoveryPrefillQuery,
   PrismaInboxRecipientsQuery,
   PrismaNotificationSettingsRepository,
   PrismaVendorSettingsRepository
@@ -272,6 +273,7 @@ import {
 import { RadioLoginAdapter } from '../wireless-monitoring/adapters/RadioLoginAdapter';
 import { WirelessDeviceRepositoryAdapter } from '../wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
 import { DeviceReachAdapter } from '../wireless-monitoring/adapters/DeviceReachAdapter';
+import { StationSightingsAdapter } from '../wireless-monitoring/adapters/StationSightingsAdapter';
 import { ContractedCapacityAdapter } from '../wireless-monitoring/adapters/ContractedCapacityAdapter';
 import { DeviceVendorAdapter } from '../wireless-monitoring/adapters/DeviceVendorAdapter';
 import { PrismaDeviceHardwareQuery } from '../wireless-monitoring/queries';
@@ -294,6 +296,7 @@ import { ClockSyncRule } from 'domain/wireless-monitoring/services/rules/ClockSy
 import { LatencyRule } from 'domain/wireless-monitoring/services/rules/LatencyRule';
 import {
   PollWirelessDeviceUseCase,
+  DEFAULT_ALERT_CONFIRMATION,
   GetWirelessDeviceStatusUseCase,
   GetWirelessDeviceHistoryUseCase,
   GetWirelessClientsUseCase,
@@ -550,6 +553,7 @@ import {
   ListDiscoveredDevicesUseCase,
   IgnoreDiscoveredDeviceUseCase,
   UnignoreDiscoveredDeviceUseCase,
+  GetDiscoveredDevicePrefillUseCase,
   PurgeStaleDiscoveredDevicesUseCase,
   AssignDevicesToAgentUseCase
 } from '../../application/device-inventory/use-cases';
@@ -2116,6 +2120,11 @@ export class DependencyContainer {
         discoveredDeviceRepository,
         this.logger
       ),
+      new GetDiscoveredDevicePrefillUseCase(
+        discoveredDeviceRepository,
+        new PrismaDiscoveryPrefillQuery(this.prisma),
+        this.logger
+      ),
       this.logger
     );
     this.purgeStaleDiscoveredDevicesUseCase =
@@ -2307,7 +2316,9 @@ export class DependencyContainer {
       this.alertThresholdsRepository,
       wirelessAlertPublisher,
       this.logger,
-      new AgentChannelRadioReader(connectedAgents)
+      new AgentChannelRadioReader(connectedAgents),
+      DEFAULT_ALERT_CONFIRMATION,
+      new StationSightingsAdapter(this.deviceSightingRecorder)
     );
     const getWirelessDeviceStatusUseCase =
       new GetWirelessDeviceStatusUseCase(

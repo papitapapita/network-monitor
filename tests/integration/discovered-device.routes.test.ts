@@ -4,7 +4,13 @@ import request from 'supertest';
 import { Application } from 'express';
 import { PrismaClient } from '../../src/generated/prisma/client';
 import { createTestApp } from './helpers/createTestApp';
-import { cleanDatabase, GHOST_ID, INVALID_ID } from './helpers/db';
+import {
+  cleanDatabase,
+  GHOST_ID,
+  INVALID_ID,
+  seedDevice,
+  seedWirelessDeviceModel
+} from './helpers/db';
 import { seedAndGetToken } from './helpers/auth';
 import { seedDiscoveredDevice } from './helpers/discoveredDevices';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
@@ -64,6 +70,10 @@ describe('Discovered Device Routes — /api/network/discovered', () => {
             manufacturer: 'Ubiquiti Inc',
             source: 'SCAN',
             segment: '192.168.1.0/24',
+            hostname: null,
+            model: null,
+            accessPointId: null,
+            accessPointName: null,
             firstSeenAt: '2026-11-01T09:00:00.000Z',
             lastSeenAt: '2026-11-01T09:00:00.000Z',
             ignoredAt: null
@@ -90,6 +100,32 @@ describe('Discovered Device Routes — /api/network/discovered', () => {
       ]);
     });
 
+    it('200 — a station names the AP it was seen on', async () => {
+      const modelId = await seedWirelessDeviceModel(prisma);
+      const apId = await seedDevice(prisma, modelId, {
+        name: 'AP Norte'
+      });
+      await seedDiscoveredDevice(prisma, {
+        accessPointId: apId,
+        hostname: 'Cliente Perez',
+        model: 'LiteBeam 5AC'
+      });
+
+      const res = await request(app)
+        .get(BASE)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data[0]).toMatchObject({
+        source: 'AP_STATION',
+        segment: null,
+        hostname: 'Cliente Perez',
+        model: 'LiteBeam 5AC',
+        accessPointId: apId,
+        accessPointName: 'AP Norte'
+      });
+    });
+
     it('400 — ignored must be true or false', async () => {
       const res = await request(app)
         .get(`${BASE}?ignored=yes`)
@@ -97,6 +133,65 @@ describe('Discovered Device Routes — /api/network/discovered', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.error).toBe('Validation failed');
+    });
+  });
+
+  describe('GET /:id/prefill', () => {
+    it('401 — without a token', async () => {
+      const id = await seedDiscoveredDevice(prisma);
+
+      const res = await request(app).get(`${BASE}/${id}/prefill`);
+
+      expect(res.status).toBe(401);
+    });
+
+    it('200 — a VIEWER gets the create form filled from the sighting', async () => {
+      const modelId = await seedWirelessDeviceModel(prisma);
+      const apId = await seedDevice(prisma, modelId, {
+        name: 'AP Norte'
+      });
+      const id = await seedDiscoveredDevice(prisma, {
+        accessPointId: apId,
+        hostname: 'Cliente Perez',
+        model: 'LiteBeam-5AC'
+      });
+      const viewer = await seedAndGetToken(app, prisma, 'VIEWER');
+
+      const res = await request(app)
+        .get(`${BASE}/${id}/prefill`)
+        .set('Authorization', `Bearer ${viewer}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: {
+          name: 'Cliente Perez',
+          macAddress: 'AA:BB:CC:DD:EE:01',
+          ipAddress: '192.168.1.20',
+          deviceModelId: modelId,
+          deviceModelName: 'LiteBeam 5AC',
+          category: 'WIRELESS_CPE',
+          upstreamDeviceId: apId,
+          agentId: null
+        }
+      });
+    });
+
+    it('400 — a malformed id', async () => {
+      const res = await request(app)
+        .get(`${BASE}/${INVALID_ID}/prefill`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(400);
+    });
+
+    it('404 — an unknown id', async () => {
+      const res = await request(app)
+        .get(`${BASE}/${GHOST_ID}/prefill`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Discovered device not found');
     });
   });
 

@@ -1,5 +1,5 @@
 import { AggregateRoot, Guard, Result } from 'domain/shared/core';
-import { DiscoveredDeviceId } from 'domain/shared/ids';
+import { DeviceId, DiscoveredDeviceId } from 'domain/shared/ids';
 import { IPAddress, MACAddress } from 'domain/shared/value-objects';
 import { DiscoverySource } from '../enums';
 import { DeviceSighting, DiscoveredDeviceProps } from '../props';
@@ -35,6 +35,18 @@ export class DiscoveredDevice extends AggregateRoot<
 
   get segment(): string | null {
     return this.props.segment;
+  }
+
+  get hostname(): string | null {
+    return this.props.hostname;
+  }
+
+  get model(): string | null {
+    return this.props.model;
+  }
+
+  get accessPointId(): string | null {
+    return this.props.accessPointId;
   }
 
   get firstSeenAt(): Date {
@@ -80,6 +92,9 @@ export class DiscoveredDevice extends AggregateRoot<
           manufacturer: seen.manufacturer,
           source: seen.source,
           segment: seen.segment,
+          hostname: seen.hostname,
+          model: seen.model,
+          accessPointId: seen.accessPointId,
           firstSeenAt: seen.seenAt,
           lastSeenAt: seen.seenAt,
           ignoredAt: null
@@ -97,8 +112,8 @@ export class DiscoveredDevice extends AggregateRoot<
     return new DiscoveredDevice(props, id);
   }
 
-  // DEV-202: a later sighting refreshes where it was seen; what it did not
-  // see (a MAC with no manufacturer entry) keeps the earlier value.
+  // DEV-202: a later sighting refreshes what it saw; what it did not see (a
+  // scan knows no AP, an AP no segment) keeps the earlier value.
   public sighted(sighting: DeviceSighting): Result<void> {
     const normalized = DiscoveredDevice.normalize(sighting);
     if (normalized.isFailure) return Result.fail(normalized.error);
@@ -112,7 +127,11 @@ export class DiscoveredDevice extends AggregateRoot<
     this.props.manufacturer =
       seen.manufacturer ?? this.props.manufacturer;
     this.props.source = seen.source;
-    this.props.segment = seen.segment;
+    this.props.segment = seen.segment ?? this.props.segment;
+    this.props.hostname = seen.hostname ?? this.props.hostname;
+    this.props.model = seen.model ?? this.props.model;
+    this.props.accessPointId =
+      seen.accessPointId ?? this.props.accessPointId;
     this.props.lastSeenAt = seen.seenAt;
     return Result.ok();
   }
@@ -145,6 +164,12 @@ export class DiscoveredDevice extends AggregateRoot<
     if (Number.isNaN(sighting.seenAt.getTime())) {
       return Result.fail('seenAt must be a valid date');
     }
+    if (
+      sighting.accessPointId &&
+      DeviceId.parse(sighting.accessPointId).isFailure
+    ) {
+      return Result.fail('accessPointId must be a device id');
+    }
 
     return Result.ok({
       macAddress: mac.value.value,
@@ -152,7 +177,17 @@ export class DiscoveredDevice extends AggregateRoot<
       manufacturer: sighting.manufacturer?.trim() || null,
       source: sighting.source,
       segment: sighting.segment?.trim() || null,
+      hostname: label(sighting.hostname),
+      model: label(sighting.model),
+      accessPointId: sighting.accessPointId || null,
       seenAt: sighting.seenAt
     });
   }
+}
+
+const MAX_LABEL_LENGTH = 100;
+
+// Free text a radio reports about itself; cut to fit rather than refused.
+function label(value: string | null): string | null {
+  return value?.trim().slice(0, MAX_LABEL_LENGTH) || null;
 }

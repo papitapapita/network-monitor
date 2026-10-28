@@ -9,6 +9,9 @@ export type PrismaDiscoveredDeviceRecord = {
   manufacturer: string | null;
   source: string;
   segment: string | null;
+  hostname: string | null;
+  model: string | null;
+  accessPointId: string | null;
   firstSeenAt: Date;
   lastSeenAt: Date;
   ignoredAt: Date | null;
@@ -31,6 +34,9 @@ export class DiscoveredDeviceMapper {
       manufacturer: raw.manufacturer,
       source: raw.source as DiscoverySource,
       segment: raw.segment,
+      hostname: raw.hostname,
+      model: raw.model,
+      accessPointId: raw.accessPointId,
       firstSeenAt: raw.firstSeenAt,
       lastSeenAt: raw.lastSeenAt,
       ignoredAt: raw.ignoredAt
@@ -47,6 +53,9 @@ export class DiscoveredDeviceMapper {
       manufacturer: entity.manufacturer,
       source: entity.source,
       segment: entity.segment,
+      hostname: entity.hostname,
+      model: entity.model,
+      accessPointId: entity.accessPointId,
       firstSeenAt: entity.firstSeenAt,
       lastSeenAt: entity.lastSeenAt,
       ignoredAt: entity.ignoredAt

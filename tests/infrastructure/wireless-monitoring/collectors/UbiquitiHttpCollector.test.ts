@@ -722,4 +722,89 @@ describe('[WLS-048] [WLS-049] [WLS-050] UbiquitiHttpCollector', () => {
       expect(result.value.lanStatus).toBe('DOWN');
     });
   });
+
+  // ===========================================================================
+  describe('[WLS-052] collect — airOS 6 ACCESS_POINT payload', () => {
+    const airOs6ApBody = {
+      host: { hostname: 'AP Norte', devmodel: 'Rocket M5' },
+      wireless: { mode: 'ap', essid: 'NORTE', count: 1 },
+      interfaces: []
+    };
+    const staCgi = [
+      {
+        mac: 'F0:9F:C2:5C:87:BA',
+        name: 'Cliente Perez',
+        lastip: '10.0.1.20',
+        signal: -64
+      }
+    ];
+
+    function makeLegacyClient(
+      stations: Result<unknown>
+    ): jest.Mocked<AirOsHttpClient> {
+      return {
+        fetchStatus: jest
+          .fn()
+          .mockResolvedValue(Result.ok(airOs6ApBody)),
+        fetchStations: jest.fn().mockResolvedValue(stations)
+      } as unknown as jest.Mocked<AirOsHttpClient>;
+    }
+
+    it('should read the stations from sta.cgi when status.cgi lists none', async () => {
+      const client = makeLegacyClient(Result.ok(staCgi));
+
+      const result = await new UbiquitiHttpCollector(client).collect(
+        '192.168.1.1',
+        credentials,
+        'ACCESS_POINT'
+      );
+
+      expect(client.fetchStations).toHaveBeenCalledWith(
+        '192.168.1.1',
+        443,
+        { username: 'ubnt', password: 'ubnt' }
+      );
+      const c = result.value.clients[0]!;
+      expect(c.macAddress).toBe('F0:9F:C2:5C:87:BA');
+      expect(c.ipAddress).toBe('10.0.1.20');
+      expect(c.remoteHostname).toBe('Cliente Perez');
+      expect(c.signalRxDbm).toBe(-64);
+    });
+
+    it('should still return the reading without clients when sta.cgi fails', async () => {
+      const result = await new UbiquitiHttpCollector(
+        makeLegacyClient(Result.fail('sta.cgi returned HTTP 404'))
+      ).collect('192.168.1.1', credentials, 'ACCESS_POINT');
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.value.clients).toEqual([]);
+      expect(result.value.deviceName).toBe('AP Norte');
+    });
+
+    it('should not call sta.cgi when status.cgi already lists the stations', async () => {
+      const client = makeLegacyClient(Result.ok(staCgi));
+      client.fetchStatus.mockResolvedValue(Result.ok(apStatusBody));
+
+      await new UbiquitiHttpCollector(client).collect(
+        '192.168.1.1',
+        credentials,
+        'ACCESS_POINT'
+      );
+
+      expect(client.fetchStations).not.toHaveBeenCalled();
+    });
+
+    it('should not call sta.cgi for a station', async () => {
+      const client = makeLegacyClient(Result.ok(staCgi));
+      client.fetchStatus.mockResolvedValue(Result.ok(airOs6ApBody));
+
+      await new UbiquitiHttpCollector(client).collect(
+        '192.168.1.1',
+        credentials,
+        'STATION'
+      );
+
+      expect(client.fetchStations).not.toHaveBeenCalled();
+    });
+  });
 });

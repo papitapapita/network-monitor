@@ -12,11 +12,14 @@ export interface SightedHost {
   macAddress: string | null;
   ipAddress: string | null;
   manufacturer: string | null;
+  hostname?: string | null;
+  model?: string | null;
 }
 
 export interface SightingBatch {
   source: DiscoverySource;
   segment: string | null;
+  accessPointId?: string | null;
   // How the notice names where they were seen.
   where: string;
   seenAt: Date;
@@ -102,6 +105,9 @@ export class DeviceSightingRecorder {
         manufacturer: host.manufacturer,
         source: batch.source,
         segment: batch.segment,
+        hostname: host.hostname ?? null,
+        model: host.model ?? null,
+        accessPointId: batch.accessPointId ?? null,
         seenAt: batch.seenAt
       };
       const found = byMac.get(mac);

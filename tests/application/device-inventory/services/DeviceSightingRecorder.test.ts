@@ -44,6 +44,9 @@ function makeExisting(mac: string): DiscoveredDevice {
     manufacturer: null,
     source: DiscoverySource.SCAN,
     segment: '192.168.1.0/24',
+    hostname: null,
+    model: null,
+    accessPointId: null,
     seenAt: T0
   }).value;
 }
@@ -132,6 +135,38 @@ describe('DeviceSightingRecorder', () => {
       );
 
       expect(result.value[0].discoveredDeviceId).toBeNull();
+    });
+  });
+
+  describe('[DEV-208] a station batch from an AP', () => {
+    it("stores the AP and each station's radio name and model", async () => {
+      const apId = '0b9c6f0e-3f4a-4c55-9a51-6f7d2a1c8e10';
+
+      await recorder.record({
+        source: DiscoverySource.AP_STATION,
+        segment: null,
+        accessPointId: apId,
+        where: 'AP Norte',
+        seenAt: T1,
+        hosts: [
+          {
+            ...makeHost(),
+            hostname: 'Cliente Perez',
+            model: 'LiteBeam 5AC Gen2'
+          }
+        ]
+      });
+
+      const saved = repository.saveMany.mock.calls[0][0][0];
+      expect(saved.source).toBe(DiscoverySource.AP_STATION);
+      expect(saved.accessPointId).toBe(apId);
+      expect(saved.hostname).toBe('Cliente Perez');
+      expect(saved.model).toBe('LiteBeam 5AC Gen2');
+      expect(notifier.newDevicesFound).toHaveBeenCalledWith({
+        count: 1,
+        where: 'AP Norte',
+        occurredAt: T1
+      });
     });
   });
 

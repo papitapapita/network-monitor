@@ -47,6 +47,10 @@ export async function seedDiscoveredDevice(
     manufacturer?: string | null;
     lastSeenAt?: Date;
     ignoredAt?: Date | null;
+    // A station seen on this AP rather than by a scan.
+    accessPointId?: string;
+    hostname?: string | null;
+    model?: string | null;
   } = {}
 ): Promise<string> {
   const lastSeenAt = overrides.lastSeenAt ?? new Date();
@@ -61,8 +65,11 @@ export async function seedDiscoveredDevice(
         overrides.manufacturer === undefined
           ? 'Ubiquiti Inc'
           : overrides.manufacturer,
-      source: 'SCAN',
-      segment: '192.168.1.0/24',
+      source: overrides.accessPointId ? 'AP_STATION' : 'SCAN',
+      segment: overrides.accessPointId ? null : '192.168.1.0/24',
+      accessPointId: overrides.accessPointId ?? null,
+      hostname: overrides.hostname ?? null,
+      model: overrides.model ?? null,
       firstSeenAt: lastSeenAt,
       lastSeenAt,
       ignoredAt: overrides.ignoredAt ?? null

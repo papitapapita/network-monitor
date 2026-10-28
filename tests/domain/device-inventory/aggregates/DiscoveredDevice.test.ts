@@ -6,6 +6,20 @@ import { DeviceSighting } from '../../../../src/domain/device-inventory/props';
 
 const T0 = new Date('2026-11-01T10:00:00Z');
 const T1 = new Date('2026-11-01T11:00:00Z');
+const AP_ID = '0b9c6f0e-3f4a-4c55-9a51-6f7d2a1c8e10';
+
+function stationSighting(
+  overrides: Partial<DeviceSighting> = {}
+): DeviceSighting {
+  return makeSighting({
+    source: DiscoverySource.AP_STATION,
+    segment: null,
+    hostname: 'Cliente Perez',
+    model: 'LiteBeam 5AC Gen2',
+    accessPointId: AP_ID,
+    ...overrides
+  });
+}
 
 function makeSighting(
   overrides: Partial<DeviceSighting> = {}
@@ -16,6 +30,9 @@ function makeSighting(
     manufacturer: 'Ubiquiti Inc',
     source: DiscoverySource.SCAN,
     segment: '192.168.1.0/24',
+    hostname: null,
+    model: null,
+    accessPointId: null,
     seenAt: T0,
     ...overrides
   };
@@ -95,7 +112,66 @@ describe('DiscoveredDevice', () => {
     });
   });
 
+  describe('[DEV-208] a station seen on an AP', () => {
+    it('keeps the radio name, model and AP', () => {
+      const device = DiscoveredDevice.create(stationSighting()).value;
+
+      expect(device.source).toBe(DiscoverySource.AP_STATION);
+      expect(device.hostname).toBe('Cliente Perez');
+      expect(device.model).toBe('LiteBeam 5AC Gen2');
+      expect(device.accessPointId).toBe(AP_ID);
+      expect(device.segment).toBeNull();
+    });
+
+    it('cuts a radio name longer than 100 characters', () => {
+      const device = DiscoveredDevice.create(
+        stationSighting({ hostname: `  ${'x'.repeat(120)}  ` })
+      ).value;
+
+      expect(device.hostname).toBe('x'.repeat(100));
+    });
+
+    it('turns a blank radio name into null', () => {
+      const device = DiscoveredDevice.create(
+        stationSighting({ hostname: '   ' })
+      ).value;
+
+      expect(device.hostname).toBeNull();
+    });
+
+    it('refuses an AP id that is not a device id', () => {
+      const result = DiscoveredDevice.create(
+        stationSighting({ accessPointId: 'ap-1' })
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe('accessPointId must be a device id');
+    });
+  });
+
   describe('[DEV-202] sighted', () => {
+    it('keeps the AP, radio name and model when a scan sees it', () => {
+      const device = DiscoveredDevice.create(stationSighting()).value;
+
+      device.sighted(makeSighting({ seenAt: T1 }));
+
+      expect(device.source).toBe(DiscoverySource.SCAN);
+      expect(device.segment).toBe('192.168.1.0/24');
+      expect(device.accessPointId).toBe(AP_ID);
+      expect(device.hostname).toBe('Cliente Perez');
+      expect(device.model).toBe('LiteBeam 5AC Gen2');
+    });
+
+    it('keeps the segment when an AP sees it', () => {
+      const device = makeDevice();
+
+      device.sighted(stationSighting({ seenAt: T1 }));
+
+      expect(device.source).toBe(DiscoverySource.AP_STATION);
+      expect(device.segment).toBe('192.168.1.0/24');
+      expect(device.accessPointId).toBe(AP_ID);
+    });
+
     it('refreshes the IP, segment and last seen', () => {
       const device = makeDevice();
 

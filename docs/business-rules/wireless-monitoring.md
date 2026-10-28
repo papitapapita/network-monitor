@@ -988,8 +988,8 @@ list, so its signal and remote AP MAC come from `wireless.signal` and
 **Why:** AirOS 6 refuses a login that arrives without a cookie, and gives no
 status-code signal on a bad password, so success can only be read from the
 redirect. Without this fallback every AirOS 6 radio failed with
-`Authentication failed: HTTP 302`. Access-point client lists (`sta.cgi`) and
-reboot (`reboot.cgi`) are not yet supported on AirOS 6.
+`Authentication failed: HTTP 302`. An AirOS 6 access point's client list comes
+from `sta.cgi` (WLS-055); reboot (`reboot.cgi`) is not yet supported on AirOS 6.
 
 **Enforced at:** `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts:152`, `:219`, `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts:96`, `:220`, `:226`
 **Reached from:** `fetchStatus`
@@ -1064,6 +1064,29 @@ regardless of link health. The MIB exposes none of the other null fields.
 **Reached from:** `PollWirelessDeviceUseCase` via WLS-053
 **Message:** `Device did not answer the Mimosa MIB — is it a Mimosa radio?` / `SNMP community is not configured` / `SNMPv3 requires a username` / `SNMP request failed: <error>`
 **Tests:** `tests/infrastructure/wireless-monitoring/collectors/MimosaSnmpCollector.test.ts`, `tests/infrastructure/wireless-monitoring/collectors/SnmpClient.test.ts`
+
+### WLS-055 — An AirOS 6 access point's stations are read from `sta.cgi`
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure
+**Since:** 2026-10-27
+
+When an access point's `status.cgi` has no `wireless.sta` list, which is the
+case on AirOS 6, the collector fetches `/sta.cgi` with the same session and
+parses each entry like an AirOS 8 station. A station's name is its
+`remote.hostname`, or else its own `name` field, which is all AirOS 6 gives. If
+`sta.cgi` fails or returns something other than a list, the reading carries no
+clients and still succeeds. Stations are never asked for it.
+
+**Why:** Without the list an AirOS 6 AP has no clients on its snapshot and
+none of its stations can be suggested to inventory (DEV-208). The link
+figures are still valid without it, so a missing list is no reason to fail
+the poll. The `sta.cgi` field names are expected from AirOS 6 documentation
+and still need checking against a real AirOS 6 AP.
+
+**Enforced at:** `src/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.ts` (`fetchLegacyStations`), `src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts` (`fetchStations`)
+**Reached from:** `PollWirelessDeviceUseCase`, and the agent's `wireless` probe (needs an agent release)
+**Tests:** `tests/infrastructure/wireless-monitoring/collectors/UbiquitiHttpCollector.test.ts`
 
 ---
 

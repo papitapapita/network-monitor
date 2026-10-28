@@ -7,7 +7,11 @@ import {
   AGENT_READ_FAILURES,
   PollWirelessDeviceUseCase
 } from 'application/wireless-monitoring/use-cases';
-import { OUT_OF_SERVER_REACH } from 'application/wireless-monitoring/interfaces';
+import {
+  CollectedClientEntry,
+  IStationSightings,
+  OUT_OF_SERVER_REACH
+} from 'application/wireless-monitoring/interfaces';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
 import { UpstreamAssignment } from 'application/device-inventory/services';
 import { WirelessAlertEvaluator } from 'domain/wireless-monitoring/services';
@@ -24,6 +28,7 @@ import { WirelessDeviceRepositoryAdapter } from 'infrastructure/wireless-monitor
 import { DeviceReachAdapter } from 'infrastructure/wireless-monitoring/adapters/DeviceReachAdapter';
 import { DeviceVendorAdapter } from 'infrastructure/wireless-monitoring/adapters/DeviceVendorAdapter';
 import { ContractedCapacityAdapter } from 'infrastructure/wireless-monitoring/adapters/ContractedCapacityAdapter';
+import { StationSightingsAdapter } from 'infrastructure/wireless-monitoring/adapters/StationSightingsAdapter';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
 import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
 import { PrismaVendorRepository } from 'infrastructure/persistence/PrismaVendorRepository';
@@ -41,6 +46,10 @@ import {
 import { FakeWirelessCollector } from '../../helpers/FakeWirelessCollector';
 import { FakeAgentRadioReader } from '../../helpers/FakeAgentRadioReader';
 import { seedDiagnosableDevice } from '../../helpers/linkDiagnosis';
+import {
+  FakeDiscoveryNotifier,
+  makeSightingRecorder
+} from '../../helpers/discoveredDevices';
 
 // Covers where this server's reach decides what it polls and who reads the
 // radio (WLS-029): the scheduler's due query and the manual poll, against the
@@ -71,7 +80,8 @@ describe('PollWirelessDeviceUseCase — integration', () => {
   const build = (
     serverOnSite: boolean,
     rules: IAlertRule[] = [],
-    confirmation = { samples: 3, intervalMs: 0, cooldownMs: 600_000 }
+    confirmation = { samples: 3, intervalMs: 0, cooldownMs: 600_000 },
+    stationSightings?: IStationSightings
   ) => {
     const deviceRepo = new PrismaDeviceRepository(prisma);
     const configRepo = new PrismaWirelessDeviceConfigRepository(
@@ -104,7 +114,8 @@ describe('PollWirelessDeviceUseCase — integration', () => {
       null,
       new WinstonLogger(),
       agent,
-      confirmation
+      confirmation,
+      stationSightings
     );
     return { useCase, configRepo };
   };
@@ -241,6 +252,113 @@ describe('PollWirelessDeviceUseCase — integration', () => {
       expect(result.isSuccess).toBe(true);
       expect(collector.calls).toHaveLength(1);
       expect(agent.calls).toHaveLength(0);
+    });
+  });
+
+  describe("[DEV-208] an AP's stations become suggestions", () => {
+    const station = (
+      overrides: Partial<CollectedClientEntry> = {}
+    ): CollectedClientEntry => ({
+      macAddress: 'f0:9f:c2:5c:87:ba',
+      ipAddress: '10.20.0.15',
+      signalRxDbm: -64,
+      noiseFloorDbm: -95,
+      distanceM: 1200,
+      uptimeSeconds: 3600,
+      txLatencyMs: 2,
+      dlLinkScore: null,
+      ulLinkScore: null,
+      dlCapacityKbps: null,
+      ulCapacityKbps: null,
+      dlCinr: null,
+      ulCinr: null,
+      txBytesTotal: null,
+      rxBytesTotal: null,
+      txPps: null,
+      rxPps: null,
+      remoteHostname: 'Cliente Perez',
+      remotePlatform: 'LiteBeam 5AC Gen2',
+      remoteVersion: null,
+      remoteCpuLoad: null,
+      remoteTotalRam: null,
+      remoteFreeRam: null,
+      remoteSignal: null,
+      remoteNoiseFloor: null,
+      remoteTxPower: null,
+      remoteTxThroughputKbps: null,
+      remoteRxThroughputKbps: null,
+      remoteIpAddresses: [],
+      dlAirtimePercent: null,
+      ulAirtimePercent: null,
+      ...overrides
+    });
+
+    let notifier: FakeDiscoveryNotifier;
+
+    const pollAp = async (clients: CollectedClientEntry[]) => {
+      const apId = await seedDiagnosableDevice(
+        prisma,
+        deviceModelId,
+        {
+          ip: '192.168.90.50',
+          deviceType: 'ACCESS_POINT'
+        }
+      );
+      collector.setResult({ mode: 'ap-ptmp', clients });
+      notifier = new FakeDiscoveryNotifier();
+      const { useCase } = build(
+        true,
+        [],
+        undefined,
+        new StationSightingsAdapter(
+          makeSightingRecorder(prisma, notifier)
+        )
+      );
+      const result = await useCase.execute({
+        deviceId: apId,
+        forceExecution: true
+      });
+      expect(result.isSuccess).toBe(true);
+      return apId;
+    };
+
+    it('stores a station inventory lacks, with its AP, name and model', async () => {
+      const apId = await pollAp([station()]);
+
+      const rows = await prisma.discoveredDevice.findMany();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        macAddress: 'F0:9F:C2:5C:87:BA',
+        ipAddress: '10.20.0.15',
+        source: 'AP_STATION',
+        segment: null,
+        accessPointId: apId,
+        hostname: 'Cliente Perez',
+        model: 'LiteBeam 5AC Gen2'
+      });
+      expect(rows[0]!.manufacturer).toMatch(/ubiquiti/i);
+      expect(notifier.notices).toEqual([
+        expect.objectContaining({
+          count: 1,
+          where: 'Radio 192.168.90.50'
+        })
+      ]);
+    });
+
+    it('leaves out a station inventory already has', async () => {
+      await prisma.device.create({
+        data: {
+          name: 'Cliente Perez',
+          status: 'INVENTORY',
+          deviceModelId,
+          macAddress: 'F0:9F:C2:5C:87:BA'
+        }
+      });
+
+      await pollAp([station()]);
+
+      expect(await prisma.discoveredDevice.count()).toBe(0);
+      expect(notifier.notices).toEqual([]);
     });
   });
 

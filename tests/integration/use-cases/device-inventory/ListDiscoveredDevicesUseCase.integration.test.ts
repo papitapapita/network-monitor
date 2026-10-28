@@ -5,6 +5,7 @@ import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import {
   createTestPrisma,
   cleanDatabase,
+  seedDevice,
   seedDeviceModel
 } from '../../helpers/db';
 import {
@@ -56,6 +57,10 @@ describe('ListDiscoveredDevicesUseCase — integration', () => {
       manufacturer: 'Ubiquiti Inc',
       source: 'SCAN',
       segment: '192.168.1.0/24',
+      hostname: null,
+      model: null,
+      accessPointId: null,
+      accessPointName: null,
       firstSeenAt: '2026-11-01T09:00:00.000Z',
       lastSeenAt: '2026-11-01T09:00:00.000Z',
       ignoredAt: null
@@ -119,6 +124,48 @@ describe('ListDiscoveredDevicesUseCase — integration', () => {
     const result = await useCase.execute({ ignored: false });
 
     expect(result.value).toHaveLength(1);
+  });
+
+  it('[DEV-208] names the AP a station was seen on', async () => {
+    const modelId = await seedDeviceModel(prisma);
+    const apId = await seedDevice(prisma, modelId, {
+      name: 'AP Norte'
+    });
+    await seedDiscoveredDevice(prisma, {
+      accessPointId: apId,
+      hostname: 'Cliente Perez',
+      model: 'LiteBeam 5AC Gen2'
+    });
+
+    const result = await useCase.execute({ ignored: false });
+
+    expect(result.value[0]).toMatchObject({
+      source: 'AP_STATION',
+      hostname: 'Cliente Perez',
+      model: 'LiteBeam 5AC Gen2',
+      accessPointId: apId,
+      accessPointName: 'AP Norte'
+    });
+  });
+
+  it('[DEV-208] keeps the AP id but no name once the AP is deleted', async () => {
+    const modelId = await seedDeviceModel(prisma);
+    const apId = await seedDevice(prisma, modelId, {
+      name: 'AP Norte'
+    });
+    await prisma.device.update({
+      where: { id: apId },
+      data: { deletedAt: new Date() }
+    });
+    await seedDiscoveredDevice(prisma, { accessPointId: apId });
+
+    const result = await useCase.execute({ ignored: false });
+
+    expect(result.value).toHaveLength(1);
+    expect(result.value[0]).toMatchObject({
+      accessPointId: apId,
+      accessPointName: null
+    });
   });
 
   it('returns an empty list when nothing was discovered', async () => {

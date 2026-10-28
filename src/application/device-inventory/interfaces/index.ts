@@ -8,3 +8,4 @@ export * from './IUpstreamEvidenceQuery';
 export * from './IKnownDeviceLookup';
 export * from './IDiscoveredDeviceListQuery';
 export * from './IDiscoveryNotifier';
+export * from './IDiscoveryPrefillQuery';

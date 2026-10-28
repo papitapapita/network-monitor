@@ -38,4 +38,5 @@ export * from './AcceptUpstreamSuggestionsUseCase';
 export * from './ListDiscoveredDevicesUseCase';
 export * from './IgnoreDiscoveredDeviceUseCase';
 export * from './UnignoreDiscoveredDeviceUseCase';
+export * from './GetDiscoveredDevicePrefillUseCase';
 export * from './PurgeStaleDiscoveredDevicesUseCase';
