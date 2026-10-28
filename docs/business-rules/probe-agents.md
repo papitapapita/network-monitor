@@ -333,7 +333,9 @@ suppression rule (R7) has one field to read.
 
 A hello or heartbeat from an offline agent clears `offlineSince` and raises
 `AgentCameBack`, carrying when the agent had been marked offline. A contact
-from an agent that is online raises nothing.
+from an agent that is online raises nothing. The recovery message says how
+long the agent was offline and since when ("Estuvo sin conexión 3 horas y 12
+minutos (desde las 14:00)"), in days once it passes 24 hours.
 
 **Why:** ADR 0002, R6: one alert when it goes, one message when it returns.
 Tying the recovery to a stored offline state means a blip that never reached

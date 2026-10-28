@@ -99,7 +99,7 @@ describe('AgentCameBackNotificationHandler', () => {
         type: 'agent_offline',
         occurredAt: OCCURRED,
         summary: 'El agente "Torre Norte" volvió a reportar',
-        detail: expect.stringContaining('Estaba sin conexión desde')
+        detail: expect.stringContaining('Estuvo sin conexión 5 minutos (desde')
       })
     );
   });

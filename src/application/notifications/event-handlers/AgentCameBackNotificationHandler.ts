@@ -1,6 +1,7 @@
 import { IHandle } from 'domain/shared/interfaces';
 import { AlertSeverity } from 'domain/shared/enums';
 import { AgentCameBackEvent } from 'domain/probe-agents/events';
+import { formatDuration } from 'domain/shared/utils';
 import {
   IAlertPublisher,
   ILogger
@@ -26,12 +27,17 @@ export class AgentCameBackNotificationHandler
       const offlineSince = TelegramFormatting.formatSince(
         event.offlineSince
       );
+      const offlineFor = formatDuration(
+        (event.dateTimeOccurred.getTime() -
+          event.offlineSince.getTime()) /
+          1000
+      );
       const result = await this.alertPublisher.publish({
         deviceId: null,
         severity: AlertSeverity.CRITICAL,
         source: AGENT_HEALTH_SOURCE,
         summary: `El agente "${event.agentName}" volvió a reportar`,
-        detail: `Estaba sin conexión desde ${offlineSince}.`,
+        detail: `Estuvo sin conexión ${offlineFor} (desde ${offlineSince}).`,
         occurredAt: event.dateTimeOccurred,
         resolved: true,
         type: AGENT_OFFLINE_ALERT_TYPE
