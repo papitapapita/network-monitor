@@ -70,7 +70,9 @@ describe('agent import boundary', () => {
     // wireless collectors it runs for the backend (AGT-101), the RouterOS
     // client it changes suspension queues with (AGT-111), the config
     // fetchers it takes backups with (AGT-114), the router traffic reader
-    // (AGT-117), the radio hostname writer (AGT-120), the logger, and Result.
+    // (AGT-117), the radio hostname writer (AGT-120), the CIDR expander and
+    // ARP table reader it scans a segment with (AGT-121), the logger, and
+    // Result.
     expect(
       backendCode
         .filter((input) => !input.startsWith('src/domain/shared/'))
@@ -88,6 +90,8 @@ describe('agent import boundary', () => {
       'src/infrastructure/device-backups/fetchers/SshCommandClient.ts',
       'src/infrastructure/device-backups/fetchers/index.ts',
       'src/infrastructure/logging/WinstonLogger.ts',
+      'src/infrastructure/monitoring/network-scanner/ArpTableReader.ts',
+      'src/infrastructure/monitoring/network-scanner/utils/expandCidr.ts',
       'src/infrastructure/monitoring/ping/PingService.ts',
       'src/infrastructure/monitoring/router-traffic/RouterOsTrafficReader.ts',
       'src/infrastructure/service-enforcement/RouterOsQueueService.ts',

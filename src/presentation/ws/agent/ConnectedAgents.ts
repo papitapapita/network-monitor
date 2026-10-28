@@ -1,5 +1,6 @@
 import { ILogger } from 'application/shared/interfaces';
 import type {
+  AgentDiscoveredHost,
   AgentEnforceOutcome,
   AgentEnforceRequest,
   AgentHostnameRequest,
@@ -56,6 +57,10 @@ export interface ProbeTimeouts {
   // An SSH login, one config edit and a flash write (AGT-120), asked for by
   // hand behind the same 30 s proxy as a radio read.
   hostnameMs?: number;
+  // Every address of a segment up to a /22, pinged 64 at a time with a
+  // one-second wait, then one ARP read (AGT-121). Mostly the scheduled
+  // scan, which no proxy times.
+  discoverMs?: number;
 }
 
 export const DEFAULT_PROBE_TIMEOUTS: ProbeTimeouts = {
@@ -65,7 +70,8 @@ export const DEFAULT_PROBE_TIMEOUTS: ProbeTimeouts = {
   backupMs: 45_000,
   trafficMs: 8_000,
   sweepMs: 20_000,
-  hostnameMs: 25_000
+  hostnameMs: 25_000,
+  discoverMs: 90_000
 };
 
 const DEFAULT_ENFORCE_MS = 20_000;
@@ -73,6 +79,7 @@ const DEFAULT_BACKUP_MS = 45_000;
 const DEFAULT_TRAFFIC_MS = 8_000;
 const DEFAULT_SWEEP_MS = 20_000;
 const DEFAULT_HOSTNAME_MS = 25_000;
+const DEFAULT_DISCOVER_MS = 90_000;
 
 // The agents connected right now, one session each (AGT-045), and the way
 // the rest of the backend asks one of them to measure a device (AGT-103).
@@ -269,6 +276,28 @@ export class ConnectedAgents
     return { ok: true, reading: null, measuredAt: answer.measuredAt };
   }
 
+  async discover(
+    agentId: string,
+    cidr: string
+  ): Promise<AgentProbeOutcome<AgentDiscoveredHost[]>> {
+    const answer = await this.probe(
+      agentId,
+      { type: 'probe', kind: 'discover', cidr },
+      this.probeTimeouts.discoverMs ?? DEFAULT_DISCOVER_MS
+    );
+    if (!answer.ok) return answer;
+    if (answer.result.kind !== 'discover') return wrongKind();
+    return {
+      ok: true,
+      reading: answer.result.hosts.map((host) => ({
+        ipAddress: host.ip,
+        macAddress: host.mac,
+        latencyMs: host.latencyMs
+      })),
+      measuredAt: answer.measuredAt
+    };
+  }
+
   async enforce(
     agentId: string,
     router: RouterConnection,
@@ -366,7 +395,8 @@ const UNSUPPORTED: Record<ProbeRequest['kind'], string> = {
   backup: 'The agent must be updated to take backups',
   traffic: 'The agent must be updated to read router traffic',
   sweep: 'The agent must be updated to sweep the network',
-  hostname: 'The agent must be updated to rename radios'
+  hostname: 'The agent must be updated to rename radios',
+  discover: 'The agent must be updated to scan the network'
 };
 
 function fail(

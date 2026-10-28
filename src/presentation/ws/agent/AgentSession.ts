@@ -205,6 +205,15 @@ export class AgentSession {
     );
   }
 
+  // AGT-121: only an agent that said it scans segments is ever sent one.
+  get canDiscover(): boolean {
+    return (
+      this.greeted &&
+      !this.closed &&
+      this.capabilities.includes('discover')
+    );
+  }
+
   canAnswer(kind: ProbeRequest['kind']): boolean {
     switch (kind) {
       case 'backup':
@@ -215,6 +224,8 @@ export class AgentSession {
         return this.canSweep;
       case 'hostname':
         return this.canRenameRadios;
+      case 'discover':
+        return this.canDiscover;
       default:
         return this.canProbe;
     }

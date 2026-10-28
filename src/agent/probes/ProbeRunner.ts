@@ -7,7 +7,9 @@ import type {
 } from 'application/wireless-monitoring/interfaces';
 import type { IConfigFetcherResolver } from 'application/device-backups/interfaces';
 import type { IRouterTrafficReader } from 'application/device-monitoring/interfaces';
+import { expandCidr } from 'infrastructure/monitoring/network-scanner/utils/expandCidr';
 import {
+  DiscoveredHostWire,
   MAX_SWEEP_TARGETS,
   PingReadingWire,
   ProbeRequestMessage,
@@ -20,6 +22,10 @@ export interface PingProbe {
     ipAddress: string,
     maxAttempts: number
   ): Promise<PingCycleOutcome>;
+}
+
+export interface ArpTable {
+  read(): Promise<Map<string, string>>;
 }
 
 export interface ProbeRunnerOptions {
@@ -40,11 +46,18 @@ const NO_HOSTNAME_WRITERS: IRadioHostnameWriterResolver = {
   forVendor: () => null
 };
 
+const NO_ARP_TABLE: ArpTable = { read: async () => new Map() };
+
+// Addresses a discover request pings at once (AGT-121): a /24 answers in
+// about four rounds of the sweep's one-second wait.
+const DISCOVER_BATCH = 64;
+
 // Answers the backend's probe requests (AGT-101) with the same ping loop,
 // wireless collectors, config fetchers (AGT-114) and router traffic reader
 // (AGT-117) the backend runs in process, and sweeps a batch of addresses
-// with the quick ping the backend's own sweep uses (AGT-119), and renames a
-// radio with the backend's own hostname writers (AGT-120). The
+// with the quick ping the backend's own sweep uses (AGT-119), renames a
+// radio with the backend's own hostname writers (AGT-120), and scans a
+// segment with that same quick ping and the PC's ARP table (AGT-121). The
 // credentials in a request live only as long as the request (AGT-102,
 // AGT-115), except a router login, which the traffic reader holds open
 // between reads (AGT-118): nothing here stores or logs them.
@@ -61,7 +74,8 @@ export class ProbeRunner {
     private readonly options: ProbeRunnerOptions = DEFAULT_PROBE_RUNNER_OPTIONS,
     // MON-082: a short reply wait and no pause between attempts.
     private readonly sweepPing: PingProbe = ping,
-    private readonly hostnames: IRadioHostnameWriterResolver = NO_HOSTNAME_WRITERS
+    private readonly hostnames: IRadioHostnameWriterResolver = NO_HOSTNAME_WRITERS,
+    private readonly arp: ArpTable = NO_ARP_TABLE
   ) {}
 
   async run(
@@ -113,6 +127,14 @@ export class ProbeRunner {
         at,
         readings
       };
+    }
+
+    if (request.kind === 'discover') {
+      this.logger.debug('Probe request', {
+        kind: request.kind,
+        cidr: request.cidr
+      });
+      return this.discover(request.requestId, request.cidr, at);
     }
 
     this.logger.debug('Probe request', {
@@ -217,6 +239,56 @@ export class ProbeRunner {
       at,
       reading: toWirelessReadingWire(collected.value)
     };
+  }
+
+  private async discover(
+    requestId: string,
+    cidr: string,
+    at: number
+  ): Promise<ProbeResultMessage> {
+    // Throws past a /22, which run() answers as the request's error.
+    const ips = expandCidr(cidr);
+    const answered: Array<{ ip: string; latencyMs: number | null }> =
+      [];
+    for (let i = 0; i < ips.length; i += DISCOVER_BATCH) {
+      const batch = ips.slice(i, i + DISCOVER_BATCH);
+      const readings = await Promise.all(
+        batch.map((ip) => this.sweepOne(ip, 1))
+      );
+      readings.forEach((reading, j) => {
+        if ('reachable' in reading && reading.reachable) {
+          answered.push({
+            ip: batch[j],
+            latencyMs: reading.latencyMs
+          });
+        }
+      });
+    }
+    const table = await this.readArpTable();
+    const hosts: DiscoveredHostWire[] = answered.map((host) => ({
+      ip: host.ip,
+      mac: table.get(host.ip) ?? null,
+      latencyMs: host.latencyMs
+    }));
+    return {
+      type: 'probe.result',
+      requestId,
+      kind: 'discover',
+      at,
+      hosts
+    };
+  }
+
+  // Without the table the hosts still answer, only with no MAC.
+  private async readArpTable(): Promise<Map<string, string>> {
+    try {
+      return await this.arp.read();
+    } catch (error) {
+      this.logger.warn('Could not read the ARP table', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return new Map();
+    }
   }
 
   // One address that cannot be pinged must not fail the whole batch.

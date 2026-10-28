@@ -4,10 +4,17 @@ import request from 'supertest';
 import { Application } from 'express';
 import { PrismaClient } from '../../src/generated/prisma/client';
 import { createTestApp } from './helpers/createTestApp';
-import { cleanDatabase, seedDeviceModel } from './helpers/db';
+import {
+  cleanDatabase,
+  seedAgent,
+  seedDeviceModel
+} from './helpers/db';
 import { seedOwnedDevice } from './helpers/discoveredDevices';
 import { seedAndGetToken } from './helpers/auth';
 import { FakeNetworkScannerService } from './helpers/FakeNetworkScannerService';
+import { FakeAgentHostDiscovery } from './helpers/FakeAgentHostDiscovery';
+import { SegmentScanner } from '../../src/infrastructure/monitoring/network-scanner';
+import { PrismaAgentAssignmentQuery } from '../../src/infrastructure/probe-agents/queries';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
 import { ScanController } from '../../src/presentation/http/controllers/ScanController';
 import {
@@ -25,14 +32,16 @@ describe('Scan Routes — POST /api/network/scan', () => {
 
   // The real scanner sweeps the CIDR with ICMP; everything else is real.
   const scanner = new FakeNetworkScannerService();
+  const agents = new FakeAgentHostDiscovery();
 
   beforeAll(async () => {
     ({ app, container } = await createTestApp((c) => {
       const logger = c.getLogger();
       c.scanController = new ScanController(
         new ScanNetworkSegmentUseCase(
-          scanner,
+          new SegmentScanner(scanner, agents),
           c.deviceSightingRecorder,
+          new PrismaAgentAssignmentQuery(c.getPrisma()),
           logger
         ),
         logger
@@ -47,6 +56,7 @@ describe('Scan Routes — POST /api/network/scan', () => {
 
   beforeEach(async () => {
     scanner.reset();
+    agents.reset();
     await cleanDatabase(prisma);
     adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
   });
@@ -156,6 +166,7 @@ describe('Scan Routes — POST /api/network/scan', () => {
         });
       expect(res.body.data).toEqual({
         segment: '192.168.1.0/24',
+        agentId: null,
         scannedCount: 254,
         responsiveCount: 2,
         newCount: 1,
@@ -244,6 +255,7 @@ describe('Scan Routes — POST /api/network/scan', () => {
       expect(res.status).toBe(200);
       expect(res.body.data).toEqual({
         segment: '10.0.0.0/30',
+        agentId: null,
         scannedCount: 2,
         responsiveCount: 0,
         newCount: 0,
@@ -288,6 +300,88 @@ describe('Scan Routes — POST /api/network/scan', () => {
     });
   });
 
+  describe('[DEV-214] from an agent', () => {
+    it('200 — scans from the agent and names it', async () => {
+      const agent = await seedAgent(prisma, { status: 'ACTIVE' });
+      agents.setHosts([
+        {
+          ipAddress: '10.0.0.7',
+          macAddress: 'AA:BB:CC:DD:EE:07',
+          latencyMs: 5
+        }
+      ]);
+
+      const res = await scan({
+        segment: '10.0.0.0/24',
+        agentId: agent.id
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({
+        agentId: agent.id,
+        responsiveCount: 1,
+        newCount: 1
+      });
+      expect(scanner.callCount).toBe(0);
+    });
+
+    it('200 — a null agentId scans from the server', async () => {
+      const res = await scan({
+        segment: '10.0.0.0/24',
+        agentId: null
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.agentId).toBeNull();
+      expect(scanner.callCount).toBe(1);
+    });
+
+    it('400 — agentId is not an agent id', async () => {
+      const res = await scan({
+        segment: '10.0.0.0/24',
+        agentId: 'x'
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('agentId must be an agent id');
+    });
+
+    it('400 — agentId is not a string', async () => {
+      const res = await scan({ segment: '10.0.0.0/24', agentId: 7 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe('Validation failed');
+    });
+
+    it('404 — the agent is revoked', async () => {
+      const agent = await seedAgent(prisma, { status: 'REVOKED' });
+
+      const res = await scan({
+        segment: '10.0.0.0/24',
+        agentId: agent.id
+      });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Agent not found');
+    });
+
+    it('502 — the agent could not scan', async () => {
+      const agent = await seedAgent(prisma, { status: 'ACTIVE' });
+      agents.failWith('The agent is not connected');
+
+      const res = await scan({
+        segment: '10.0.0.0/24',
+        agentId: agent.id
+      });
+
+      expect(res.status).toBe(502);
+      expect(res.body).toEqual({
+        success: false,
+        error: 'The agent could not scan: The agent is not connected'
+      });
+    });
+  });
+
   it('404 — GET is not a supported method', async () => {
     const res = await request(app)
       .get(SCAN)
@@ -301,6 +395,7 @@ describe('[DEV-171] Scan Routes — a server hosted off site', () => {
   let app: Application;
   let container: DependencyContainer;
   const scanner = new FakeNetworkScannerService();
+  const agents = new FakeAgentHostDiscovery();
 
   beforeAll(async () => {
     process.env.SERVER_ON_SITE = 'false';
@@ -309,8 +404,9 @@ describe('[DEV-171] Scan Routes — a server hosted off site', () => {
         const logger = c.getLogger();
         c.scanController = new ScanController(
           new ScanNetworkSegmentUseCase(
-            scanner,
+            new SegmentScanner(scanner, agents),
             c.deviceSightingRecorder,
+            new PrismaAgentAssignmentQuery(c.getPrisma()),
             logger,
             c.serverOnSite
           ),
@@ -341,6 +437,24 @@ describe('[DEV-171] Scan Routes — a server hosted off site', () => {
       success: false,
       error: SCAN_NEEDS_SERVER_ON_SITE
     });
+    expect(scanner.callCount).toBe(0);
+  });
+
+  it('[DEV-214] 200 — scans through an agent', async () => {
+    const prisma = container.getPrisma();
+    await cleanDatabase(prisma);
+    const adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
+    const agent = await seedAgent(prisma, { status: 'ACTIVE' });
+
+    const res = await request(app)
+      .post(SCAN)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ segment: '192.168.1.0/24', agentId: agent.id });
+
+    expect(res.status).toBe(200);
+    expect(agents.calls).toEqual([
+      { agentId: agent.id, cidr: '192.168.1.0/24' }
+    ]);
     expect(scanner.callCount).toBe(0);
   });
 });

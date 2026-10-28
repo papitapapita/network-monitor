@@ -2,11 +2,13 @@
 
 import {
   ScanNetworkSegmentUseCase,
+  SCAN_AGENT_NOT_FOUND,
   SCAN_NEEDS_SERVER_ON_SITE
 } from '../../../../src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase';
 import {
-  INetworkScannerService,
-  DiscoveredHost
+  DiscoveredHost,
+  IAgentAssignmentQuery,
+  ISegmentScanner
 } from '../../../../src/application/device-inventory/interfaces';
 import { ILogger } from '../../../../src/application/shared/interfaces';
 import { ScanNetworkSegmentRequestDTO } from '../../../../src/application/device-inventory/dtos';
@@ -33,8 +35,17 @@ function makeLogger(): ILogger {
   };
 }
 
-function makeScanner(): jest.Mocked<INetworkScannerService> {
+const AGENT = '0b9c6f0e-3f4a-4c55-9a51-6f7d2a1c8e10';
+
+function makeScanner(): jest.Mocked<ISegmentScanner> {
   return { scan: jest.fn() };
+}
+
+function makeAgents(): jest.Mocked<IAgentAssignmentQuery> {
+  return {
+    check: jest.fn().mockResolvedValue(Result.ok('ASSIGNABLE')),
+    listAssignable: jest.fn()
+  };
 }
 
 function makeRecorder(): jest.Mocked<DeviceSightingRecorder> {
@@ -72,23 +83,30 @@ function makeRequest(
 // ---------------------------------------------------------------------------
 
 describe('ScanNetworkSegmentUseCase', () => {
-  let scanner: jest.Mocked<INetworkScannerService>;
+  let scanner: jest.Mocked<ISegmentScanner>;
+  let agents: jest.Mocked<IAgentAssignmentQuery>;
   let logger: ILogger;
   let recorder: jest.Mocked<DeviceSightingRecorder>;
   let useCase: ScanNetworkSegmentUseCase;
 
   beforeEach(() => {
     scanner = makeScanner();
+    agents = makeAgents();
     logger = makeLogger();
     recorder = makeRecorder();
     useCase = new ScanNetworkSegmentUseCase(
       scanner,
       recorder,
+      agents,
       logger
     );
 
-    scanner.scan.mockResolvedValue([]);
+    found([]);
   });
+
+  function found(hosts: DiscoveredHost[]): void {
+    scanner.scan.mockResolvedValue(Result.ok(hosts));
+  }
 
   afterEach(() => {
     jest.clearAllMocks();
@@ -100,6 +118,7 @@ describe('ScanNetworkSegmentUseCase', () => {
       const offSite = new ScanNetworkSegmentUseCase(
         scanner,
         recorder,
+        agents,
         logger,
         false
       );
@@ -109,6 +128,83 @@ describe('ScanNetworkSegmentUseCase', () => {
       expect(result.isFailure).toBe(true);
       expect(result.error).toBe(SCAN_NEEDS_SERVER_ON_SITE);
       expect(scanner.scan).not.toHaveBeenCalled();
+    });
+
+    it('[DEV-214] scans through an agent', async () => {
+      const offSite = new ScanNetworkSegmentUseCase(
+        scanner,
+        recorder,
+        agents,
+        logger,
+        false
+      );
+
+      const result = await offSite.execute(
+        makeRequest({ agentId: AGENT })
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(scanner.scan).toHaveBeenCalledWith(
+        '192.168.1.0/24',
+        AGENT
+      );
+    });
+  });
+
+  // =========================================================================
+  describe('[DEV-214] scanning from an agent', () => {
+    it('should name the agent in the response', async () => {
+      const result = await useCase.execute(
+        makeRequest({ agentId: AGENT })
+      );
+
+      expect(result.value!.agentId).toBe(AGENT);
+    });
+
+    it('should scan from the server when agentId is null', async () => {
+      const result = await useCase.execute(
+        makeRequest({ agentId: null })
+      );
+
+      expect(scanner.scan).toHaveBeenCalledWith(
+        '192.168.1.0/24',
+        null
+      );
+      expect(result.value!.agentId).toBeNull();
+      expect(agents.check).not.toHaveBeenCalled();
+    });
+
+    it('should fail when agentId is not an agent id', async () => {
+      const result = await useCase.execute(
+        makeRequest({ agentId: 'nope' })
+      );
+
+      expect(result.error).toBe('agentId must be an agent id');
+      expect(scanner.scan).not.toHaveBeenCalled();
+    });
+
+    it.each(['NOT_FOUND', 'REVOKED'] as const)(
+      'should fail when the agent is %s',
+      async (assignability) => {
+        agents.check.mockResolvedValue(Result.ok(assignability));
+
+        const result = await useCase.execute(
+          makeRequest({ agentId: AGENT })
+        );
+
+        expect(result.error).toBe(SCAN_AGENT_NOT_FOUND);
+        expect(scanner.scan).not.toHaveBeenCalled();
+      }
+    );
+
+    it('should fail when the agent cannot be checked', async () => {
+      agents.check.mockResolvedValue(Result.fail('db down'));
+
+      const result = await useCase.execute(
+        makeRequest({ agentId: AGENT })
+      );
+
+      expect(result.error).toBe('Failed to check the agent: db down');
     });
   });
 
@@ -158,7 +254,10 @@ describe('ScanNetworkSegmentUseCase', () => {
       );
 
       expect(scanner.scan).toHaveBeenCalledTimes(1);
-      expect(scanner.scan).toHaveBeenCalledWith('192.168.1.0/24');
+      expect(scanner.scan).toHaveBeenCalledWith(
+        '192.168.1.0/24',
+        null
+      );
     });
 
     it('should call scanner.scan exactly once per execution', async () => {
@@ -185,7 +284,7 @@ describe('ScanNetworkSegmentUseCase', () => {
     });
 
     it('should return responsiveCount equal to the number of discovered hosts', async () => {
-      scanner.scan.mockResolvedValue([makeHost(), makeHost()]);
+      found([makeHost(), makeHost()]);
 
       const result = await useCase.execute(makeRequest());
 
@@ -193,7 +292,7 @@ describe('ScanNetworkSegmentUseCase', () => {
     });
 
     it('should return zero responsiveCount when no hosts are found', async () => {
-      scanner.scan.mockResolvedValue([]);
+      found([]);
 
       const result = await useCase.execute(makeRequest());
 
@@ -207,7 +306,7 @@ describe('ScanNetworkSegmentUseCase', () => {
         macAddress: 'DC:A6:32:00:11:22',
         manufacturer: 'Raspberry Pi'
       });
-      scanner.scan.mockResolvedValue([host]);
+      found([host]);
 
       const result = await useCase.execute(makeRequest());
 
@@ -221,7 +320,7 @@ describe('ScanNetworkSegmentUseCase', () => {
 
     it('should include hosts with null macAddress and manufacturer', async () => {
       const host = makeHost({ macAddress: null, manufacturer: null });
-      scanner.scan.mockResolvedValue([host]);
+      found([host]);
 
       const result = await useCase.execute(makeRequest());
 
@@ -231,7 +330,7 @@ describe('ScanNetworkSegmentUseCase', () => {
     });
 
     it('should return an empty discoveredHosts array when no hosts respond', async () => {
-      scanner.scan.mockResolvedValue([]);
+      found([]);
 
       const result = await useCase.execute(makeRequest());
 
@@ -308,7 +407,7 @@ describe('ScanNetworkSegmentUseCase', () => {
         makeHost({ ipAddress: '10.0.0.2' }),
         makeHost({ ipAddress: '10.0.0.3' })
       ];
-      scanner.scan.mockResolvedValue(hosts);
+      found(hosts);
 
       const result = await useCase.execute(
         makeRequest({ segment: '10.0.0.0/24' })
@@ -322,7 +421,7 @@ describe('ScanNetworkSegmentUseCase', () => {
   describe('[DEV-200] executeImpl — sightings', () => {
     it('should record every responsive host as a scan of the segment', async () => {
       const hosts = [makeHost({ ipAddress: '10.0.0.1' })];
-      scanner.scan.mockResolvedValue(hosts);
+      found(hosts);
 
       await useCase.execute(
         makeRequest({ segment: ' 10.0.0.0/24 ' })
@@ -339,7 +438,7 @@ describe('ScanNetworkSegmentUseCase', () => {
     });
 
     it('should mark each host with what the recorder matched', async () => {
-      scanner.scan.mockResolvedValue([
+      found([
         makeHost({ ipAddress: '10.0.0.1' }),
         makeHost({ ipAddress: '10.0.0.2' })
       ]);
@@ -386,6 +485,17 @@ describe('ScanNetworkSegmentUseCase', () => {
   });
 
   describe('executeImpl — scanner failures', () => {
+    it('should fail with the scanner error', async () => {
+      scanner.scan.mockResolvedValue(
+        Result.fail('Scan failed: Network timeout')
+      );
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.error).toBe('Scan failed: Network timeout');
+      expect(recorder.record).not.toHaveBeenCalled();
+    });
+
     it('should fail with the scanner error when the scanner throws', async () => {
       scanner.scan.mockRejectedValue(new Error('Network timeout'));
 

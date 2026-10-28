@@ -146,11 +146,13 @@ describe('Agent network sweep — end to end, server hosted off site', () => {
       enroll: (key) => enrollAgent(key),
       config: new ConfigStore(dataDir),
       buffer,
+      // Never ticks: a scheduled ping of the dead device would store the
+      // result MON-080 says the sweep must not.
       scheduler: new PollScheduler(
         ping,
         (result) => buffer.add(result),
         logger,
-        { tickMs: 50 }
+        { tickMs: 600_000 }
       ),
       probes: new ProbeRunner(
         ping,

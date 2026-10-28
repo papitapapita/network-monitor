@@ -43,7 +43,7 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 | **Application + Domain**              |    12 | DEV-031, DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160, DEV-182, DEV-183, DEV-185, DEV-194, DEV-200 |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
 | **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
-| **Infrastructure + Application**      |    12 | DEV-072, DEV-084, DEV-148, DEV-149, DEV-186, DEV-190, DEV-201, DEV-203, DEV-206, DEV-208, DEV-209, DEV-212 |
+| **Infrastructure + Application**      |    13 | DEV-072, DEV-084, DEV-148, DEV-149, DEV-186, DEV-190, DEV-201, DEV-203, DEV-206, DEV-208, DEV-209, DEV-212, DEV-214 |
 | **Presentation**                      |     4 | DEV-140, DEV-146, DEV-170, DEV-213                                                                                                                                                                                                                                                                                                                                                                         |
 
 **Half the book sits outside the domain, and most of it belongs there.** The
@@ -2516,9 +2516,11 @@ a known scaling limit, see [G-7](#known-gaps).
 **Layer:** Application (not in domain)
 **Since:** 2026-07-28
 
-`segment` is required and non-blank. The response reports how many addresses
-were scanned, derived from the CIDR prefix: `2^(32−prefix)`, minus network and
-broadcast addresses for prefixes below /31.
+`segment` is required and non-blank. A segment that is not an IPv4 CIDR, or is
+wider than a /22 (more than 1,024 addresses), fails with `Scan failed: …` (`400`)
+before anything is pinged, from the server or an agent (DEV-214). The response
+reports how many addresses were scanned, derived from the CIDR prefix:
+`2^(32−prefix)`, minus network and broadcast addresses for prefixes below /31.
 
 **Why:** Subtracting the two reserved addresses makes `scannedCount` the number
 of hosts that could actually have answered, so the responsive/scanned ratio is
@@ -2527,8 +2529,8 @@ meaningful. /31 and /32 are exempt because they have no reserved pair.
 Every responsive host is also matched against inventory and recorded as a
 sighting (DEV-200 – DEV-207).
 
-**Enforced at:** `src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.ts` (`beforeExecute`, `calculateCidrHostCount`)
-**Message:** `segment is required`
+**Enforced at:** `src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.ts` (`beforeExecute`, `calculateCidrHostCount`), `src/infrastructure/monitoring/network-scanner/SegmentScanner.ts`
+**Message:** `segment is required` / `Scan failed: Invalid CIDR …` / `Scan failed: CIDR range too large: maximum 1024 host addresses allowed`
 **Tests:** `tests/integration/use-cases/device-inventory/ScanNetworkSegmentUseCase.integration.test.ts`
 
 ### DEV-144 — Setting or clearing device credentials is administrator-only
@@ -2980,25 +2982,26 @@ access; placing devices behind an existing agent does not.
 **Enforced at:** `src/presentation/http/routes/device.routes.ts` (`authorize`)
 **Tests:** `tests/integration/device.routes.test.ts`
 
-### DEV-171 — A server hosted off site cannot scan the network
+### DEV-171 — A server hosted off site cannot scan the network itself
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application (not in domain)
 **Since:** 2026-09-29
 
 When the install says its server is not on the monitored network
-(`SERVER_ON_SITE=false`, INS-041), `POST /api/network/scan` is refused with
-`409` before anything is swept.
+(`SERVER_ON_SITE=false`, INS-041), `POST /api/network/scan` with no `agentId`
+is refused with `409` before anything is swept. A scan through an agent is
+allowed (DEV-214).
 
 **Why:** The scan sends pings from the server's own machine. Off site, a
 private segment such as `192.168.1.0/24` would be looked up on the hosting
 provider's network, and the result would list someone else's hosts, or
-nothing, as if it were the customer's network. Scanning through an agent is
-not built yet. The scheduled scan follows the same rule (DEV-212).
+nothing, as if it were the customer's network. The agent is on the customer's
+network. The scheduled scan follows the same rule (DEV-212).
 
 **Enforced at:** `src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.ts` (`beforeExecute`)
 **Reached from:** `POST /api/network/scan` via `ScanController.scan`
-**Message:** `Network scan is not available — this server is not on the monitored network`
+**Message:** `This server is not on the monitored network: choose an agent to scan from`
 **Tests:** `tests/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.test.ts`, `tests/integration/scan.routes.test.ts`
 
 ### DEV-172 — The device list can be narrowed to one agent, or to the devices with none
@@ -3615,19 +3618,17 @@ within minutes, with no restart.
 A segment's agent must exist and not be revoked when the settings are saved. A
 pending agent counts, as it does for devices (DEV-165). On an install whose
 server is not on the monitored network (DEV-171), a segment with no agent is
-refused with `409` when saved and skipped at each run. Agents cannot sweep yet,
-so until agent 0.9.0 ships an agent segment is saved and its runs are reported
-as not available. A segment whose agent was revoked after saving fails at its
-run the same way.
+refused with `409` when saved and skipped at each run. An agent segment is swept
+by its agent (DEV-214). One whose agent is offline, older than 0.9.0, or was
+revoked after saving fails at its run with the agent's reason, and the run goes
+on to the next segment.
 
 **Why:** From off site, the server would ping the hosting provider's network
 instead of the customer's (DEV-171). The agent is on the customer's network.
-Agent segments are accepted already so the settings survive the agent upgrade
-unchanged.
 
 **Enforced at:** `src/application/device-inventory/use-cases/UpdateDiscoverySettingsUseCase.ts`, `src/application/device-inventory/use-cases/RunScheduledDiscoveryUseCase.ts`, `src/infrastructure/monitoring/network-scanner/SegmentScanner.ts`
 **Reached from:** `PUT /api/network/discovery-settings`, the scheduled run
-**Message:** `segment <cidr>: agentId must be an agent that is not revoked` / `segment <cidr> needs an agent — this server is not on the monitored network` / `Scanning through an agent is not available yet`
+**Message:** `segment <cidr>: agentId must be an agent that is not revoked` / `segment <cidr> needs an agent — this server is not on the monitored network` / `The agent could not scan: <reason>`
 **Tests:** `tests/application/device-inventory/use-cases/UpdateDiscoverySettingsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDiscoverySettingsUseCase.integration.test.ts`, `tests/infrastructure/monitoring/network-scanner/SegmentScanner.test.ts`, `tests/integration/use-cases/device-inventory/RunScheduledDiscoveryUseCase.integration.test.ts`, `tests/integration/discovery-settings.routes.test.ts`
 
 ### DEV-213 — Everyone reads the scan settings; only an administrator changes them
@@ -3646,6 +3647,42 @@ showed up as a suggestion.
 
 **Enforced at:** `src/presentation/http/routes/discovery-settings.routes.ts`
 **Tests:** `tests/integration/discovery-settings.routes.test.ts`
+
+### DEV-214 — A segment can be scanned from a probe agent
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure + Application
+**Since:** 2026-10-27
+
+`POST /api/network/scan` takes an optional `agentId`. With one, the segment is
+scanned from that agent's PC, on site or off. Without one (or `null`), the
+server scans it itself (DEV-171). The response names the agent in `agentId`,
+`null` for the server.
+
+The agent must exist and not be revoked; a pending agent counts, as for
+devices (DEV-165). Otherwise the scan fails with `Agent not found` (`404`)
+before anything is sent. A malformed id fails with `agentId must be an agent
+id` (`400`).
+
+The agent pings the segment and reads its ARP table (`AGT-121`). It answers
+with each host that replied and its MAC, or no MAC when the host is behind a
+router. The server looks up each MAC's manufacturer itself and drops any
+address outside the segment. From there the hosts are matched and recorded
+exactly as for a server scan (DEV-200 – DEV-207). A scan the agent cannot run
+fails with `The agent could not scan: <reason>` (`502`) and records nothing.
+The reason is that the agent is not connected, is older than 0.9.0 ("The agent
+must be updated to scan the network"), did not answer within 90 seconds, or
+answered an error. The scheduled scan sweeps its agent segments the same way
+(DEV-212).
+
+**Why:** Off site the server cannot reach the customer's network, and only a
+PC on the segment learns the MACs that make a host a suggestion. The
+manufacturer is looked up on the server so the agent carries no vendor table.
+
+**Enforced at:** `src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.ts` (`beforeExecute`), `src/infrastructure/monitoring/network-scanner/SegmentScanner.ts`, `src/infrastructure/probe-agents/adapters/AgentChannelHostDiscovery.ts`, `src/presentation/http/controllers/ScanController.ts`
+**Reached from:** `POST /api/network/scan` via `ScanController.scan`, the scheduled run
+**Message:** `Agent not found` / `agentId must be an agent id` / `The agent could not scan: <reason>`
+**Tests:** `tests/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ScanNetworkSegmentUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/RunScheduledDiscoveryUseCase.integration.test.ts`, `tests/infrastructure/monitoring/network-scanner/SegmentScanner.test.ts`, `tests/integration/scan.routes.test.ts`, `tests/integration/agent-discover.test.ts`
 
 ---
 

@@ -123,7 +123,26 @@ describe('ScanController', () => {
         await controller.scan(mockReq as Request, res as Response);
 
         expect(mockScanUseCase.execute).toHaveBeenCalledWith({
-          segment: '10.0.0.0/8'
+          segment: '10.0.0.0/8',
+          agentId: undefined
+        });
+      });
+
+      it('[DEV-214] should pass the agent to scan from', async () => {
+        const mockReq = createMockRequest({
+          body: { segment: '10.0.0.0/24', agentId: 'agent-1' }
+        });
+        const { res } = createMockResponse();
+
+        (mockScanUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.ok(mockScanResultDTO)
+        );
+
+        await controller.scan(mockReq as Request, res as Response);
+
+        expect(mockScanUseCase.execute).toHaveBeenCalledWith({
+          segment: '10.0.0.0/24',
+          agentId: 'agent-1'
         });
       });
 
@@ -172,6 +191,24 @@ describe('ScanController', () => {
           success: false,
           error: 'DeviceModel not found: default-model-id'
         });
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    describe('[DEV-214] Error Path — 502 Bad Gateway', () => {
+      it('should return 502 when the agent could not scan, even for an invalid answer', async () => {
+        const mockReq = createMockRequest({
+          body: { segment: '192.168.1.0/24', agentId: 'agent-1' }
+        });
+        const { res, statusMock } = createMockResponse();
+
+        (mockScanUseCase.execute as jest.Mock).mockResolvedValue(
+          Result.fail('The agent could not scan: Invalid CIDR prefix')
+        );
+
+        await controller.scan(mockReq as Request, res as Response);
+
+        expect(statusMock).toHaveBeenCalledWith(502);
       });
     });
 

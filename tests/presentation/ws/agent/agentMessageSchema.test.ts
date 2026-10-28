@@ -57,6 +57,9 @@ describe('parseAgentMessage', () => {
     expect(hello(['hostname', 'probe'])).toMatchObject({
       capabilities: ['probe', 'hostname']
     });
+    expect(hello(['discover', 'probe'])).toMatchObject({
+      capabilities: ['probe', 'discover']
+    });
     expect(hello()).toMatchObject({ capabilities: [] });
     expect(hello('probe')).toBeNull();
   });
@@ -172,6 +175,37 @@ describe('parseAgentMessage', () => {
     };
 
     expect(ok(answer)).toEqual(answer);
+  });
+
+  it('[AGT-121] accepts a discover answer, with or without a MAC', () => {
+    const answer = {
+      type: 'probe.result',
+      requestId: 'd-1',
+      kind: 'discover',
+      at: 1,
+      hosts: [
+        { ip: '10.0.0.1', mac: 'DC:2C:6E:11:22:33', latencyMs: 2 },
+        { ip: '10.0.0.9', mac: null, latencyMs: null }
+      ]
+    };
+
+    expect(ok(answer)).toEqual(answer);
+  });
+
+  it('[AGT-121] rejects a discover answer with more hosts than a /22 holds', () => {
+    expect(
+      ok({
+        type: 'probe.result',
+        requestId: 'd-1',
+        kind: 'discover',
+        at: 1,
+        hosts: Array.from({ length: 1023 }, (_, i) => ({
+          ip: `10.0.${i >> 8}.${i & 255}`,
+          mac: null,
+          latencyMs: 1
+        }))
+      })
+    ).toBeNull();
   });
 
   it('[AGT-111] accepts every shape of enforce answer', () => {

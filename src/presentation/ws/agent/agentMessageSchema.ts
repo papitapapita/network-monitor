@@ -4,6 +4,7 @@ import {
   AGENT_PLATFORMS,
   AgentMessage,
   MAX_BACKUP_CONFIG_BYTES,
+  MAX_DISCOVER_HOSTS,
   MAX_SWEEP_TARGETS,
   MAX_TRAFFIC_INTERFACES
 } from 'agent/protocol';
@@ -120,7 +121,7 @@ const pingReading = z.union([
   })
 ]);
 
-// Seven shapes under one type, so it is its own union inside the
+// Eight shapes under one type, so it is its own union inside the
 // discriminated one.
 const probeResult = z.union([
   z.object({
@@ -176,6 +177,21 @@ const probeResult = z.union([
     requestId,
     kind: z.literal('hostname'),
     at: epochMs
+  }),
+  z.object({
+    type: z.literal('probe.result'),
+    requestId,
+    kind: z.literal('discover'),
+    at: epochMs,
+    hosts: z
+      .array(
+        z.object({
+          ip: z.string().max(64),
+          mac: z.string().max(64).nullable(),
+          latencyMs: z.number().nonnegative().nullable()
+        })
+      )
+      .max(MAX_DISCOVER_HOSTS)
   }),
   z.object({
     type: z.literal('probe.result'),

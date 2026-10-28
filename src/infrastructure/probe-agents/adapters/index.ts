@@ -5,3 +5,4 @@ export * from './AgentChannelConfigFetcher';
 export * from './AgentChannelTrafficReader';
 export * from './AgentChannelSweepProbe';
 export * from './AgentChannelRadioSettings';
+export * from './AgentChannelHostDiscovery';

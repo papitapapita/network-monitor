@@ -1,8 +1,3 @@
-import getVendorImport from 'mac-oui-lookup';
-// mac-oui-lookup ships as CJS with a .default re-export; normalise at import time.
-const getVendor: (mac: string) => string | null =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (getVendorImport as any).default ?? getVendorImport;
 import { IPingService } from 'application/device-monitoring/interfaces';
 import {
   INetworkScannerService,
@@ -10,6 +5,7 @@ import {
   DiscoveredHost
 } from 'application/device-inventory/interfaces';
 import { expandCidr } from './utils/expandCidr';
+import { lookupManufacturer } from './utils/lookupManufacturer';
 
 /**
  * Infrastructure implementation of INetworkScannerService.
@@ -74,8 +70,7 @@ export class NetworkScannerService implements INetworkScannerService {
 
           // Manufacturer lookup is synchronous and never throws per mac-oui-lookup
           // contract; a null MAC produces a null manufacturer.
-          const manufacturer =
-            macAddress !== null ? getVendor(macAddress) : null;
+          const manufacturer = lookupManufacturer(macAddress);
 
           return {
             ipAddress: ip,

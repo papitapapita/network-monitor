@@ -738,4 +738,130 @@ describe('ProbeRunner', () => {
       expect('error' in result).toBe(true);
     });
   });
+
+  describe('discover', () => {
+    let sweepPing: { run: jest.Mock };
+    let arp: { read: jest.Mock };
+
+    const discoverRequest = (cidr: string): ProbeRequestMessage => ({
+      type: 'probe',
+      requestId: 'd-1',
+      kind: 'discover',
+      cidr
+    });
+
+    beforeEach(() => {
+      sweepPing = {
+        run: jest.fn(async (ip: string) =>
+          ip === '10.0.0.1' || ip === '10.0.0.9'
+            ? {
+                kind: 'measured',
+                isReachable: true,
+                latencyMs: 3,
+                attempts: 1
+              }
+            : {
+                kind: 'measured',
+                isReachable: false,
+                latencyMs: null,
+                attempts: 1
+              }
+        )
+      };
+      arp = {
+        read: jest.fn(
+          async () =>
+            new Map([
+              ['10.0.0.1', 'DC:2C:6E:11:22:33'],
+              ['10.0.0.50', 'AA:BB:CC:DD:EE:01']
+            ])
+        )
+      };
+      runner = new ProbeRunner(
+        ping,
+        new WirelessCollectorRegistry({}),
+        new ConfigFetcherRegistry([]),
+        traffic,
+        logger,
+        { maxConcurrent: 4, maxQueued: 100 },
+        sweepPing,
+        new RadioHostnameWriterRegistry({}),
+        arp
+      );
+    });
+
+    it('[AGT-121] pings every address once and answers those that replied, with their MAC', async () => {
+      const result = await runner.run(discoverRequest('10.0.0.0/28'));
+
+      expect(ping.run).not.toHaveBeenCalled();
+      expect(sweepPing.run).toHaveBeenCalledTimes(14);
+      expect(sweepPing.run).toHaveBeenCalledWith('10.0.0.1', 1);
+      expect(arp.read).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({
+        type: 'probe.result',
+        requestId: 'd-1',
+        kind: 'discover',
+        at: expect.any(Number),
+        hosts: [
+          { ip: '10.0.0.1', mac: 'DC:2C:6E:11:22:33', latencyMs: 3 },
+          { ip: '10.0.0.9', mac: null, latencyMs: 3 }
+        ]
+      });
+    });
+
+    it('[AGT-121] pings at most 64 addresses at once', async () => {
+      let inFlight = 0;
+      let peak = 0;
+      sweepPing.run.mockImplementation(async () => {
+        inFlight++;
+        peak = Math.max(peak, inFlight);
+        await new Promise((resolve) => setImmediate(resolve));
+        inFlight--;
+        return {
+          kind: 'measured',
+          isReachable: false,
+          latencyMs: null,
+          attempts: 1
+        };
+      });
+
+      await runner.run(discoverRequest('10.0.0.0/24'));
+
+      expect(sweepPing.run).toHaveBeenCalledTimes(254);
+      expect(peak).toBe(64);
+    });
+
+    it('[AGT-121] answers the hosts without MACs when the ARP table cannot be read', async () => {
+      arp.read.mockRejectedValue(new Error('spawn arp ENOENT'));
+
+      const result = await runner.run(discoverRequest('10.0.0.0/28'));
+
+      expect(result).toMatchObject({
+        kind: 'discover',
+        hosts: [
+          { ip: '10.0.0.1', mac: null },
+          { ip: '10.0.0.9', mac: null }
+        ]
+      });
+    });
+
+    it('[AGT-121] refuses a segment wider than a /22', async () => {
+      const result = await runner.run(discoverRequest('10.0.0.0/21'));
+
+      expect(sweepPing.run).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        type: 'probe.result',
+        requestId: 'd-1',
+        error:
+          'CIDR range too large: maximum 1024 host addresses allowed'
+      });
+    });
+
+    it('[AGT-121] refuses a segment that is not a CIDR', async () => {
+      const result = await runner.run(discoverRequest('10.0.0.1'));
+
+      expect(result).toMatchObject({ requestId: 'd-1' });
+      expect('error' in result).toBe(true);
+    });
+  });
 });

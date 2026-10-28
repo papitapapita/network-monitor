@@ -44,6 +44,14 @@ export interface AgentRadioRequest {
   credentials: DecryptedCredentials;
 }
 
+// A host that answered an agent's scan (AGT-121). The MAC is the one the
+// agent's ARP table holds: null when the host is behind a router.
+export interface AgentDiscoveredHost {
+  ipAddress: string;
+  macAddress: string | null;
+  latencyMs: number | null;
+}
+
 export interface AgentHostnameRequest {
   ipAddress: string;
   vendor: string;
@@ -91,4 +99,11 @@ export interface IAgentProbeChannel {
     agentId: string,
     request: AgentHostnameRequest
   ): Promise<AgentProbeOutcome<null>>;
+
+  // AGT-121: only an agent that names `discover` is asked. The hosts that
+  // answered, in address order.
+  discover(
+    agentId: string,
+    cidr: string
+  ): Promise<AgentProbeOutcome<AgentDiscoveredHost[]>>;
 }

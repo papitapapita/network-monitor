@@ -3655,12 +3655,13 @@ interface AlertListItemDTO extends AlertDTO {
 
 ### `POST /api/network/scan` — Scan a network segment
 
-**Status:** 200 | 400 | 404 | 409 | 500
+**Status:** 200 | 400 | 404 | 409 | 500 | 502
 
 ```ts
 // Request body
 {
   segment: string   // required — IPv4 CIDR block, e.g. "192.168.1.0/24"; max range /22
+  agentId?: string | null  // scan from this agent's PC; absent or null = from the server
 }
 
 // Response
@@ -3668,6 +3669,7 @@ interface AlertListItemDTO extends AlertDTO {
   success: true,
   data: {
     segment: string            // the CIDR block that was scanned
+    agentId: string | null     // the agent that scanned it; null = the server
     scannedCount: number       // total IP addresses probed
     responsiveCount: number    // hosts that replied to ICMP ping
     newCount: number           // hosts this scan found for the first time
@@ -3687,11 +3689,14 @@ interface AlertListItemDTO extends AlertDTO {
 > Probes every host in the CIDR range via ICMP ping and returns all responsive hosts with their latency, MAC address, and manufacturer (where resolvable).  
 > Each host is matched against inventory: `knownDeviceId` is the live device with its MAC, or else its IP (DEV-201) — link it to that device. A host inventory lacks, with a MAC, becomes a suggestion listed at `GET /api/network/discovered` (`discoveredDeviceId`, DEV-200); show it with a "Crear dispositivo" action. A host with no MAC is shown but never suggested.  
 > When a scan or an AP poll finds hosts never suggested before, every user gets one inbox notice (type `device_discovered`, category `device`, `deviceId: null`) — link it to the discovered devices screen (DEV-206).  
-> Returns 400 if the segment is invalid or the range exceeds /22 (1 024 usable hosts).  
+> **Scanning from an agent (DEV-214):** pass `agentId` to scan from that agent's PC (agent 0.9.0 or later). Offer an agent picker (`GET /api/agents`) on the scan form, with "Servidor" as the null option only on site. A host behind a router from the agent's PC comes back with no MAC, as from the server. An agent scan of a /24 takes about 5 seconds, a /22 up to about 20.  
+> Returns 400 if the segment is invalid or the range exceeds /22 (1 024 usable hosts): `Scan failed: Invalid CIDR …` / `Scan failed: CIDR range too large: maximum 1024 host addresses allowed`. Also 400 `agentId must be an agent id` for a malformed id.  
+> Returns 404 `Agent not found` when the agent does not exist or is revoked.  
+> Returns 409 `{ success: false, error: "This server is not on the monitored network: choose an agent to scan from" }`
+> for a scan with no `agentId` on an install whose server is not on the monitored network
+> (`SERVER_ON_SITE=false`, DEV-171). On such installs make the agent picker required and drop the "Servidor" option.  
+> Returns 502 `The agent could not scan: <reason>` when the agent is not connected, too old ("The agent must be updated to scan the network"), did not answer within 90 seconds, or failed. Show the reason as is.  
 > Returns 500 on unexpected infrastructure errors.
-> Returns 409 `{ success: false, error: "Network scan is not available — this server is not on the monitored network" }`
-> on an install whose server is not on the monitored network
-> (`SERVER_ON_SITE=false`, DEV-171). Hide the scan screen on such installs.
 
 ---
 
@@ -3815,7 +3820,7 @@ type DiscoverySettings = {
 > The server checks every 5 minutes; a run starts once `intervalHours` have passed since `lastRunAt` (right away when there is no `lastRunAt`). Segments are swept one after another. Saving keeps `lastRunAt`, so shortening the interval can start a run at the next check.  
 > `400` with the reason, e.g. `segment "10.0.0.0/16" must be an IPv4 CIDR from /22 to /30`, `intervalHours must be a whole number from 1 to 168`, `segment 10.0.0.0/24 is listed twice for the same scanner`, `segment 10.0.0.0/24: agentId must be an agent that is not revoked`.  
 > `409` `segment 192.168.1.0/24 needs an agent — this server is not on the monitored network` on an install whose server is off site (`SERVER_ON_SITE=false`, DEV-212): there, every segment needs an `agentId`. Offer the agent picker (`GET /api/agents`) per segment, with "Servidor" as the null option only on site.  
-> Agent segments can be saved now, but agents cannot sweep yet: until agent 0.9.0 ships, their runs are skipped and logged.
+> An agent segment is swept by its agent (agent 0.9.0 or later, DEV-214). A run whose agent is offline or too old skips that segment and logs why; the other segments still run.
 
 ---
 

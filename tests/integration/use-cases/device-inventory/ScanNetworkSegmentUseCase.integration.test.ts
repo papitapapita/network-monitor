@@ -1,12 +1,20 @@
 // Source: src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.ts
 
 import { PrismaClient } from '../../../../src/generated/prisma/client';
-import { ScanNetworkSegmentUseCase } from 'application/device-inventory/use-cases/ScanNetworkSegmentUseCase';
+import {
+  ScanNetworkSegmentUseCase,
+  SCAN_AGENT_NOT_FOUND,
+  SCAN_NEEDS_SERVER_ON_SITE
+} from 'application/device-inventory/use-cases/ScanNetworkSegmentUseCase';
+import { SegmentScanner } from 'infrastructure/monitoring/network-scanner';
+import { PrismaAgentAssignmentQuery } from 'infrastructure/probe-agents/queries';
+import { FakeAgentHostDiscovery } from '../../helpers/FakeAgentHostDiscovery';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import { FakeNetworkScannerService } from '../../helpers/FakeNetworkScannerService';
 import {
   createTestPrisma,
   cleanDatabase,
+  seedAgent,
   seedDeviceModel
 } from '../../helpers/db';
 import {
@@ -19,19 +27,29 @@ import {
 describe('ScanNetworkSegmentUseCase — integration', () => {
   let prisma: PrismaClient;
   let scanner: FakeNetworkScannerService;
+  let agents: FakeAgentHostDiscovery;
   let notifier: FakeDiscoveryNotifier;
   let useCase: ScanNetworkSegmentUseCase;
 
   beforeAll(() => {
     prisma = createTestPrisma();
     scanner = new FakeNetworkScannerService();
+    agents = new FakeAgentHostDiscovery();
     notifier = new FakeDiscoveryNotifier();
-    useCase = new ScanNetworkSegmentUseCase(
-      scanner,
-      makeSightingRecorder(prisma, notifier),
-      new WinstonLogger()
-    );
+    useCase = makeUseCase();
   });
+
+  function makeUseCase(
+    serverOnSite = true
+  ): ScanNetworkSegmentUseCase {
+    return new ScanNetworkSegmentUseCase(
+      new SegmentScanner(scanner, agents),
+      makeSightingRecorder(prisma, notifier),
+      new PrismaAgentAssignmentQuery(prisma),
+      new WinstonLogger(),
+      serverOnSite
+    );
+  }
 
   afterAll(async () => {
     await prisma.$disconnect();
@@ -39,6 +57,7 @@ describe('ScanNetworkSegmentUseCase — integration', () => {
 
   beforeEach(async () => {
     scanner.reset();
+    agents.reset();
     notifier.reset();
     await cleanDatabase(prisma);
   });
@@ -126,10 +145,13 @@ describe('ScanNetworkSegmentUseCase — integration', () => {
     expect(result.value.scannedCount).toBe(254);
   });
 
-  it('[DEV-143] excludes network and broadcast addresses for a /16', async () => {
+  it('[DEV-143] refuses a /16 before sweeping it', async () => {
     const result = await useCase.execute({ segment: '10.0.0.0/16' });
 
-    expect(result.value.scannedCount).toBe(65534);
+    expect(result.error).toBe(
+      'Scan failed: CIDR range too large: maximum 1024 host addresses allowed'
+    );
+    expect(scanner.callCount).toBe(0);
   });
 
   it('[DEV-143] counts both addresses in a /31 point-to-point link', async () => {
@@ -144,18 +166,20 @@ describe('ScanNetworkSegmentUseCase — integration', () => {
     expect(result.value.scannedCount).toBe(1);
   });
 
-  it('[DEV-143] reports zero scanned for a segment with no prefix', async () => {
+  it('[DEV-143] fails for a segment with no prefix', async () => {
     const result = await useCase.execute({ segment: '10.0.0.1' });
 
-    expect(result.isSuccess).toBe(true);
-    expect(result.value.scannedCount).toBe(0);
+    expect(result.error).toContain(
+      'Scan failed: Invalid CIDR format'
+    );
   });
 
-  it('[DEV-143] reports zero scanned for an out-of-range prefix', async () => {
+  it('[DEV-143] fails for an out-of-range prefix', async () => {
     const result = await useCase.execute({ segment: '10.0.0.0/33' });
 
-    expect(result.isSuccess).toBe(true);
-    expect(result.value.scannedCount).toBe(0);
+    expect(result.error).toContain(
+      'Scan failed: Invalid CIDR prefix'
+    );
   });
 
   // ──────────────────────────────────────────────────────────────
@@ -359,6 +383,100 @@ describe('ScanNetworkSegmentUseCase — integration', () => {
 
       expect(await prisma.discoveredDevice.count()).toBe(0);
       expect(result.value.newCount).toBe(0);
+    });
+  });
+
+  describe('[DEV-214] from an agent', () => {
+    it('scans from the agent, even off site, and records what it found', async () => {
+      const agent = await seedAgent(prisma, { status: 'ACTIVE' });
+      agents.setHosts([
+        {
+          ipAddress: '10.0.0.7',
+          macAddress: 'AA:BB:CC:DD:EE:07',
+          latencyMs: 5
+        }
+      ]);
+
+      const result = await makeUseCase(false).execute({
+        segment: '10.0.0.0/24',
+        agentId: agent.id
+      });
+
+      expect(agents.calls).toEqual([
+        { agentId: agent.id, cidr: '10.0.0.0/24' }
+      ]);
+      expect(scanner.callCount).toBe(0);
+      expect(result.value).toMatchObject({
+        agentId: agent.id,
+        responsiveCount: 1,
+        newCount: 1
+      });
+      expect(await prisma.discoveredDevice.count()).toBe(1);
+    });
+
+    it('a pending agent may scan before its installer runs', async () => {
+      const agent = await seedAgent(prisma);
+
+      const result = await useCase.execute({
+        segment: '10.0.0.0/24',
+        agentId: agent.id
+      });
+
+      expect(result.isSuccess).toBe(true);
+    });
+
+    it('fails for a revoked agent without asking it', async () => {
+      const agent = await seedAgent(prisma, { status: 'REVOKED' });
+
+      const result = await useCase.execute({
+        segment: '10.0.0.0/24',
+        agentId: agent.id
+      });
+
+      expect(result.error).toBe(SCAN_AGENT_NOT_FOUND);
+      expect(agents.calls).toEqual([]);
+    });
+
+    it('fails for an agent that does not exist', async () => {
+      const result = await useCase.execute({
+        segment: '10.0.0.0/24',
+        agentId: '0b9c6f0e-3f4a-4c55-9a51-6f7d2a1c8e10'
+      });
+
+      expect(result.error).toBe(SCAN_AGENT_NOT_FOUND);
+    });
+
+    it('fails for a malformed agent id', async () => {
+      const result = await useCase.execute({
+        segment: '10.0.0.0/24',
+        agentId: 'not-an-id'
+      });
+
+      expect(result.error).toBe('agentId must be an agent id');
+    });
+
+    it('fails with why the agent could not scan, recording nothing', async () => {
+      const agent = await seedAgent(prisma, { status: 'ACTIVE' });
+      agents.failWith('The agent did not answer in time');
+
+      const result = await useCase.execute({
+        segment: '10.0.0.0/24',
+        agentId: agent.id
+      });
+
+      expect(result.error).toBe(
+        'The agent could not scan: The agent did not answer in time'
+      );
+      expect(await prisma.discoveredDevice.count()).toBe(0);
+    });
+
+    it('off site without an agent it still refuses', async () => {
+      const result = await makeUseCase(false).execute({
+        segment: '10.0.0.0/24'
+      });
+
+      expect(result.error).toBe(SCAN_NEEDS_SERVER_ON_SITE);
+      expect(scanner.callCount).toBe(0);
     });
   });
 });

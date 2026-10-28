@@ -34,16 +34,18 @@ export const CloseCode = {
 // sends a probe request only to an agent that named `probe` in its hello,
 // an enforce request only to one that named `enforce` (AGT-110), a backup
 // request only to one that named `backup` (AGT-113), a traffic request only
-// to one that named `traffic` (AGT-116), and a sweep request only to one
-// that named `sweep` (AGT-119), so an older agent never receives a request
-// it does not understand.
+// to one that named `traffic` (AGT-116), a sweep request only to one
+// that named `sweep` (AGT-119), and a discover request only to one that
+// named `discover` (AGT-121), so an older agent never receives a request it
+// does not understand.
 export type AgentCapability =
   | 'probe'
   | 'enforce'
   | 'backup'
   | 'traffic'
   | 'sweep'
-  | 'hostname';
+  | 'hostname'
+  | 'discover';
 
 export const AGENT_CAPABILITIES: readonly AgentCapability[] = [
   'probe',
@@ -51,7 +53,8 @@ export const AGENT_CAPABILITIES: readonly AgentCapability[] = [
   'backup',
   'traffic',
   'sweep',
-  'hostname'
+  'hostname',
+  'discover'
 ];
 
 // ── Agent → backend ───────────────────────────────────────────────────────
@@ -218,6 +221,17 @@ export interface InterfaceTrafficWire {
 // so a batch of dead devices still answers in a few seconds.
 export const MAX_SWEEP_TARGETS = 32;
 
+// A /22, the widest segment a discover request may name (AGT-121).
+export const MAX_DISCOVER_HOSTS = 1022;
+
+// A host that answered a discover request's ping, with the MAC the agent's
+// ARP table holds for it: null when the host sits behind a router.
+export interface DiscoveredHostWire {
+  ip: string;
+  mac: string | null;
+  latencyMs: number | null;
+}
+
 // The answer to one probe request (AGT-101). `at` is the agent-clock time
 // the measurement started; `error` means it could not be made at all.
 export type ProbeResultMessage =
@@ -262,6 +276,13 @@ export type ProbeResultMessage =
       requestId: string;
       kind: 'hostname';
       at: number;
+    }
+  | {
+      type: 'probe.result';
+      requestId: string;
+      kind: 'discover';
+      at: number;
+      hosts: DiscoveredHostWire[];
     }
   | { type: 'probe.result'; requestId: string; error: string };
 
@@ -382,7 +403,9 @@ export type BackupDeviceKindWire =
 // reads the device's configuration with the backend's own fetchers
 // (AGT-114); a `traffic` reads a router's interface rates (AGT-117); a
 // `sweep` pings a batch of addresses at once with a short wait (AGT-119); a
-// `hostname` changes the name a radio gives itself (AGT-120).
+// `hostname` changes the name a radio gives itself (AGT-120); a `discover`
+// pings every address of a segment and reads the MACs of those that
+// answered (AGT-121).
 export type ProbeRequestMessage =
   | {
       type: 'probe';
@@ -431,6 +454,12 @@ export type ProbeRequestMessage =
       vendor: string;
       hostname: string;
       login: RadioLoginWire;
+    }
+  | {
+      type: 'probe';
+      requestId: string;
+      kind: 'discover';
+      cidr: string;
     };
 
 // The enforcement router's address and API login, sent with each enforce

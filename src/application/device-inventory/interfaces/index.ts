@@ -10,3 +10,4 @@ export * from './IDiscoveredDeviceListQuery';
 export * from './IDiscoveryNotifier';
 export * from './IDiscoveryPrefillQuery';
 export * from './ISegmentScanner';
+export * from './IAgentHostDiscovery';

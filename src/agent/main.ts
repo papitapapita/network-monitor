@@ -11,6 +11,7 @@ import {
 // gateway, which the agent has no use for.
 import { AirOsHostnameWriter } from 'infrastructure/wireless-monitoring/radio-settings/AirOsHostnameWriter';
 import { RadioHostnameWriterRegistry } from 'infrastructure/wireless-monitoring/radio-settings/RadioHostnameWriterRegistry';
+import { ArpTableReader } from 'infrastructure/monitoring/network-scanner/ArpTableReader';
 import {
   AGENT_CAPABILITIES,
   MAX_BACKUP_CONFIG_BYTES
@@ -153,7 +154,8 @@ async function main(): Promise<void> {
     new PingCycleProbe(new PingService(), 0, 1_000),
     new RadioHostnameWriterRegistry({
       ubiquiti: new AirOsHostnameWriter(new SshCommandClient())
-    })
+    }),
+    new ArpTableReader()
   );
   runtime = new AgentRuntime({
     credentials: new CredentialStore(

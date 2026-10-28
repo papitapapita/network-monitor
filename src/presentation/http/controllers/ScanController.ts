@@ -5,6 +5,7 @@ import {
   ScanNetworkSegmentUseCase,
   SCAN_NEEDS_SERVER_ON_SITE
 } from 'application/device-inventory/use-cases';
+import { AGENT_SCAN_FAILED } from 'application/device-inventory/interfaces';
 
 export class ScanController {
   constructor(
@@ -20,7 +21,8 @@ export class ScanController {
       const body = req.body as ScanNetworkSegmentInput;
 
       const result = await this.scanUseCase.execute({
-        segment: body.segment
+        segment: body.segment,
+        agentId: body.agentId
       });
 
       if (result.isFailure) {
@@ -40,6 +42,10 @@ export class ScanController {
   private getErrorStatusCode(errorMessage: string): number {
     if (errorMessage === SCAN_NEEDS_SERVER_ON_SITE) {
       return 409;
+    }
+
+    if (errorMessage.startsWith(AGENT_SCAN_FAILED)) {
+      return 502;
     }
 
     if (errorMessage.includes('not found')) {

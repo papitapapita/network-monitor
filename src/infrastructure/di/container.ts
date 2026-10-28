@@ -21,6 +21,7 @@ import {
   AgentChannelTrafficReader,
   AgentChannelPingProbe,
   AgentChannelSweepProbe,
+  AgentChannelHostDiscovery,
   AgentChannelRadioReader,
   AgentChannelRadioSettings,
   DeviceMonitoringPingResultSink
@@ -2111,9 +2112,15 @@ export class DependencyContainer {
         this.logger
       )
     );
-    const scanNetworkSegmentUseCase = new ScanNetworkSegmentUseCase(
+    // DEV-214: a segment is scanned from the server or from its agent.
+    const segmentScanner = new SegmentScanner(
       networkScannerService,
+      new AgentChannelHostDiscovery(connectedAgents)
+    );
+    const scanNetworkSegmentUseCase = new ScanNetworkSegmentUseCase(
+      segmentScanner,
       this.deviceSightingRecorder,
+      agentAssignmentQuery,
       this.logger,
       this.serverOnSite
     );
@@ -2166,7 +2173,7 @@ export class DependencyContainer {
     this.discoveryScanOrchestrator = new DiscoveryScanOrchestrator(
       new RunScheduledDiscoveryUseCase(
         discoverySettingsRepository,
-        new SegmentScanner(networkScannerService),
+        segmentScanner,
         this.deviceSightingRecorder,
         this.serverOnSite
       ),

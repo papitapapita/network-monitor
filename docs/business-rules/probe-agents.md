@@ -53,8 +53,8 @@ A rule enforced in two layers counts in both.
 | Domain                       | 11    |
 | Application                  | 19    |
 | Infrastructure (composition) | 13    |
-| Presentation                 | 18    |
-| Agent program                | 24    |
+| Presentation                 | 19    |
+| Agent program                | 25    |
 
 ---
 
@@ -1493,3 +1493,45 @@ that an older agent is never sent, instead of an option on an existing one.
 
 **Enforced at:** `src/agent/protocol/messages.ts` (`AGENT_CAPABILITIES`, `RadioLoginWire`), `src/agent/probes/ProbeRunner.ts`, `src/agent/main.ts`, `src/agent/version.ts`, `src/presentation/ws/agent/AgentSession.ts` (`canRenameRadios`, `canAnswer`), `src/presentation/ws/agent/ConnectedAgents.ts` (`setHostname`), `src/presentation/ws/agent/agentMessageSchema.ts`
 **Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/infrastructure/probe-agents/adapters/AgentChannelRadioSettings.test.ts`, `tests/integration/agent-radio-settings.test.ts`
+
+### AGT-121 — An agent that names `discover` scans a segment when asked
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program · Presentation
+**Since:** 2026-10-27
+
+From version `0.9.0` the hello names `discover` beside `probe`, `enforce`,
+`backup`, `traffic`, `sweep` and `hostname`. The backend sends a discover
+request only to an agent that named it. Any other agent gets
+`PROBE_UNSUPPORTED` ("The agent must be updated to scan the network") without
+being asked.
+
+A discover request is a probe request of kind `discover`. It carries a request
+id and a segment in CIDR form. The agent works out every usable address of the
+segment and refuses anything wider than a /22 (1,022 addresses) or not a CIDR
+at all with an error. It pings the addresses 64 at a time, once each, with the
+sweep's quick ping (`MON-082`, 1 second wait). Then it reads the PC's ARP table
+once and answers with the addresses that replied, in address order, each with
+the MAC the table holds for it (null when it holds none, as for a host behind a
+router) and its latency. An address whose ping cannot run counts as not
+answering. If the ARP table cannot be read the hosts are still answered, with
+no MAC. The whole scan counts as one of the 4 requests at once of `AGT-101`.
+
+The ARP table is read with `arp -a` on Windows and from `/proc/net/arp` on
+Linux. A row is found by its shape, an IPv4 address and a MAC on one line, so
+the headings in the PC's language (`Interfaz`, `dinámico`) do not matter.
+Broadcast and multicast MACs, and Linux's unresolved all-zero entries, are
+left out.
+
+The backend waits 90 seconds for the answer. Offline, timeout and error end
+the request as in `AGT-103`. An answer with more than 1,022 hosts is a protocol
+error, like any malformed answer. The agent sends no manufacturer: the backend
+looks it up from the MAC, so the agent carries no vendor table (`DEV-214`).
+
+**Why:** Off site, only the agent can reach the segment the devices sit on, and
+only a PC on that segment learns their MACs. Reading the table once after the
+pings costs one command, where asking it per address would run `arp -a` a few
+hundred times.
+
+**Enforced at:** `src/agent/protocol/messages.ts` (`AGENT_CAPABILITIES`, `MAX_DISCOVER_HOSTS`, `DiscoveredHostWire`), `src/agent/probes/ProbeRunner.ts`, `src/agent/main.ts`, `src/agent/version.ts`, `src/infrastructure/monitoring/network-scanner/ArpTableReader.ts`, `src/presentation/ws/agent/AgentSession.ts` (`canDiscover`, `canAnswer`), `src/presentation/ws/agent/ConnectedAgents.ts` (`discover`), `src/presentation/ws/agent/agentMessageSchema.ts`
+**Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/infrastructure/monitoring/network-scanner/ArpTableReader.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/infrastructure/probe-agents/adapters/AgentChannelHostDiscovery.test.ts`, `tests/integration/agent-discover.test.ts`

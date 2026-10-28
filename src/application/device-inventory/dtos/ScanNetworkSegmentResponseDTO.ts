@@ -13,6 +13,8 @@ export interface DiscoveredHostResult {
 
 export interface ScanNetworkSegmentResponseDTO {
   segment: string;
+  // The agent that scanned it; null when the server did.
+  agentId: string | null;
   scannedCount: number;
   responsiveCount: number;
   newCount: number;

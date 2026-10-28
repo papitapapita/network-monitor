@@ -12,15 +12,13 @@ import {
   seedOwnedDevice
 } from '../../helpers/discoveredDevices';
 import { FakeNetworkScannerService } from '../../helpers/FakeNetworkScannerService';
+import { FakeAgentHostDiscovery } from '../../helpers/FakeAgentHostDiscovery';
 import {
   RunScheduledDiscoveryUseCase,
   SCAN_NEEDS_SERVER_ON_SITE
 } from 'application/device-inventory/use-cases';
 import { PrismaDiscoverySettingsRepository } from 'infrastructure/persistence';
-import {
-  AGENT_SCAN_NOT_AVAILABLE,
-  SegmentScanner
-} from 'infrastructure/monitoring/network-scanner';
+import { SegmentScanner } from 'infrastructure/monitoring/network-scanner';
 
 const NOW = new Date('2026-11-03T12:00:00Z');
 const AGENT = '0b9c6f0e-3f4a-4c55-9a51-6f7d2a1c8e10';
@@ -28,6 +26,7 @@ const AGENT = '0b9c6f0e-3f4a-4c55-9a51-6f7d2a1c8e10';
 describe('RunScheduledDiscoveryUseCase — integration', () => {
   let prisma: PrismaClient;
   let scanner: FakeNetworkScannerService;
+  let agents: FakeAgentHostDiscovery;
   let notifier: FakeDiscoveryNotifier;
 
   function makeUseCase(
@@ -35,7 +34,7 @@ describe('RunScheduledDiscoveryUseCase — integration', () => {
   ): RunScheduledDiscoveryUseCase {
     return new RunScheduledDiscoveryUseCase(
       new PrismaDiscoverySettingsRepository(prisma),
-      new SegmentScanner(scanner),
+      new SegmentScanner(scanner, agents),
       makeSightingRecorder(prisma, notifier),
       serverOnSite
     );
@@ -62,6 +61,7 @@ describe('RunScheduledDiscoveryUseCase — integration', () => {
   beforeAll(() => {
     prisma = createTestPrisma();
     scanner = new FakeNetworkScannerService();
+    agents = new FakeAgentHostDiscovery();
     notifier = new FakeDiscoveryNotifier();
   });
 
@@ -72,6 +72,7 @@ describe('RunScheduledDiscoveryUseCase — integration', () => {
   beforeEach(async () => {
     await cleanDatabase(prisma);
     scanner.reset();
+    agents.reset();
     notifier.reset();
     scanner.setHosts([
       {
@@ -148,6 +149,7 @@ describe('RunScheduledDiscoveryUseCase — integration', () => {
   });
 
   it('[DEV-212] a segment the scanner rejects is reported, the run goes on', async () => {
+    agents.failWith('The agent is not connected');
     await saveSettings({
       segments: [
         { cidr: '10.0.0.0/24', agentId: AGENT },
@@ -158,9 +160,35 @@ describe('RunScheduledDiscoveryUseCase — integration', () => {
     const result = await makeUseCase().execute({ now: NOW });
 
     expect(result.value.segments.map((s) => s.error)).toEqual([
-      AGENT_SCAN_NOT_AVAILABLE,
+      'The agent could not scan: The agent is not connected',
       null
     ]);
+  });
+
+  it('[DEV-214] an agent segment is swept by its agent, even off site', async () => {
+    agents.setHosts([
+      {
+        ipAddress: '10.0.0.7',
+        macAddress: 'AA:BB:CC:DD:EE:07',
+        latencyMs: 5
+      }
+    ]);
+    await saveSettings({
+      segments: [{ cidr: '10.0.0.0/24', agentId: AGENT }]
+    });
+
+    const result = await makeUseCase(false).execute({ now: NOW });
+
+    expect(agents.calls).toEqual([
+      { agentId: AGENT, cidr: '10.0.0.0/24' }
+    ]);
+    expect(scanner.callCount).toBe(0);
+    expect(result.value.segments[0].error).toBeNull();
+    const stored = await prisma.discoveredDevice.findMany();
+    expect(stored.map((d) => [d.macAddress, d.segment])).toEqual([
+      ['AA:BB:CC:DD:EE:07', '10.0.0.0/24']
+    ]);
+    expect(notifier.notices).toHaveLength(1);
   });
 
   it('[DEV-212] off site, a server segment is not swept', async () => {
