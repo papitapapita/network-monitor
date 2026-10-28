@@ -639,6 +639,9 @@ model RouterSystemState {
   /// problems an alert is open for (CPU, MEMORY, DISK, TEMPERATURE, VOLTAGE).
   highCpuChecks    Int       @default(0) @map("high_cpu_checks") @db.SmallInt
   healthIssues     String[]  @default([]) @map("health_issues") @db.VarChar(20)
+  /// MON-180: { services, userNames, discoveryInterfaceList } from the last
+  /// good reading; null when the router answered none of those reads.
+  security         Json?     @db.JsonB
 
   device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 

@@ -1,5 +1,6 @@
 // Source: src/application/device-monitoring/use-cases/CheckRouterSystemsUseCase.ts
 
+import { refuseRouterOsCommand } from '../../../../src/agent/protocol/messages';
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import {
   setupDependencies,
@@ -173,7 +174,7 @@ describe('CheckRouterSystemsUseCase — integration', () => {
     expect(await systemStateOf(prisma, noLogin)).toBeNull();
   });
 
-  it('[MON-161] should read only allowed commands, in one batch per router', async () => {
+  it('[MON-161] [MON-180] should read only allowed commands, in one batch per router', async () => {
     await seedRouter(prisma, {
       name: 'Core',
       deviceModelId: modelId,
@@ -191,8 +192,14 @@ describe('CheckRouterSystemsUseCase — integration', () => {
       '/system/resource/print',
       '/system/routerboard/print',
       '/system/health/print',
-      '/interface/ethernet/print'
+      '/interface/ethernet/print',
+      '/ip/service/print',
+      '/user/print',
+      '/ip/neighbor/discovery-settings/print'
     ]);
+    expect(
+      printer.batches[0]!.commands.map(refuseRouterOsCommand)
+    ).toEqual(Array(8).fill(null));
   });
 
   it('[MON-161] should leave out devices that are not company MikroTiks in service', async () => {

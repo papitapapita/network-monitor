@@ -1254,7 +1254,7 @@ list reads every router and waits for the slowest one.
 The same MikroTiks as the port check are read (MON-140), with the same reasons
 for not reading one (MON-145): no address, no saved login, or off site with no
 agent in reach. One login runs five reads through the RouterOS printer
-(AGT-123), then closes:
+(AGT-123), and the three security reads of MON-180, then closes:
 
 | Field | From |
 |---|---|
@@ -1272,8 +1272,8 @@ an uptime in no known form. Text is cut to the column it is kept in. The read
 fails only when the router answers neither its identity nor its resources.
 Nothing on the router changes.
 
-**Why:** These are what the hardware-change check (DEV-215), and later the
-reboot, health and firmware checks, compare against. One login for all of
+**Why:** These are what the hardware-change check (DEV-215), the reboot and
+health checks (MON-170, MON-173) and the audit (MON-186) compare against. One login for all of
 them keeps the load on the router to one short session.
 
 **Enforced at:** `src/infrastructure/monitoring/router-system/RouterOsSystemReader.ts`, `src/application/device-monitoring/services/RouterSystemRecorder.ts`
@@ -1492,3 +1492,132 @@ problem without a separate request.
 
 **Enforced at:** `src/application/device-monitoring/services/RouterSystemRecorder.ts`, `src/application/device-monitoring/dtos/RouterSystemDTO.ts`
 **Tests:** `tests/application/device-monitoring/use-cases/RouterSystemUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/GetRouterSystemUseCase.integration.test.ts`
+
+### MON-180 — The same login reads a MikroTik's services, users and neighbour discovery
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+The login of MON-160 also reads:
+
+| Part | From | Kept |
+|---|---|---|
+| Services | `/ip/service` | each service's name, port, whether it is enabled, and its allowed addresses (none: reachable from anywhere). Dynamic rows RouterOS 7 adds for other features (resolver, ntp, discover, extra www or api), which have no address setting, are left out |
+| Users | `/user` | the names of the enabled user accounts |
+| Discovery | `/ip/neighbor/discovery-settings` | the interface list neighbour discovery answers on (`discover-interface-list`) |
+
+They are kept with the rest of the reading (MON-161), so a router that stops
+answering keeps the last ones it gave. A part the router refuses (a login
+without the right policy, or RouterOS before 6.44, which has no discovery
+list) is kept as unread. When it refuses all three, the reading is still good.
+The system list (MON-162, MON-163) does not show them; the audit does
+(MON-186). Passwords cannot be read, so whether one is still the factory
+password is not checked. Nothing on the router changes.
+
+**Why:** These settings are what a hardening check looks at. Reading them in
+the login that already happens adds no session to the router.
+
+**Enforced at:** `src/infrastructure/monitoring/router-system/RouterOsSystemReader.ts`, `src/infrastructure/mappers/RouterSystemStateMapper.ts`
+**Tests:** `tests/infrastructure/monitoring/router-system/RouterOsSystemReader.test.ts`, `tests/integration/use-cases/device-monitoring/GetRouterAuditUseCase.integration.test.ts`, `tests/integration/use-cases/device-monitoring/CheckRouterSystemsUseCase.integration.test.ts`, `tests/integration/agent-routeros-print.test.ts`
+
+### MON-181 — RouterBOARD firmware other than the one its RouterOS carries is behind
+
+**Type:** Invariant · **Status:** Active
+**Since:** 2026-10-28
+
+A router whose `currentFirmware` differs from its `upgradeFirmware` has the
+finding `FIRMWARE_BEHIND`. A router that reports neither (a CHR) is not
+judged.
+
+**Why:** Upgrading RouterOS does not upgrade the RouterBOARD firmware; it
+waits for `/system/routerboard/upgrade` and a reboot. `upgrade-firmware` is
+the firmware the installed RouterOS brings, so any difference means that step
+was skipped.
+
+**Enforced at:** `src/domain/device-monitoring/services/RouterAudit.ts`
+**Tests:** `tests/domain/device-monitoring/services/RouterAudit.test.ts`
+
+### MON-182 — Telnet, FTP and plain web left on are a finding
+
+**Type:** Invariant · **Status:** Active
+**Since:** 2026-10-28
+
+Each enabled `telnet`, `ftp` or `www` service is a `PLAINTEXT_SERVICE` finding
+naming the service and its port. A disabled one is not.
+
+**Why:** All three send the login in the clear. SSH, Winbox, `www-ssl` and
+`api-ssl` do the same jobs encrypted.
+
+**Enforced at:** `src/domain/device-monitoring/services/RouterAudit.ts`
+**Tests:** `tests/domain/device-monitoring/services/RouterAudit.test.ts`
+
+### MON-183 — A service open to any address is a finding
+
+**Type:** Invariant · **Status:** Active
+**Since:** 2026-10-28
+
+Each enabled service with no allowed address, or only `0.0.0.0/0` or `::/0`,
+is an `UNRESTRICTED_SERVICE` finding naming the service and its port. A
+service and port is named once, however often the router lists it. This
+includes `api`, which the app itself logs into: restricting it to the
+server's or agent's network keeps the app working.
+
+**Why:** A service anyone can reach is a service anyone can try passwords on.
+Allowed addresses close it to everyone but the management network.
+
+**Enforced at:** `src/domain/device-monitoring/services/RouterAudit.ts`
+**Tests:** `tests/domain/device-monitoring/services/RouterAudit.test.ts`
+
+### MON-184 — An enabled `admin` user is a finding
+
+**Type:** Invariant · **Status:** Active
+**Since:** 2026-10-28
+
+A router with an enabled user named exactly `admin` has the finding
+`ADMIN_USER`. A disabled one is not.
+
+**Why:** `admin` is the factory user, and the first name any password guess
+tries. Using a different name, and disabling `admin`, halves what an attacker
+has to guess.
+
+**Enforced at:** `src/domain/device-monitoring/services/RouterAudit.ts`
+**Tests:** `tests/domain/device-monitoring/services/RouterAudit.test.ts`
+
+### MON-185 — Neighbour discovery on every interface is a finding
+
+**Type:** Invariant · **Status:** Active
+**Since:** 2026-10-28
+
+A router whose discovery interface list is `all` has the finding
+`DISCOVERY_ON_ALL_INTERFACES`.
+
+**Why:** Discovery tells anyone on the wire the router's model, version and
+addresses, which includes customers and the upstream. Limiting it to an
+internal list such as `LAN` keeps it where it helps.
+
+**Enforced at:** `src/domain/device-monitoring/services/RouterAudit.ts`
+**Tests:** `tests/domain/device-monitoring/services/RouterAudit.test.ts`
+
+### MON-186 — The router audit lists each MikroTik's versions and findings, oldest RouterOS first
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+`GET /api/routers/audit` lists every MikroTik of MON-140 with its RouterOS
+version, its RouterBOARD firmware (current and upgrade), and the findings of
+MON-181..185, judged from its last good reading. `unchecked` names the parts
+(`SERVICES`, `USERS`, `DISCOVERY`) the router did not let the app read, or
+that were kept in a form the app no longer understands. A router never read
+yet has every part unchecked and no findings.
+
+Routers are sorted by RouterOS version, oldest first (`6.49.10` before `7.9`
+before `7.21.4`; a beta or rc before its release). Routers with no known
+version come last, and ties are sorted by name. Nothing is read live, and no
+finding raises an alert or notice. Anyone may look.
+
+**Why:** These are things to fix when there is time, not to be woken for.
+Putting the oldest RouterOS on top puts the routers most likely to need an
+upgrade first.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/GetRouterAuditUseCase.ts`, `src/domain/device-monitoring/services/RouterAudit.ts`, `src/presentation/http/routes/router-system.routes.ts`
+**Tests:** `tests/domain/device-monitoring/services/RouterAudit.test.ts`, `tests/application/device-monitoring/use-cases/RouterSystemUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/GetRouterAuditUseCase.integration.test.ts`, `tests/integration/router-system.routes.test.ts`

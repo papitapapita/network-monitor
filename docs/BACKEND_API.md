@@ -2129,7 +2129,7 @@ for the whole install with `port_speed_low` in `PUT /api/notification-mutes`.
 
 ---
 
-## Router System `/api/routers/system`, `/api/routers/:id/system`, `/api/routers/health-thresholds`
+## Router System `/api/routers/system`, `/api/routers/:id/system`, `/api/routers/health-thresholds`, `/api/routers/audit`
 
 **Since:** 2026-10-28
 
@@ -2278,6 +2278,74 @@ RouterHealthThresholds;
 > switch (off sends `minVoltage: null`). Explain under it that the voltage
 > depends on each board's power supply (12, 24 or 48 V). "Restaurar valores
 > por defecto" fills the form from `defaults`.
+
+### `GET /api/routers/audit` — Versions and what is worth fixing on each MikroTik
+
+**Status:** 200 | 401
+
+**Since:** 2026-10-28
+
+Every role. Judged from each router's last good reading, so at most one
+interval old; reads nothing live, and no finding raises a notice (MON-186).
+The same scheduled login also reads the router's IP services, users and
+neighbour discovery settings (MON-180). `Cache-Control: no-store`.
+
+```ts
+type RouterAuditFindingCode =
+  | 'FIRMWARE_BEHIND' // currentFirmware ≠ upgradeFirmware (MON-181)
+  | 'PLAINTEXT_SERVICE' // telnet, ftp or www enabled (MON-182)
+  | 'UNRESTRICTED_SERVICE' // an enabled service with no allowed addresses (MON-183)
+  | 'ADMIN_USER' // an enabled user named "admin" (MON-184)
+  | 'DISCOVERY_ON_ALL_INTERFACES'; // neighbour discovery on "all" (MON-185)
+
+interface RouterAuditFinding {
+  code: RouterAuditFindingCode;
+  service: string | null; // the service for *_SERVICE findings, e.g. "telnet"
+  port: number | null; // its port, e.g. 23
+}
+
+interface RouterAudit {
+  deviceId: string;
+  name: string;
+  ipAddress: string | null;
+  readable: boolean; // false: never read, `reason` says why
+  reason: string | null;
+  readAt: string | null; // ISO 8601, the reading judged; null: never read
+  lastError: string | null; // the last attempt's error
+  routerOsVersion: string | null;
+  currentFirmware: string | null;
+  upgradeFirmware: string | null;
+  findings: RouterAuditFinding[]; // in the order of the codes above
+  // what the router did not let the app read, so was not checked
+  unchecked: ('SERVICES' | 'USERS' | 'DISCOVERY')[];
+}
+
+// Response
+{ success: true, data: { routers: RouterAudit[] } }
+```
+
+Routers come oldest RouterOS first (`6.49.10`, `7.9`, `7.21.4`; a beta or rc
+before its release), unknown versions last, ties by name. A router never read
+has no findings and all three parts in `unchecked`. Default passwords cannot
+be read, so they are not checked.
+
+> **Frontend:** a "Auditoría" tab beside "Routers": one row per router with
+> name, RouterOS version and firmware (`currentFirmware` → `upgradeFirmware`
+> when they differ), and the findings as badges:
+>
+> | Code | Text |
+> |---|---|
+> | `FIRMWARE_BEHIND` | Firmware RouterBOARD pendiente |
+> | `PLAINTEXT_SERVICE` | `<service>` activo sin cifrar (puerto `<port>`) |
+> | `UNRESTRICTED_SERVICE` | `<service>` abierto a cualquier dirección |
+> | `ADMIN_USER` | Usuario "admin" activo |
+> | `DISCOVERY_ON_ALL_INTERFACES` | Descubrimiento de vecinos en todas las interfaces |
+>
+> A row with no findings and nothing unchecked shows "Sin hallazgos". For each
+> `unchecked` part show a grey "No se pudo revisar: servicios / usuarios /
+> descubrimiento" (usually the API user lacks a policy). `readAt` as "revisado
+> hace N min"; a router never read shows `reason` or "Aún no leído". Filter
+> chips per finding code help fix one kind at a time across routers.
 
 ---
 

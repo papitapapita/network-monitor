@@ -252,7 +252,7 @@ describe('Agent RouterOS reads — end to end, server hosted off site', () => {
     return res.body.data.router;
   };
 
-  it('[MON-163] [AGT-123] reads a router behind the agent with its API login', async () => {
+  it('[MON-163] [MON-180] [AGT-123] reads a router behind the agent with its API login', async () => {
     const deviceId = await routerBehindAgent();
 
     const core = await readRouter(deviceId);
@@ -282,7 +282,10 @@ describe('Agent RouterOS reads — end to end, server hosted off site', () => {
       '/system/resource/print',
       '/system/routerboard/print',
       '/system/health/print',
-      '/interface/ethernet/print'
+      '/interface/ethernet/print',
+      '/ip/service/print',
+      '/user/print',
+      '/ip/neighbor/discovery-settings/print'
     ]);
     expect(
       await prisma.routerSystemState.findUnique({

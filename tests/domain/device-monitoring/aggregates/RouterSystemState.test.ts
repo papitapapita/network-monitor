@@ -34,6 +34,7 @@ function makeReading(
     totalHddBytes: 1000,
     voltage: 24,
     temperatureC: 40,
+    security: null,
     ...overrides
   };
 }

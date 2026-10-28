@@ -10,6 +10,7 @@ import {
 } from '../../../src/application/device-monitoring/services';
 import {
   CheckRouterSystemsUseCase,
+  GetRouterAuditUseCase,
   GetRouterHealthThresholdsUseCase,
   GetRouterSystemUseCase,
   ListRouterSystemsUseCase,
@@ -79,6 +80,7 @@ export function buildRouterSystems(
       thresholds,
       logger
     ),
+    audit: new GetRouterAuditUseCase(targets, recorder, logger),
     publisher,
     now
   };

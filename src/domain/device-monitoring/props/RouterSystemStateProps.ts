@@ -19,6 +19,26 @@ export interface RouterSystemReadingProps {
   totalHddBytes: number | null;
   voltage: number | null;
   temperatureC: number | null;
+  // MON-180: null when the router answered none of the security reads
+  security: RouterSecurityReadingProps | null;
+}
+
+// MON-180: one IP service as the router lists it; `allowedAddresses` empty
+// means reachable from anywhere.
+export interface RouterServiceProps {
+  name: string;
+  port: number | null;
+  enabled: boolean;
+  allowedAddresses: string[];
+}
+
+// MON-180: each part is null when the router refused that read.
+export interface RouterSecurityReadingProps {
+  services: RouterServiceProps[] | null;
+  // enabled user accounts, by name
+  userNames: string[] | null;
+  // the interface list neighbour discovery answers on (`all`, `LAN`, `none`)
+  discoveryInterfaceList: string | null;
 }
 
 // MON-173: what can be wrong with a router's health.

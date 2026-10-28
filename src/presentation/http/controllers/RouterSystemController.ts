@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { Result } from 'domain/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import {
+  GetRouterAuditUseCase,
   GetRouterHealthThresholdsUseCase,
   GetRouterSystemUseCase,
   ListRouterSystemsUseCase,
@@ -15,6 +16,7 @@ export class RouterSystemController {
     private readonly getRouterSystemUseCase: GetRouterSystemUseCase,
     private readonly getHealthThresholdsUseCase: GetRouterHealthThresholdsUseCase,
     private readonly updateHealthThresholdsUseCase: UpdateRouterHealthThresholdsUseCase,
+    private readonly getRouterAuditUseCase: GetRouterAuditUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -39,6 +41,9 @@ export class RouterSystemController {
     this.run(res, () =>
       this.updateHealthThresholdsUseCase.execute(req.body)
     );
+
+  public audit = (_req: Request, res: Response): Promise<void> =>
+    this.run(res, () => this.getRouterAuditUseCase.execute());
 
   private async run<T>(
     res: Response,

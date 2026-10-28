@@ -7,6 +7,7 @@ import { createTestApp } from './helpers/createTestApp';
 import { cleanDatabase, GHOST_ID, INVALID_ID } from './helpers/db';
 import { seedAndGetToken } from './helpers/auth';
 import {
+  factorySecurity,
   FakeRouterOsPrinter,
   rb4011
 } from './helpers/FakeRouterOsPrinter';
@@ -18,6 +19,7 @@ import { RouterSystemController } from '../../src/presentation/http/controllers/
 const LIST_PATH = '/api/routers/system';
 const routerPath = (id: string) => `/api/routers/${id}/system`;
 const THRESHOLDS_PATH = '/api/routers/health-thresholds';
+const AUDIT_PATH = '/api/routers/audit';
 const THRESHOLDS = {
   cpuPercent: 85,
   minFreeMemoryPercent: 15,
@@ -49,6 +51,7 @@ describe('Router system routes', () => {
         stack.get,
         stack.getThresholds,
         stack.updateThresholds,
+        stack.audit,
         c.getLogger()
       );
     }));
@@ -258,6 +261,53 @@ describe('Router system routes', () => {
       const res = await request(app)
         .put(THRESHOLDS_PATH)
         .send(THRESHOLDS);
+
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('GET /api/routers/audit', () => {
+    it('[MON-186] should answer 200 with each router and its findings to a viewer', async () => {
+      printer.serve('10.0.0.1', {
+        ...rb4011(),
+        ...factorySecurity()
+      });
+      await request(app)
+        .get(routerPath(coreId))
+        .set('Authorization', `Bearer ${viewerToken}`);
+
+      const res = await request(app)
+        .get(AUDIT_PATH)
+        .set('Authorization', `Bearer ${viewerToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.routers).toEqual([
+        expect.objectContaining({
+          deviceId: coreId,
+          routerOsVersion: '7.15.3',
+          unchecked: [],
+          findings: expect.arrayContaining([
+            { code: 'ADMIN_USER', service: null, port: null }
+          ])
+        })
+      ]);
+    });
+
+    it('[MON-186] should not take the audit path for a router id', async () => {
+      const res = await request(app)
+        .get(AUDIT_PATH)
+        .set('Authorization', `Bearer ${viewerToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.routers[0]).toMatchObject({
+        readAt: null,
+        findings: []
+      });
+    });
+
+    it('should answer 401 without a token', async () => {
+      const res = await request(app).get(AUDIT_PATH);
 
       expect(res.status).toBe(401);
     });

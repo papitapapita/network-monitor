@@ -96,3 +96,41 @@ export interface RouterHealthThresholdsResponseDTO {
   thresholds: RouterHealthThresholdsDTO;
   defaults: RouterHealthThresholdsDTO;
 }
+
+export type RouterAuditFindingCodeDTO =
+  | 'FIRMWARE_BEHIND'
+  | 'PLAINTEXT_SERVICE'
+  | 'UNRESTRICTED_SERVICE'
+  | 'ADMIN_USER'
+  | 'DISCOVERY_ON_ALL_INTERFACES';
+
+export type RouterAuditPartDTO = 'SERVICES' | 'USERS' | 'DISCOVERY';
+
+export interface RouterAuditFindingDTO {
+  code: RouterAuditFindingCodeDTO;
+  // the IP service a service finding is about; null for the others
+  service: string | null;
+  port: number | null;
+}
+
+// MON-186: one MikroTik's versions and what is worth fixing on it, judged
+// from its last good reading (`readAt`; null when never read).
+export interface RouterAuditDTO {
+  deviceId: string;
+  name: string;
+  ipAddress: string | null;
+  readable: boolean;
+  reason: string | null;
+  readAt: string | null;
+  lastError: string | null;
+  routerOsVersion: string | null;
+  currentFirmware: string | null;
+  upgradeFirmware: string | null;
+  findings: RouterAuditFindingDTO[];
+  // what the router did not let the app read, so was not checked
+  unchecked: RouterAuditPartDTO[];
+}
+
+export interface RouterAuditResponseDTO {
+  routers: RouterAuditDTO[];
+}

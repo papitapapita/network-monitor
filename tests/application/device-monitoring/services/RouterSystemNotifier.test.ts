@@ -62,6 +62,7 @@ function makeState(overrides: Partial<RouterSystemReadingProps>) {
       totalHddBytes: 1000,
       voltage: 21.5,
       temperatureC: 81,
+      security: null,
       ...overrides
     },
     NOW

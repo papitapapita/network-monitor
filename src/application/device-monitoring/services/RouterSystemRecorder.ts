@@ -4,13 +4,14 @@ import {
   RouterHealthChange,
   RouterSystemState
 } from 'domain/device-monitoring/aggregates';
+import { RouterSystemReadingProps } from 'domain/device-monitoring/props';
 import { RouterHealthThresholds } from 'domain/device-monitoring/value-objects';
 import { IRouterSystemStateRepository } from 'domain/device-monitoring/repository';
 import {
   IRouterSystemReader,
   PortSpeedRouterCandidate
 } from '../interfaces';
-import { RouterSystemDTO } from '../dtos';
+import { RouterSystemDTO, RouterSystemReadingDTO } from '../dtos';
 import { resolvePortSpeedTarget } from './resolvePortSpeedTarget';
 
 export interface RecordedRouter {
@@ -116,11 +117,19 @@ export function toRouterSystemDTO(
     ipAddress: candidate.ipAddress,
     readable: target.readable,
     reason: target.readable ? null : target.reason,
-    system: state?.reading ? { ...state.reading } : null,
+    system: state?.reading ? systemOf(state.reading) : null,
     readAt: state?.readAt?.toISOString() ?? null,
     attemptedAt: state?.attemptedAt.toISOString() ?? null,
     lastError: state?.lastError ?? null,
     bootedAt: state?.bootedAt?.toISOString() ?? null,
     healthIssues: state?.healthIssues ?? []
   };
+}
+
+// the security reads belong to the audit (MON-186), not the system details
+function systemOf(
+  reading: RouterSystemReadingProps
+): RouterSystemReadingDTO {
+  const { security: _security, ...system } = reading;
+  return system;
 }

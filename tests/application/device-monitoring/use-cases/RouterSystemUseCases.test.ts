@@ -1,13 +1,14 @@
 // Source: src/application/device-monitoring/use-cases/ListRouterSystemsUseCase.ts,
 // GetRouterSystemUseCase.ts, CheckRouterSystemsUseCase.ts,
 // GetRouterHealthThresholdsUseCase.ts, UpdateRouterHealthThresholdsUseCase.ts,
-// services/RouterSystemRecorder.ts
+// GetRouterAuditUseCase.ts, services/RouterSystemRecorder.ts
 
 import { ListRouterSystemsUseCase } from '../../../../src/application/device-monitoring/use-cases/ListRouterSystemsUseCase';
 import { GetRouterSystemUseCase } from '../../../../src/application/device-monitoring/use-cases/GetRouterSystemUseCase';
 import { CheckRouterSystemsUseCase } from '../../../../src/application/device-monitoring/use-cases/CheckRouterSystemsUseCase';
 import { GetRouterHealthThresholdsUseCase } from '../../../../src/application/device-monitoring/use-cases/GetRouterHealthThresholdsUseCase';
 import { UpdateRouterHealthThresholdsUseCase } from '../../../../src/application/device-monitoring/use-cases/UpdateRouterHealthThresholdsUseCase';
+import { GetRouterAuditUseCase } from '../../../../src/application/device-monitoring/use-cases/GetRouterAuditUseCase';
 import { PORT_SPEED_ROUTER_NOT_FOUND } from '../../../../src/application/device-monitoring/use-cases/SetPortExpectedSpeedUseCase';
 import { RouterSystemRecorder } from '../../../../src/application/device-monitoring/services/RouterSystemRecorder';
 import { RouterSystemNotifier } from '../../../../src/application/device-monitoring/services/RouterSystemNotifier';
@@ -59,6 +60,12 @@ function makeCandidate(
   };
 }
 
+// the system details the DTO shows: the reading without its security facts
+function systemDetails() {
+  const { security: _security, ...system } = makeReading();
+  return system;
+}
+
 function makeReading(
   overrides: Partial<RouterSystemReading> = {}
 ): RouterSystemReading {
@@ -79,6 +86,7 @@ function makeReading(
     totalHddBytes: 512,
     voltage: 24.1,
     temperatureC: 41,
+    security: null,
     ...overrides
   };
 }
@@ -285,7 +293,7 @@ describe('ListRouterSystemsUseCase', () => {
         ipAddress: '10.0.0.1',
         readable: true,
         reason: null,
-        system: makeReading(),
+        system: systemDetails(),
         readAt: EARLIER.toISOString(),
         attemptedAt: EARLIER.toISOString(),
         lastError: null,
@@ -343,7 +351,7 @@ describe('GetRouterSystemUseCase', () => {
     expect(s.repository.saveAll).toHaveBeenCalledTimes(1);
     expect(result.value.router).toMatchObject({
       deviceId: ROUTER_ID,
-      system: makeReading(),
+      system: systemDetails(),
       readAt: NOW.toISOString(),
       lastError: null
     });
@@ -622,5 +630,106 @@ describe('Router health thresholds use cases', () => {
       'cpuPercent must be a whole number from 50 to 99'
     );
     expect(s.thresholds.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('GetRouterAuditUseCase', () => {
+  const audit = (s: ReturnType<typeof setup>) =>
+    new GetRouterAuditUseCase(s.targets, s.recorder, makeLogger());
+
+  it('[MON-186] should list each router with its findings, oldest RouterOS first, without reading any', async () => {
+    const THIRD_ID = '8b3e4d5c-6f7a-4b2c-9d0e-1f2a3b4c5d6e';
+    const s = setup(
+      [
+        makeCandidate(),
+        makeCandidate({
+          deviceId: OTHER_ID,
+          deviceName: 'Torre Norte'
+        }),
+        makeCandidate({ deviceId: THIRD_ID, deviceName: 'Nuevo' })
+      ],
+      [
+        makeState(ROUTER_ID, makeReading()),
+        makeState(
+          OTHER_ID,
+          makeReading({
+            routerOsVersion: '6.49.10',
+            currentFirmware: '6.47',
+            upgradeFirmware: '6.49.10',
+            security: {
+              services: [
+                {
+                  name: 'telnet',
+                  port: 23,
+                  enabled: true,
+                  allowedAddresses: ['10.0.0.0/8']
+                }
+              ],
+              userNames: ['admin'],
+              discoveryInterfaceList: null
+            }
+          })
+        )
+      ]
+    );
+
+    const result = await audit(s).execute();
+
+    expect(s.reader.read).not.toHaveBeenCalled();
+    expect(result.value.routers.map((r) => r.name)).toEqual([
+      'Torre Norte',
+      'RB4011 Core',
+      'Nuevo'
+    ]);
+    expect(result.value.routers[0]).toEqual({
+      deviceId: OTHER_ID,
+      name: 'Torre Norte',
+      ipAddress: '10.0.0.1',
+      readable: true,
+      reason: null,
+      readAt: EARLIER.toISOString(),
+      lastError: null,
+      routerOsVersion: '6.49.10',
+      currentFirmware: '6.47',
+      upgradeFirmware: '6.49.10',
+      findings: [
+        { code: 'FIRMWARE_BEHIND', service: null, port: null },
+        { code: 'PLAINTEXT_SERVICE', service: 'telnet', port: 23 },
+        { code: 'ADMIN_USER', service: null, port: null }
+      ],
+      unchecked: ['DISCOVERY']
+    });
+    expect(result.value.routers[1]).toMatchObject({
+      findings: [],
+      unchecked: ['SERVICES', 'USERS', 'DISCOVERY']
+    });
+    expect(result.value.routers[2]).toMatchObject({
+      readAt: null,
+      routerOsVersion: null,
+      findings: [],
+      unchecked: ['SERVICES', 'USERS', 'DISCOVERY']
+    });
+  });
+
+  it('[MON-186] should say why a router cannot be read', async () => {
+    const s = setup([makeCandidate({ login: null })]);
+
+    const result = await audit(s).execute();
+
+    expect(result.value.routers[0]).toMatchObject({
+      readable: false,
+      reason: expect.any(String)
+    });
+  });
+
+  it('should pass a failed query on', async () => {
+    const s = setup();
+    s.repository.listForDevices.mockResolvedValue(
+      Result.fail('db down')
+    );
+
+    const result = await audit(s).execute();
+
+    expect(result.error).toBe('db down');
   });
 });

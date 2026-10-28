@@ -93,3 +93,25 @@ export function rb4011(
     ]
   };
 }
+
+// The security reads (MON-180) of a router left close to factory settings:
+// telnet and an unrestricted API on, the admin user, discovery everywhere.
+export function factorySecurity(): Served {
+  return {
+    '/ip/service/print': [
+      { name: 'telnet', port: '23', address: '', disabled: 'false' },
+      {
+        name: 'winbox',
+        port: '8291',
+        address: '10.0.0.0/24',
+        disabled: 'false'
+      },
+      { name: 'api', port: '8728', address: '', disabled: 'false' },
+      { name: 'ftp', port: '21', address: '', disabled: 'true' }
+    ],
+    '/user/print': [{ name: 'admin', disabled: 'false' }],
+    '/ip/neighbor/discovery-settings/print': [
+      { 'discover-interface-list': 'all' }
+    ]
+  };
+}

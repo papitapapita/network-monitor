@@ -3,6 +3,8 @@ import { RouterSystemState } from 'domain/device-monitoring/aggregates';
 import {
   ROUTER_HEALTH_ISSUES,
   RouterHealthIssue,
+  RouterSecurityReadingProps,
+  RouterServiceProps,
   RouterSystemReadingProps
 } from 'domain/device-monitoring/props';
 
@@ -29,6 +31,7 @@ type PrismaRouterSystemStateRecord = {
   attemptedAt: Date;
   highCpuChecks: number;
   healthIssues: string[];
+  security: unknown;
 };
 
 export class RouterSystemStateMapper {
@@ -63,7 +66,8 @@ export class RouterSystemStateMapper {
               freeHddBytes: toNumber(raw.freeHddBytes),
               totalHddBytes: toNumber(raw.totalHddBytes),
               voltage: raw.voltage,
-              temperatureC: raw.temperatureC
+              temperatureC: raw.temperatureC,
+              security: toSecurity(raw.security)
             },
       readAt: raw.readAt,
       lastError: raw.lastError,
@@ -99,7 +103,8 @@ export class RouterSystemStateMapper {
       lastError: state.lastError,
       attemptedAt: state.attemptedAt,
       highCpuChecks: state.highCpuChecks,
-      healthIssues: state.healthIssues
+      healthIssues: state.healthIssues,
+      security: r?.security ?? null
     };
   }
 }
@@ -116,4 +121,45 @@ function toBigInt(value: number | null | undefined): bigint | null {
 
 function isHealthIssue(value: string): value is RouterHealthIssue {
   return (ROUTER_HEALTH_ISSUES as readonly string[]).includes(value);
+}
+
+// A column written by an older or newer app may not match today's shape; a
+// part that does not is treated as unread rather than failing the row.
+function toSecurity(
+  value: unknown
+): RouterSecurityReadingProps | null {
+  if (!isObject(value)) return null;
+  return {
+    services: Array.isArray(value.services)
+      ? value.services.filter(isService)
+      : null,
+    userNames: Array.isArray(value.userNames)
+      ? value.userNames.filter(
+          (n): n is string => typeof n === 'string'
+        )
+      : null,
+    discoveryInterfaceList:
+      typeof value.discoveryInterfaceList === 'string'
+        ? value.discoveryInterfaceList
+        : null
+  };
+}
+
+function isService(value: unknown): value is RouterServiceProps {
+  return (
+    isObject(value) &&
+    typeof value.name === 'string' &&
+    (value.port === null || typeof value.port === 'number') &&
+    typeof value.enabled === 'boolean' &&
+    Array.isArray(value.allowedAddresses) &&
+    value.allowedAddresses.every((a) => typeof a === 'string')
+  );
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value)
+  );
 }

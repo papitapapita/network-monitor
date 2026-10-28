@@ -386,6 +386,7 @@ import {
   CheckPortSpeedsUseCase,
   ListRouterSystemsUseCase,
   GetRouterSystemUseCase,
+  GetRouterAuditUseCase,
   CheckRouterSystemsUseCase,
   GetRouterHealthThresholdsUseCase,
   UpdateRouterHealthThresholdsUseCase
@@ -2305,6 +2306,11 @@ export class DependencyContainer {
       ),
       new UpdateRouterHealthThresholdsUseCase(
         routerHealthThresholds,
+        this.logger
+      ),
+      new GetRouterAuditUseCase(
+        portSpeedTargets,
+        routerSystemRecorder,
         this.logger
       ),
       this.logger

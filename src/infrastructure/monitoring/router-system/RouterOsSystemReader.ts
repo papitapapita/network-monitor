@@ -6,6 +6,7 @@ import type {
   RouterOsPrintAnswer,
   RouterOsRow,
   RouterPortConnection,
+  RouterSecurityReading,
   RouterSystemReading
 } from 'application/device-monitoring/interfaces';
 
@@ -19,7 +20,13 @@ const COMMANDS: RouterOsCommand[] = [
     params: [
       '=.proplist=name,default-name,mac-address,orig-mac-address'
     ]
-  }
+  },
+  {
+    command: '/ip/service/print',
+    params: ['=.proplist=name,port,address,disabled,dynamic']
+  },
+  { command: '/user/print', params: ['=.proplist=name,disabled'] },
+  { command: '/ip/neighbor/discovery-settings/print', params: [] }
 ];
 
 const MAC = /^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/;
@@ -32,7 +39,7 @@ const UPTIME_UNITS: Record<string, number> = {
   s: 1
 };
 
-// MON-160: one login through the printer, five reads. A command the router
+// MON-160, MON-180: one login through the printer, eight reads. A command the router
 // refuses (a CHR has no RouterBOARD, many boards no health sensors) leaves
 // its fields null; only a router that answers neither its identity nor its
 // resources fails the read.
@@ -45,8 +52,16 @@ export class RouterOsSystemReader implements IRouterSystemReader {
     const printed = await this.printer.print(connection, COMMANDS);
     if (printed.isFailure) return Result.fail(printed.error);
 
-    const [identity, resource, routerboard, health, ethernet] =
-      printed.value;
+    const [
+      identity,
+      resource,
+      routerboard,
+      health,
+      ethernet,
+      services,
+      users,
+      discovery
+    ] = printed.value;
     if (!hasRows(identity) && !hasRows(resource)) {
       return Result.fail(
         `RouterOS API error: ${errorOf(resource) ?? errorOf(identity) ?? 'no answer'}`
@@ -58,7 +73,10 @@ export class RouterOsSystemReader implements IRouterSystemReader {
         resource: firstRow(resource),
         routerboard: firstRow(routerboard),
         health: rowsOf(health),
-        ethernet: rowsOf(ethernet)
+        ethernet: rowsOf(ethernet),
+        services: answeredRows(services),
+        users: answeredRows(users),
+        discovery: answeredRows(discovery)
       })
     );
   }
@@ -70,6 +88,10 @@ interface SystemRows {
   routerboard: RouterOsRow;
   health: RouterOsRow[];
   ethernet: RouterOsRow[];
+  // null: the router refused the read
+  services?: RouterOsRow[] | null;
+  users?: RouterOsRow[] | null;
+  discovery?: RouterOsRow[] | null;
 }
 
 export function parseSystem(rows: SystemRows): RouterSystemReading {
@@ -95,7 +117,47 @@ export function parseSystem(rows: SystemRows): RouterSystemReading {
       health.temperature ??
         health['board-temperature1'] ??
         health['cpu-temperature']
-    )
+    ),
+    security: parseSecurity(rows)
+  };
+}
+
+function parseSecurity(
+  rows: SystemRows
+): RouterSecurityReading | null {
+  const services = rows.services ?? null;
+  const users = rows.users ?? null;
+  const discovery = rows.discovery ?? null;
+  if (services === null && users === null && discovery === null) {
+    return null;
+  }
+  return {
+    services:
+      services?.flatMap((row) => {
+        const name = text(row.name, 50);
+        if (name === null || isDynamicService(row)) return [];
+        return [
+          {
+            name,
+            port: count(row.port),
+            enabled: row.disabled !== 'true',
+            allowedAddresses: (row.address ?? '')
+              .split(',')
+              .map((a) => a.trim())
+              .filter((a) => a !== '')
+          }
+        ];
+      }) ?? null,
+    userNames:
+      users?.flatMap((row) => {
+        const name = text(row.name, 100);
+        return name !== null && row.disabled !== 'true' ? [name] : [];
+      }) ?? null,
+    // RouterOS before 6.44 set discovery per interface, with no list
+    discoveryInterfaceList:
+      discovery === null
+        ? null
+        : text(discovery[0]?.['discover-interface-list'], 100)
   };
 }
 
@@ -169,6 +231,19 @@ function decimal(raw: string | undefined): number | null {
 
 function hasRows(answer: RouterOsPrintAnswer | undefined): boolean {
   return !!answer && 'rows' in answer && answer.rows.length > 0;
+}
+
+// RouterOS 7 also lists sockets other features opened (resolver, ntp,
+// discover, a second www or api); they are flagged dynamic and carry no
+// `address`, which a configurable service always has, even empty.
+function isDynamicService(row: RouterOsRow): boolean {
+  return row.dynamic === 'true' || row.address === undefined;
+}
+
+function answeredRows(
+  answer: RouterOsPrintAnswer | undefined
+): RouterOsRow[] | null {
+  return answer && 'rows' in answer ? answer.rows : null;
 }
 
 function rowsOf(

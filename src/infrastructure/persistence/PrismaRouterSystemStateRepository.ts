@@ -1,4 +1,4 @@
-import { PrismaClient } from 'generated/prisma/client';
+import { Prisma, PrismaClient } from 'generated/prisma/client';
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import { RouterSystemState } from 'domain/device-monitoring/aggregates';
@@ -50,7 +50,14 @@ export class PrismaRouterSystemStateRepository
   async saveAll(states: RouterSystemState[]): Promise<Result<void>> {
     try {
       for (const state of states) {
-        const data = RouterSystemStateMapper.toPersistence(state);
+        const record = RouterSystemStateMapper.toPersistence(state);
+        const data = {
+          ...record,
+          security:
+            record.security === null
+              ? Prisma.DbNull
+              : (record.security as Prisma.InputJsonValue)
+        };
         await this.prisma.routerSystemState
           .upsert({
             where: { deviceId: data.deviceId },

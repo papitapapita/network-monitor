@@ -19,6 +19,8 @@ import {
  * GET /api/routers/:id/system  — one MikroTik read now
  * GET /api/routers/health-thresholds — the limits health is judged against
  * PUT /api/routers/health-thresholds — change them (administrator)
+ * GET /api/routers/audit       — versions and what is worth fixing on each
+ *                                MikroTik, oldest RouterOS first
  */
 export function createRouterSystemRoutes(
   controller: RouterSystemController
@@ -50,6 +52,12 @@ export function createRouterSystemRoutes(
     createRateLimiter('write'),
     validateRequest(updateRouterHealthThresholdsSchema),
     controller.updateHealthThresholds
+  );
+  router.get(
+    '/audit',
+    authorize('read'),
+    createRateLimiter('read'),
+    controller.audit
   );
 
   return router;

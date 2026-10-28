@@ -105,7 +105,8 @@ describe('RouterOsSystemReader', () => {
       freeHddBytes: 400000000,
       totalHddBytes: 536870912,
       voltage: 24.1,
-      temperatureC: 41
+      temperatureC: 41,
+      security: null
     });
   });
 
@@ -188,6 +189,113 @@ describe('RouterOsSystemReader', () => {
     );
 
     expect(result.error).toBe('RouterOS API error: timeout');
+  });
+});
+
+describe('RouterOsSystemReader security reads', () => {
+  const SECURE: Answers = {
+    ...V7,
+    '/ip/service/print': {
+      rows: [
+        { name: 'telnet', port: '23', address: '', disabled: 'true' },
+        {
+          name: 'winbox',
+          port: '8291',
+          address: '10.0.0.0/24, 192.168.88.0/24',
+          disabled: 'false'
+        },
+        { name: 'api', port: '8728', address: '', disabled: 'false' },
+        { port: '21', address: '', disabled: 'false' },
+        { name: 'resolver', port: '53', disabled: 'false' },
+        {
+          name: 'www',
+          port: '80',
+          address: '',
+          disabled: 'false',
+          dynamic: 'true'
+        }
+      ]
+    },
+    '/user/print': {
+      rows: [
+        { name: 'admin', disabled: 'true' },
+        { name: 'noc', disabled: 'false' }
+      ]
+    },
+    '/ip/neighbor/discovery-settings/print': {
+      rows: [
+        {
+          'discover-interface-list': 'LAN',
+          protocol: 'cdp,lldp,mndp'
+        }
+      ]
+    }
+  };
+
+  it('[MON-180] should read services, enabled users and the discovery list in the same login', async () => {
+    const { reader, printer } = makeReader(SECURE);
+
+    const result = await reader.read(CONNECTION);
+
+    expect(printer.print).toHaveBeenCalledTimes(1);
+    expect(printer.print.mock.calls[0]![1]).toHaveLength(8);
+    expect(result.value.security).toEqual({
+      services: [
+        {
+          name: 'telnet',
+          port: 23,
+          enabled: false,
+          allowedAddresses: []
+        },
+        {
+          name: 'winbox',
+          port: 8291,
+          enabled: true,
+          allowedAddresses: ['10.0.0.0/24', '192.168.88.0/24']
+        },
+        {
+          name: 'api',
+          port: 8728,
+          enabled: true,
+          allowedAddresses: []
+        }
+      ],
+      userNames: ['noc'],
+      discoveryInterfaceList: 'LAN'
+    });
+  });
+
+  it('[MON-180] should leave out the dynamic services RouterOS 7 lists', async () => {
+    const { reader } = makeReader(SECURE);
+
+    const names = (
+      await reader.read(CONNECTION)
+    ).value.security?.services?.map((s) => s.name);
+
+    expect(names).toEqual(['telnet', 'winbox', 'api']);
+  });
+
+  it('[MON-180] should leave a refused part null and keep the others', async () => {
+    const { reader } = makeReader({
+      ...SECURE,
+      '/user/print': { error: 'not enough permissions' },
+      '/ip/neighbor/discovery-settings/print': { rows: [{}] }
+    });
+
+    const security = (await reader.read(CONNECTION)).value.security;
+
+    expect(security?.services).toHaveLength(3);
+    expect(security?.userNames).toBeNull();
+    expect(security?.discoveryInterfaceList).toBeNull();
+  });
+
+  it('[MON-180] should keep the reading when every security read is refused', async () => {
+    const { reader } = makeReader(V7);
+
+    const result = await reader.read(CONNECTION);
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.value.security).toBeNull();
   });
 });
 

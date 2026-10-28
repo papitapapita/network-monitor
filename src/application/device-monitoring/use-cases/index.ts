@@ -23,3 +23,4 @@ export * from './GetRouterSystemUseCase';
 export * from './CheckRouterSystemsUseCase';
 export * from './GetRouterHealthThresholdsUseCase';
 export * from './UpdateRouterHealthThresholdsUseCase';
+export * from './GetRouterAuditUseCase';
