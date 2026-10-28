@@ -16,3 +16,4 @@ export * from './RunPingToolUseCase';
 export * from './ListRouterPortSpeedsUseCase';
 export * from './SetPortExpectedSpeedUseCase';
 export * from './AcceptCurrentPortSpeedsUseCase';
+export * from './CheckPortSpeedsUseCase';

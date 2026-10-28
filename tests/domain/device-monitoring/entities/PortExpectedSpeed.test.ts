@@ -123,4 +123,68 @@ describe('PortExpectedSpeed', () => {
       ).toBe(false);
     });
   });
+  describe('recordCheck', () => {
+    const AT = new Date('2026-10-28T15:00:00Z');
+    const LATER = new Date('2026-10-28T15:10:00Z');
+
+    it('[MON-147] should start with no streak and no alert', () => {
+      const speed = makeSpeed();
+
+      expect(speed.slowChecks).toBe(0);
+      expect(speed.alertedAt).toBeNull();
+    });
+
+    it('[MON-147] should raise on the second short check in a row', () => {
+      const speed = makeSpeed();
+
+      expect(speed.recordCheck('SHORT', AT)).toBeNull();
+      expect(speed.recordCheck('SHORT', LATER)).toBe('RAISED');
+      expect(speed.alertedAt).toEqual(LATER);
+    });
+
+    it('[MON-147] should raise only once per streak', () => {
+      const speed = makeSpeed();
+      speed.recordCheck('SHORT', AT);
+      speed.recordCheck('SHORT', AT);
+
+      expect(speed.recordCheck('SHORT', LATER)).toBeNull();
+      expect(speed.slowChecks).toBe(3);
+    });
+
+    it('[MON-147] should recover a raised port that meets its speed', () => {
+      const speed = makeSpeed();
+      speed.recordCheck('SHORT', AT);
+      speed.recordCheck('SHORT', AT);
+
+      expect(speed.recordCheck('MET', LATER)).toBe('RECOVERED');
+      expect(speed.alertedAt).toBeNull();
+      expect(speed.slowChecks).toBe(0);
+    });
+
+    it('[MON-147] should not recover a port that was never raised', () => {
+      const speed = makeSpeed();
+      speed.recordCheck('SHORT', AT);
+
+      expect(speed.recordCheck('MET', LATER)).toBeNull();
+      expect(speed.slowChecks).toBe(0);
+    });
+
+    it('[MON-147] should break the streak but keep the alert on an unjudged check', () => {
+      const speed = makeSpeed();
+      speed.recordCheck('SHORT', AT);
+      speed.recordCheck('SHORT', AT);
+
+      expect(speed.recordCheck('UNJUDGED', LATER)).toBeNull();
+      expect(speed.slowChecks).toBe(0);
+      expect(speed.alertedAt).toEqual(AT);
+    });
+
+    it('[MON-147] should not raise across an unjudged check', () => {
+      const speed = makeSpeed();
+      speed.recordCheck('SHORT', AT);
+      speed.recordCheck('UNJUDGED', AT);
+
+      expect(speed.recordCheck('SHORT', LATER)).toBeNull();
+    });
+  });
 });

@@ -67,6 +67,7 @@ function makeRepository(
     listForDevices: jest.fn().mockResolvedValue(Result.ok(speeds)),
     find: jest.fn(),
     saveAll: jest.fn(),
+    saveCheckState: jest.fn(),
     delete: jest.fn()
   };
 }

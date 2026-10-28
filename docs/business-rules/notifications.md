@@ -2238,16 +2238,16 @@ them one by one.
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
-**Since:** 2026-10-27 · **Revised:** 2026-10-27 (`device_discovered`, DEV-206)
+**Since:** 2026-10-27 · **Revised:** 2026-10-27 (`device_discovered`, DEV-206), 2026-10-28 (`port_speed_low`, MON-148)
 
-| Alert type                               | Category   |
-| ---------------------------------------- | ---------- |
-| `device_unreachable`, `device_discovered` | `device`   |
-| `wireless:<metric>:<severity>`           | `wireless` |
-| `agent_offline`, `agent_clock`, …        | `agent`    |
-| `backup_failing`                         | `backup`   |
-| `sign_in_paused`, `two_factor_reset`     | `security` |
-| anything else                            | `other`    |
+| Alert type                                                  | Category   |
+| ----------------------------------------------------------- | ---------- |
+| `device_unreachable`, `device_discovered`, `port_speed_low` | `device`   |
+| `wireless:<metric>:<severity>`                              | `wireless` |
+| `agent_offline`, `agent_clock`, …                           | `agent`    |
+| `backup_failing`                                            | `backup`   |
+| `sign_in_paused`, `two_factor_reset`                        | `security` |
+| anything else                                               | `other`    |
 
 **Why:** The inbox shows an icon for each kind of notice. The category is
 worked out from the type when the notification is created, so a producer cannot

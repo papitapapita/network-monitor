@@ -1,5 +1,6 @@
 // Source: src/application/device-monitoring/use-cases/ListRouterPortSpeedsUseCase.ts,
-// SetPortExpectedSpeedUseCase.ts, AcceptCurrentPortSpeedsUseCase.ts
+// SetPortExpectedSpeedUseCase.ts, AcceptCurrentPortSpeedsUseCase.ts,
+// CheckPortSpeedsUseCase.ts
 
 import { ListRouterPortSpeedsUseCase } from '../../../../src/application/device-monitoring/use-cases/ListRouterPortSpeedsUseCase';
 import {
@@ -11,6 +12,10 @@ import {
   PORT_SPEED_ROUTER_DID_NOT_ANSWER,
   PORT_SPEED_ROUTER_NOT_READABLE
 } from '../../../../src/application/device-monitoring/use-cases/AcceptCurrentPortSpeedsUseCase';
+import {
+  CheckPortSpeedsUseCase,
+  PORT_SPEED_LOW_ALERT_TYPE
+} from '../../../../src/application/device-monitoring/use-cases/CheckPortSpeedsUseCase';
 import { RouterPortInspector } from '../../../../src/application/device-monitoring/services/RouterPortInspector';
 import {
   EthernetPortReading,
@@ -22,6 +27,11 @@ import { IPortExpectedSpeedRepository } from '../../../../src/domain/device-moni
 import { PortExpectedSpeed } from '../../../../src/domain/device-monitoring/entities';
 import { DeviceId } from '../../../../src/domain/shared/ids';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
+import {
+  AlertNotification,
+  IAlertPublisher,
+  QUIET_HOURS_SUPPRESSED
+} from '../../../../src/application/shared/interfaces/IAlertPublisher';
 import { Result } from '../../../../src/domain/shared/core/Result';
 
 const ROUTER_ID = '6f1c2b1e-3c1a-4d8a-9a3e-1b2c3d4e5f60';
@@ -104,6 +114,13 @@ class InMemoryPortExpectedSpeeds
     speeds.forEach((s) =>
       this.rows.set(this.key(s.deviceId, s.portName), s)
     );
+    return Result.ok<void>();
+  }
+
+  readonly checkStateSaves: PortExpectedSpeed[][] = [];
+
+  async saveCheckState(speeds: PortExpectedSpeed[]) {
+    this.checkStateSaves.push(speeds);
     return Result.ok<void>();
   }
 
@@ -411,5 +428,293 @@ describe('AcceptCurrentPortSpeedsUseCase', () => {
     const result = await useCase.execute({ deviceId: ROUTER_ID });
 
     expect(result.error).toBe(PORT_SPEED_ROUTER_NOT_FOUND);
+  });
+});
+
+describe('CheckPortSpeedsUseCase', () => {
+  const LATER = new Date('2026-10-28T15:10:00Z');
+
+  function makePublisher(
+    result: Result<void> = Result.ok<void>()
+  ): jest.Mocked<IAlertPublisher> & { sent: AlertNotification[] } {
+    const sent: AlertNotification[] = [];
+    return {
+      sent,
+      publish: jest.fn(async (n: AlertNotification) => {
+        sent.push(n);
+        return result;
+      })
+    };
+  }
+
+  function makeUseCase(
+    reader: IRouterPortReader,
+    repository: InMemoryPortExpectedSpeeds,
+    publisher: IAlertPublisher,
+    targets: IPortSpeedTargetsQuery = makeTargets()
+  ) {
+    return new CheckPortSpeedsUseCase(
+      targets,
+      new RouterPortInspector(reader, repository),
+      repository,
+      publisher,
+      makeLogger()
+    );
+  }
+
+  it('[MON-147] should not alert on the first slow check', async () => {
+    const repository = new InMemoryPortExpectedSpeeds([
+      makeExpected('ether1', 1000)
+    ]);
+    const publisher = makePublisher();
+
+    const result = await makeUseCase(
+      makeReader([makePort({ rateMbps: 100 })]),
+      repository,
+      publisher
+    ).execute({ now: NOW });
+
+    expect(result.value).toEqual({
+      routersChecked: 1,
+      skipped: [],
+      raised: 0,
+      recovered: 0
+    });
+    expect(publisher.publish).not.toHaveBeenCalled();
+    expect(repository.checkStateSaves[0][0].slowChecks).toBe(1);
+  });
+
+  it('[MON-147] should alert on the second slow check in a row, naming the port and both speeds', async () => {
+    const repository = new InMemoryPortExpectedSpeeds([
+      makeExpected('ether3', 1000)
+    ]);
+    const publisher = makePublisher();
+    const useCase = makeUseCase(
+      makeReader([
+        makePort({
+          name: 'ether3',
+          comment: 'Backhaul',
+          rateMbps: 100
+        })
+      ]),
+      repository,
+      publisher
+    );
+
+    await useCase.execute({ now: NOW });
+    const result = await useCase.execute({ now: LATER });
+
+    expect(result.value.raised).toBe(1);
+    expect(publisher.sent).toEqual([
+      expect.objectContaining({
+        deviceId: ROUTER_ID,
+        type: PORT_SPEED_LOW_ALERT_TYPE,
+        resolved: false,
+        summary:
+          'El puerto ether3 (Backhaul) de "RB4011 Core" está a 100 Mbps, debería estar a 1 Gbps',
+        detail: null,
+        occurredAt: LATER
+      })
+    ]);
+  });
+
+  it('[MON-147] should alert only once while the port stays slow', async () => {
+    const repository = new InMemoryPortExpectedSpeeds([
+      makeExpected('ether1', 1000)
+    ]);
+    const publisher = makePublisher();
+    const useCase = makeUseCase(
+      makeReader([makePort({ rateMbps: 100 })]),
+      repository,
+      publisher
+    );
+
+    for (let i = 0; i < 4; i++) await useCase.execute({ now: NOW });
+
+    expect(publisher.publish).toHaveBeenCalledTimes(1);
+  });
+
+  it('[MON-143] should count half duplex as slow', async () => {
+    const repository = new InMemoryPortExpectedSpeeds([
+      makeExpected('ether1', 1000)
+    ]);
+    const publisher = makePublisher();
+    const useCase = makeUseCase(
+      makeReader([makePort({ fullDuplex: false })]),
+      repository,
+      publisher
+    );
+
+    await useCase.execute({ now: NOW });
+    await useCase.execute({ now: LATER });
+
+    expect(publisher.sent[0].summary).toBe(
+      'El puerto ether1 de "RB4011 Core" está a 1 Gbps en half duplex, debería estar a 1 Gbps'
+    );
+  });
+
+  it('[MON-147] should send a recovery once the port meets its speed again', async () => {
+    const expected = makeExpected('ether1', 1000);
+    expected.recordCheck('SHORT', NOW);
+    expected.recordCheck('SHORT', NOW);
+    const repository = new InMemoryPortExpectedSpeeds([expected]);
+    const publisher = makePublisher();
+
+    const result = await makeUseCase(
+      makeReader([makePort()]),
+      repository,
+      publisher
+    ).execute({ now: LATER });
+
+    expect(result.value.recovered).toBe(1);
+    expect(publisher.sent).toEqual([
+      expect.objectContaining({
+        resolved: true,
+        type: PORT_SPEED_LOW_ALERT_TYPE,
+        summary: 'El puerto ether1 de "RB4011 Core" volvió a 1 Gbps'
+      })
+    ]);
+    expect(expected.alertedAt).toBeNull();
+  });
+
+  it('[MON-147] should neither alert nor recover a port without a link', async () => {
+    const expected = makeExpected('ether1', 1000);
+    expected.recordCheck('SHORT', NOW);
+    expected.recordCheck('SHORT', NOW);
+    const repository = new InMemoryPortExpectedSpeeds([
+      expected,
+      makeExpected('ether2', 1000)
+    ]);
+    const publisher = makePublisher();
+
+    await makeUseCase(
+      makeReader([
+        makePort({ linked: false, rateMbps: null }),
+        makePort({ name: 'ether2', linked: false, rateMbps: null })
+      ]),
+      repository,
+      publisher
+    ).execute({ now: LATER });
+
+    expect(publisher.publish).not.toHaveBeenCalled();
+    expect(expected.alertedAt).toEqual(NOW);
+  });
+
+  it('[MON-147] should break the streak when a check has nothing to judge', async () => {
+    const repository = new InMemoryPortExpectedSpeeds([
+      makeExpected('ether1', 1000)
+    ]);
+    const publisher = makePublisher();
+    const reader = makeReader([makePort({ rateMbps: 100 })]);
+    const useCase = makeUseCase(reader, repository, publisher);
+
+    await useCase.execute({ now: NOW });
+    reader.read.mockResolvedValueOnce(
+      Result.ok({ identity: 'Core', ports: [] })
+    );
+    await useCase.execute({ now: NOW });
+    await useCase.execute({ now: LATER });
+
+    expect(publisher.publish).not.toHaveBeenCalled();
+  });
+
+  it('[MON-147] should leave the state of a router that did not answer as it was', async () => {
+    const expected = makeExpected('ether1', 1000);
+    expected.recordCheck('SHORT', NOW);
+    const repository = new InMemoryPortExpectedSpeeds([expected]);
+    const reader: jest.Mocked<IRouterPortReader> = {
+      read: jest.fn().mockResolvedValue(Result.fail('timed out'))
+    };
+
+    const result = await makeUseCase(
+      reader,
+      repository,
+      makePublisher()
+    ).execute({ now: LATER });
+
+    expect(result.value).toEqual({
+      routersChecked: 0,
+      skipped: [
+        { deviceId: ROUTER_ID, name: 'RB4011 Core', why: 'timed out' }
+      ],
+      raised: 0,
+      recovered: 0
+    });
+    expect(expected.slowChecks).toBe(1);
+    expect(repository.checkStateSaves).toEqual([[]]);
+  });
+
+  it('[MON-147] should not read a router without any expected speed', async () => {
+    const reader = makeReader([makePort()]);
+
+    const result = await makeUseCase(
+      reader,
+      new InMemoryPortExpectedSpeeds(),
+      makePublisher()
+    ).execute({ now: NOW });
+
+    expect(reader.read).not.toHaveBeenCalled();
+    expect(result.value.routersChecked).toBe(0);
+  });
+
+  it('[MON-148] should send one notice for several ports of a router', async () => {
+    const repository = new InMemoryPortExpectedSpeeds([
+      makeExpected('ether1', 1000),
+      makeExpected('ether2', 1000)
+    ]);
+    const publisher = makePublisher();
+    const useCase = makeUseCase(
+      makeReader([
+        makePort({ rateMbps: 100, comment: 'Torre norte' }),
+        makePort({ name: 'ether2', rateMbps: 10 })
+      ]),
+      repository,
+      publisher
+    );
+
+    await useCase.execute({ now: NOW });
+    await useCase.execute({ now: LATER });
+
+    expect(publisher.sent).toHaveLength(1);
+    expect(publisher.sent[0].summary).toBe(
+      '2 puertos de "RB4011 Core" están más lentos de lo que deberían'
+    );
+    expect(publisher.sent[0].detail).toBe(
+      '• ether1 (Torre norte): 100 Mbps, debería estar a 1 Gbps\n• ether2: 10 Mbps, debería estar a 1 Gbps'
+    );
+  });
+
+  it('[MON-148] should keep the alert raised when its notice is held back', async () => {
+    const repository = new InMemoryPortExpectedSpeeds([
+      makeExpected('ether1', 1000)
+    ]);
+    const publisher = makePublisher(
+      Result.fail<void>(QUIET_HOURS_SUPPRESSED)
+    );
+    const useCase = makeUseCase(
+      makeReader([makePort({ rateMbps: 100 })]),
+      repository,
+      publisher
+    );
+
+    await useCase.execute({ now: NOW });
+    await useCase.execute({ now: LATER });
+    await useCase.execute({ now: LATER });
+
+    expect(publisher.publish).toHaveBeenCalledTimes(1);
+  });
+
+  it('[MON-147] should fail when the routers cannot be listed', async () => {
+    const targets = makeTargets();
+    targets.listRouters.mockResolvedValue(Result.fail('db down'));
+
+    const result = await makeUseCase(
+      makeReader([]),
+      new InMemoryPortExpectedSpeeds(),
+      makePublisher(),
+      targets
+    ).execute({ now: NOW });
+
+    expect(result.isFailure).toBe(true);
   });
 });

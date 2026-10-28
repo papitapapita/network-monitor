@@ -51,3 +51,22 @@ export interface PortExpectedSpeedDTO {
 export interface AcceptCurrentPortSpeedsRequestDTO {
   deviceId: string;
 }
+
+export interface CheckPortSpeedsRequestDTO {
+  now: Date;
+}
+
+export interface PortSpeedCheckSkipDTO {
+  deviceId: string;
+  name: string;
+  why: string;
+}
+
+export interface CheckPortSpeedsResultDTO {
+  // routers with at least one expected speed that were read
+  routersChecked: number;
+  // routers with an expected speed that could not be read this time
+  skipped: PortSpeedCheckSkipDTO[];
+  raised: number;
+  recovered: number;
+}

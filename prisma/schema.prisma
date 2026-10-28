@@ -593,12 +593,15 @@ model SpeedTestResult {
 /// The speed an operator says a MikroTik Ethernet port should link at
 /// (MON-142). A port without a row is listed but never judged.
 model PortExpectedSpeed {
-  id           String   @id @default(uuid()) @db.Uuid
-  deviceId     String   @map("device_id") @db.Uuid
-  portName     String   @map("port_name") @db.VarChar(64)
-  expectedMbps Int      @map("expected_mbps")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  id           String    @id @default(uuid()) @db.Uuid
+  deviceId     String    @map("device_id") @db.Uuid
+  portName     String    @map("port_name") @db.VarChar(64)
+  expectedMbps Int       @map("expected_mbps")
+  // MON-147: the alert state of the scheduled check
+  slowChecks   Int       @default(0) @map("slow_checks")
+  alertedAt    DateTime? @map("alerted_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 

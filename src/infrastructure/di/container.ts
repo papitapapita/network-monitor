@@ -351,7 +351,9 @@ import {
 } from '../monitoring/network-scanner';
 import {
   PollingOrchestrator,
-  DiscoveryScanOrchestrator
+  DiscoveryScanOrchestrator,
+  PortSpeedCheckOrchestrator,
+  loadPortSpeedCheckIntervalMs
 } from '../monitoring/orchestrator';
 import {
   PrismaRouterTrafficTargetsQuery,
@@ -370,7 +372,8 @@ import {
   WatchRouterTrafficUseCase,
   ListRouterPortSpeedsUseCase,
   SetPortExpectedSpeedUseCase,
-  AcceptCurrentPortSpeedsUseCase
+  AcceptCurrentPortSpeedsUseCase,
+  CheckPortSpeedsUseCase
 } from 'application/device-monitoring/use-cases';
 import { RouterPortInspector } from 'application/device-monitoring/services';
 import { PrismaNetworkSweepTargetsQuery } from '../monitoring/network-sweep';
@@ -723,6 +726,7 @@ export class DependencyContainer {
   public discoveredDeviceController: DiscoveredDeviceController;
   public discoverySettingsController: DiscoverySettingsController;
   public discoveryScanOrchestrator: DiscoveryScanOrchestrator;
+  public portSpeedCheckOrchestrator: PortSpeedCheckOrchestrator;
   // Shared by every source of sightings (DEV-200).
   public deviceSightingRecorder: DeviceSightingRecorder;
   private purgeStaleDiscoveredDevicesUseCase: PurgeStaleDiscoveredDevicesUseCase;
@@ -2223,6 +2227,17 @@ export class DependencyContainer {
       {},
       this.logger
     );
+    this.portSpeedCheckOrchestrator = new PortSpeedCheckOrchestrator(
+      new CheckPortSpeedsUseCase(
+        portSpeedTargets,
+        routerPortInspector,
+        portExpectedSpeeds,
+        alertPublisher,
+        this.logger
+      ),
+      { checkIntervalMs: loadPortSpeedCheckIntervalMs(process.env) },
+      this.logger
+    );
 
     const outageTopologyQuery = new PrismaOutageTopologyQuery(
       this.prisma
@@ -3236,6 +3251,10 @@ export class DependencyContainer {
       {
         name: 'discovery-scan',
         ...bindJob(this.discoveryScanOrchestrator)
+      },
+      {
+        name: 'port-speed-check',
+        ...bindJob(this.portSpeedCheckOrchestrator)
       }
     ];
     if (this.billingCycleOrchestrator) {

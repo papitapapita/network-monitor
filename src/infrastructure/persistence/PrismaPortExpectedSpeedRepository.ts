@@ -76,6 +76,29 @@ export class PrismaPortExpectedSpeedRepository
     }
   }
 
+  async saveCheckState(
+    speeds: PortExpectedSpeed[]
+  ): Promise<Result<void>> {
+    try {
+      await this.prisma.$transaction(
+        speeds.map((speed) =>
+          this.prisma.portExpectedSpeed.updateMany({
+            where: { id: speed.id.toString() },
+            data: {
+              slowChecks: speed.slowChecks,
+              alertedAt: speed.alertedAt
+            }
+          })
+        )
+      );
+      return Result.ok();
+    } catch (error) {
+      return Result.fail(
+        `Database error saving port speed check state: ${(error as Error).message}`
+      );
+    }
+  }
+
   async delete(
     deviceId: DeviceId,
     portName: string

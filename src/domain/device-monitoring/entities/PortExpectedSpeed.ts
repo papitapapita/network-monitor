@@ -4,6 +4,12 @@ import { PortExpectedSpeedProps } from '../props';
 import { PortSpeed } from '../value-objects';
 
 export const PORT_NAME_MAX_LENGTH = 64;
+export const SLOW_CHECKS_BEFORE_ALERT = 2;
+
+// SHORT: linked below the expected speed or at half duplex. UNJUDGED: read,
+// but nothing to judge (no link, no rate, the port is gone).
+export type PortCheckOutcome = 'MET' | 'SHORT' | 'UNJUDGED';
+export type PortAlertChange = 'RAISED' | 'RECOVERED' | null;
 
 export interface PortExpectedSpeedInput {
   deviceId: DeviceId;
@@ -41,6 +47,14 @@ export class PortExpectedSpeed extends Entity<
     return this.props.expected;
   }
 
+  get slowChecks(): number {
+    return this.props.slowChecks;
+  }
+
+  get alertedAt(): Date | null {
+    return this.props.alertedAt;
+  }
+
   public static create(
     input: PortExpectedSpeedInput,
     id: PortExpectedSpeedId = PortExpectedSpeedId.create()
@@ -61,7 +75,9 @@ export class PortExpectedSpeed extends Entity<
     const props = {
       deviceId: input.deviceId,
       portName: input.portName.trim(),
-      expected: expected.value
+      expected: expected.value,
+      slowChecks: 0,
+      alertedAt: null
     };
     const problem = PortExpectedSpeed.validate(props);
     if (problem) return Result.fail<PortExpectedSpeed>(problem);
@@ -90,6 +106,34 @@ export class PortExpectedSpeed extends Entity<
   // MON-143: slower than expected, or at half duplex, falls short.
   public isMetBy(link: PortLink): boolean {
     return link.fullDuplex && link.rateMbps >= this.expected.mbps;
+  }
+
+  // MON-147: an alert after SLOW_CHECKS_BEFORE_ALERT short checks in a row,
+  // once until the port meets its speed again. A check with nothing to judge
+  // breaks the streak but leaves an open alert open.
+  public recordCheck(
+    outcome: PortCheckOutcome,
+    at: Date
+  ): PortAlertChange {
+    if (outcome === 'UNJUDGED') {
+      this.props.slowChecks = 0;
+      return null;
+    }
+    if (outcome === 'MET') {
+      this.props.slowChecks = 0;
+      if (this.props.alertedAt === null) return null;
+      this.props.alertedAt = null;
+      return 'RECOVERED';
+    }
+    this.props.slowChecks += 1;
+    if (
+      this.props.alertedAt !== null ||
+      this.props.slowChecks < SLOW_CHECKS_BEFORE_ALERT
+    ) {
+      return null;
+    }
+    this.props.alertedAt = at;
+    return 'RAISED';
   }
 
   private static validate(

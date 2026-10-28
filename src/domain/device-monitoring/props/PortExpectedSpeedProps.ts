@@ -5,4 +5,6 @@ export interface PortExpectedSpeedProps {
   deviceId: DeviceId;
   portName: string;
   expected: PortSpeed;
+  slowChecks: number;
+  alertedAt: Date | null;
 }

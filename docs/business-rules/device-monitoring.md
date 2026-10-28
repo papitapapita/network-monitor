@@ -1120,3 +1120,67 @@ the network, so they keep its expected speeds up to date.
 
 **Enforced at:** `src/presentation/http/routes/port-speed.routes.ts`
 **Tests:** `tests/integration/port-speed.routes.test.ts`
+
+### MON-147 — A port slow on two checks in a row raises one alert, and its recovery is announced
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+Every `PORT_SPEED_CHECK_INTERVAL_MINUTES` (1–1440, default 10; any other
+value stops the boot) the server reads each router of MON-140 that has at
+least one expected speed. Routers with none are not read. Each port with an
+expected speed is judged as in MON-143:
+
+- **SLOW** adds one to the port's streak. On the second SLOW check in a row
+  the port raises an alert. It does not raise again while it stays slow.
+- **OK** ends the streak. If the port had raised an alert, a recovery is
+  sent and the alert is closed.
+- **No link, no rate, or no such port on the router** ends the streak but
+  leaves a raised alert open: nothing is sent either way. An unplugged port
+  may be on purpose, and the device-down alerts cover the far end.
+- **A router that cannot be read** (no answer, no address, no login, off
+  site) changes nothing for its ports. It is logged.
+
+The streak and the open alert are kept with the expected speed, so a
+restart neither repeats an alert nor forgets one. Changing the expected
+speed keeps them, so lowering it to the speed the port runs at sends the
+recovery on the next check. Clearing it drops them, with no recovery sent.
+The check writes only that state, so an expected speed an operator saves
+while a check runs is kept.
+
+**Why:** One slow reading can be a port that is still negotiating. Two in a
+row, ten minutes apart, is a real fault, usually a damaged cable or a
+connector with a bad pair. Saying it once, and once more when it is fixed,
+keeps the alert from becoming noise.
+
+**Enforced at:** `src/domain/device-monitoring/entities/PortExpectedSpeed.ts` (`recordCheck`), `src/application/device-monitoring/use-cases/CheckPortSpeedsUseCase.ts`, `src/infrastructure/monitoring/orchestrator/PortSpeedCheckOrchestrator.ts`, `src/infrastructure/persistence/PrismaPortExpectedSpeedRepository.ts` (`saveCheckState`)
+**Tests:** `tests/domain/device-monitoring/entities/PortExpectedSpeed.test.ts`, `tests/application/device-monitoring/use-cases/PortSpeedUseCases.test.ts`, `tests/infrastructure/monitoring/orchestrator/PortSpeedCheckOrchestrator.test.ts`, `tests/integration/use-cases/device-monitoring/CheckPortSpeedsUseCase.integration.test.ts`
+
+### MON-148 — Port speed alerts are one notice per router, of type `port_speed_low`
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+Alerts and recoveries go through the same publisher as every other alert,
+so the device's quiet hours, the muted alert types, an expired subscription,
+Telegram, phones and the inbox all apply. They are notices only and do not
+appear in `GET /api/alerts`.
+
+- Type `port_speed_low` (a recovery has the same type, `resolved: true`),
+  severity WARNING, source `Velocidad de puertos`. Muting
+  `port_speed_low` silences both.
+- One notice per router per check. With a single port it names it:
+  `El puerto ether3 (Backhaul) de "Core" está a 100 Mbps, debería estar a 1 Gbps`
+  (`… a 1 Gbps en half duplex, …` for half duplex). With several it says
+  `2 puertos de "Core" están más lentos de lo que deberían` and lists each.
+  A recovery reads `El puerto ether3 de "Core" volvió a 1 Gbps`.
+- A notice held back (quiet hours, muted) or that fails to send is not
+  retried: the alert counts as raised, and the inbox still has it.
+
+**Why:** A switch with a bad uplink can drop several ports at once; one
+message per router says so without a burst of pages. Not retrying matches
+the backup alerts (BKP-061): a slow port is a repair to schedule, not an
+outage to page someone about at night.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/CheckPortSpeedsUseCase.ts`
+**Tests:** `tests/application/device-monitoring/use-cases/PortSpeedUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/CheckPortSpeedsUseCase.integration.test.ts`

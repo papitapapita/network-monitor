@@ -6,11 +6,13 @@ import { PrismaPortSpeedTargetsQuery } from '../../../src/infrastructure/monitor
 import { RouterPortInspector } from '../../../src/application/device-monitoring/services';
 import {
   AcceptCurrentPortSpeedsUseCase,
+  CheckPortSpeedsUseCase,
   ListRouterPortSpeedsUseCase,
   SetPortExpectedSpeedUseCase
 } from '../../../src/application/device-monitoring/use-cases';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import { FakeRouterPortReader } from './FakeRouterPortReader';
+import { FakeAlertPublisher } from './FakeAlertPublisher';
 
 type ModelType = 'ROUTERBOARD' | 'ROUTER' | 'SWITCH' | 'RADIO';
 
@@ -108,6 +110,19 @@ export async function seedExpectedSpeed(
   });
 }
 
+// The check state of one router's port.
+export async function checkStateOf(
+  prisma: PrismaClient,
+  deviceId: string,
+  portName: string
+): Promise<{ slowChecks: number; alertedAt: Date | null }> {
+  const row = await prisma.portExpectedSpeed.findUniqueOrThrow({
+    where: { deviceId_portName: { deviceId, portName } },
+    select: { slowChecks: true, alertedAt: true }
+  });
+  return row;
+}
+
 // The stored expectations of one router, port name → Mbps.
 export async function expectedSpeedsOf(
   prisma: PrismaClient,
@@ -124,7 +139,10 @@ export async function expectedSpeedsOf(
 export function buildPortSpeeds(
   prisma: PrismaClient,
   reader: FakeRouterPortReader,
-  opts: { serverOnSite?: boolean } = {}
+  opts: {
+    serverOnSite?: boolean;
+    publisher?: FakeAlertPublisher;
+  } = {}
 ) {
   const logger = new WinstonLogger();
   const targets = new PrismaPortSpeedTargetsQuery(
@@ -144,6 +162,13 @@ export function buildPortSpeeds(
       targets,
       inspector,
       repository,
+      logger
+    ),
+    check: new CheckPortSpeedsUseCase(
+      targets,
+      inspector,
+      repository,
+      opts.publisher ?? new FakeAlertPublisher(),
       logger
     )
   };

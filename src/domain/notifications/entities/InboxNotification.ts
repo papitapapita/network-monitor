@@ -7,7 +7,8 @@ const MAX_TYPE_LENGTH = 100;
 
 const DEVICE_TYPES = new Set([
   'device_unreachable',
-  'device_discovered'
+  'device_discovered',
+  'port_speed_low'
 ]);
 
 const SECURITY_TYPES = new Set([

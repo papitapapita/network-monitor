@@ -1945,8 +1945,8 @@ Looks at the PoE switches at the device's own location only (PWR-041).
 
 Which speed each Ethernet port of the company's MikroTiks linked at (10 Mbps,
 100 Mbps, 1 Gbps…), and whether that is the speed it **should** run at. A
-gigabit link that came up at 100 Mbps usually means a bad cable. Phase 1:
-read on demand, nothing alerts yet. Scheduled checks with alerts come next.
+gigabit link that came up at 100 Mbps usually means a bad cable. Read on
+demand here, and on a schedule that alerts (see **Alerts** below).
 
 **Which routers** (MON-140): not deleted, `owner: COMPANY`, `ACTIVE` or
 `COMMISSIONING`, vendor `mikrotik`, and a model of type `ROUTERBOARD` /
@@ -2064,6 +2064,33 @@ RouterPortSpeedsDTO; // the router, judged against its new speeds
 
 `409` `The router cannot be read: <reason>` (no IP, no login, off site).
 `502` `The router did not answer: <error>`, and nothing is changed.
+
+---
+
+### Alerts (no endpoint) — `port_speed_low`
+
+**Since:** 2026-10-28
+
+Every `PORT_SPEED_CHECK_INTERVAL_MINUTES` (default 10) the server reads each
+router above that has at least one expected speed (MON-147):
+
+- A port `SLOW` on **2 checks in a row** sends one notice. It is not sent
+  again while the port stays slow.
+- When it is back to `OK`, a recovery is sent (`resolved: true`).
+- `NO_LINK`, `UNKNOWN`, `PORT_MISSING`, or a router that does not answer,
+  sends nothing.
+
+One notice per router per check, type `port_speed_low`, severity
+`WARNING`, through the usual chain: Telegram, phones and the inbox (category
+`device`, `deviceId` set), with quiet hours and mutes applied (MON-148).
+Examples:
+
+- `El puerto ether3 (Backhaul) de "Core" está a 100 Mbps, debería estar a 1 Gbps`
+- `2 puertos de "Core" están más lentos de lo que deberían` (`body` lists them)
+- `El puerto ether3 de "Core" volvió a 1 Gbps`
+
+It is a notification only and does not appear in `GET /api/alerts`. Mute it
+for the whole install with `port_speed_low` in `PUT /api/notification-mutes`.
 
 ---
 
@@ -3134,7 +3161,8 @@ metric name — `cpu_load_percent`, not `wireless:cpu_load_percent:WARNING` —
 so one entry silences both its WARNING and CRITICAL severities.
 
 Besides the device and wireless metrics, the backup notification
-`backup_failing` is muted the same way (see Device Backups, BKP-061).
+`backup_failing` is muted the same way (see Device Backups, BKP-061), and
+so is the port speed notification `port_speed_low` (MON-148).
 `config_changed` no longer exists (BKP-060, removed 2026-10-26).
 
 ### `GET /api/notification-mutes` — List Muted Alert Types
@@ -3414,8 +3442,8 @@ applies only to the **signed-in user's own inbox**.
 **What lands in it** (NOT-266, NOT-267):
 
 - Every notice the install sends its staff: device down and back, wireless
-  alerts and their clearing, agent offline/back/clock, failing backups, paused
-  sign-ins and two-factor resets.
+  alerts and their clearing, agent offline/back/clock, failing backups, slow
+  MikroTik ports and their recovery, paused sign-ins and two-factor resets.
 - Every active account gets its own copy. `security` notices go to `ADMIN` and
   `VENDOR` accounts only.
 - Quiet hours, muted types, an expired subscription and the wireless switch
@@ -3430,7 +3458,7 @@ Errors from a request the user just made (a save that failed, a timeout) are
 
 ```ts
 type InboxCategory =
-  | 'device' // device_unreachable, device_discovered (deviceId null — open /api/network/discovered)
+  | 'device' // device_unreachable, port_speed_low, device_discovered (deviceId null — open /api/network/discovered)
   | 'wireless' // wireless:<metric>:<severity>
   | 'agent' // agent_offline, agent_clock, …
   | 'backup' // backup_failing

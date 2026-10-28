@@ -82,10 +82,7 @@ async function readPorts(
       comment: r.comment?.trim() || null,
       linked: live.status === 'link-ok',
       rateMbps: parseRate(live.rate),
-      fullDuplex:
-        live['full-duplex'] === undefined
-          ? null
-          : live['full-duplex'] === 'true'
+      fullDuplex: parseFlag(live['full-duplex'])
     };
   });
   return { identity: identity?.name ?? null, ports };
@@ -114,6 +111,13 @@ async function monitorPorts(
     );
     return new Map(each.flat());
   }
+}
+
+// The API answers `true`/`false`; the terminal prints `yes`/`no`.
+function parseFlag(raw: string | undefined): boolean | null {
+  if (raw === 'true' || raw === 'yes') return true;
+  if (raw === 'false' || raw === 'no') return false;
+  return null;
 }
 
 export function parseRate(raw: string | undefined): number | null {

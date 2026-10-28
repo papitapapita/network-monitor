@@ -189,6 +189,35 @@ describe('RouterOsPortReader', () => {
     });
   });
 
+  it('[MON-141] should read full duplex written as yes or no', async () => {
+    const { result } = await read({
+      ...ROUTER,
+      '/interface/ethernet/print': [
+        { name: 'ether1' },
+        { name: 'ether2' }
+      ],
+      '/interface/ethernet/monitor': [
+        {
+          name: 'ether1',
+          status: 'link-ok',
+          rate: '1Gbps',
+          'full-duplex': 'yes'
+        },
+        {
+          name: 'ether2',
+          status: 'link-ok',
+          rate: '100Mbps',
+          'full-duplex': 'no'
+        }
+      ]
+    });
+
+    expect(result.value.ports.map((p) => p.fullDuplex)).toEqual([
+      true,
+      false
+    ]);
+  });
+
   it('should not ask the monitor when the router has no enabled ports', async () => {
     const { result, calls } = await read({
       ...ROUTER,
