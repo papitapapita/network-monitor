@@ -11,3 +11,4 @@ export * from './PushSubscriptionMapper';
 export * from './InboxNotificationMapper';
 export * from './SpeedTestResultMapper';
 export * from './DiscoveredDeviceMapper';
+export * from './PortExpectedSpeedMapper';

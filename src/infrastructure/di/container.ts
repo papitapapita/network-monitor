@@ -144,6 +144,7 @@ import {
   PrismaPushSubscriptionRepository,
   PrismaInboxNotificationRepository,
   PrismaSpeedTestResultRepository,
+  PrismaPortExpectedSpeedRepository,
   PrismaDiscoveredDeviceRepository,
   PrismaDiscoverySettingsRepository,
   PrismaKnownDeviceLookup,
@@ -176,6 +177,7 @@ import {
   WirelessStreamController,
   NetworkSweepController,
   SpeedTestController,
+  PortSpeedController,
   PingToolController,
   LinkDiagnosisController,
   AlertThresholdsController,
@@ -357,12 +359,20 @@ import {
   RouterTrafficMonitor
 } from '../monitoring/router-traffic';
 import {
+  PrismaPortSpeedTargetsQuery,
+  RouterOsPortReader
+} from '../monitoring/port-speeds';
+import {
   RunNetworkSweepUseCase,
   RunSpeedTestUseCase,
   RunPingToolUseCase,
   ListSpeedTestsUseCase,
-  WatchRouterTrafficUseCase
+  WatchRouterTrafficUseCase,
+  ListRouterPortSpeedsUseCase,
+  SetPortExpectedSpeedUseCase,
+  AcceptCurrentPortSpeedsUseCase
 } from 'application/device-monitoring/use-cases';
+import { RouterPortInspector } from 'application/device-monitoring/services';
 import { PrismaNetworkSweepTargetsQuery } from '../monitoring/network-sweep';
 import { CloudflareSpeedTester } from '../monitoring/speed-test';
 import { PrismaPingToolAgentQuery } from '../monitoring/ping-tool';
@@ -721,6 +731,7 @@ export class DependencyContainer {
   public wirelessStreamController: WirelessStreamController;
   public networkSweepController: NetworkSweepController;
   public speedTestController: SpeedTestController;
+  public portSpeedController: PortSpeedController;
   public pingToolController: PingToolController;
   public linkDiagnosisController: LinkDiagnosisController;
   public alertThresholdsController: AlertThresholdsController;
@@ -1682,6 +1693,38 @@ export class DependencyContainer {
         this.serverOnSite
       ),
       new ListSpeedTestsUseCase(speedTestRepository, this.logger),
+      this.logger
+    );
+    // MON-140..MON-146: each MikroTik port's negotiated speed against the
+    // speed it should link at.
+    const portSpeedTargets = new PrismaPortSpeedTargetsQuery(
+      this.prisma,
+      this.serverOnSite
+    );
+    const portExpectedSpeeds = new PrismaPortExpectedSpeedRepository(
+      this.prisma
+    );
+    const routerPortInspector = new RouterPortInspector(
+      new RouterOsPortReader(this.logger),
+      portExpectedSpeeds
+    );
+    this.portSpeedController = new PortSpeedController(
+      new ListRouterPortSpeedsUseCase(
+        portSpeedTargets,
+        routerPortInspector,
+        this.logger
+      ),
+      new SetPortExpectedSpeedUseCase(
+        portSpeedTargets,
+        portExpectedSpeeds,
+        this.logger
+      ),
+      new AcceptCurrentPortSpeedsUseCase(
+        portSpeedTargets,
+        routerPortInspector,
+        portExpectedSpeeds,
+        this.logger
+      ),
       this.logger
     );
     const configurePollingUseCase = new ConfigureDevicePollingUseCase(

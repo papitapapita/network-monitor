@@ -1938,6 +1938,135 @@ Looks at the PoE switches at the device's own location only (PWR-041).
 
 ---
 
+## Port Speeds `/api/routers/port-speeds`, `/api/routers/:id/port-speeds/*`
+
+> **Response envelope:** `{ success: true, data }`; error `{ success: false, error }`.
+> **Since:** 2026-10-28
+
+Which speed each Ethernet port of the company's MikroTiks linked at (10 Mbps,
+100 Mbps, 1 Gbps…), and whether that is the speed it **should** run at. A
+gigabit link that came up at 100 Mbps usually means a bad cable. Phase 1:
+read on demand, nothing alerts yet. Scheduled checks with alerts come next.
+
+**Which routers** (MON-140): not deleted, `owner: COMPANY`, `ACTIVE` or
+`COMMISSIONING`, vendor `mikrotik`, and a model of type `ROUTERBOARD` /
+`ROUTER` / `SWITCH` **or** category `GATEWAY` / `AGGREGATION_SWITCH`. SwOS
+switches are left out. Each is read live over the RouterOS API with its
+saved HTTP username/password on `apiPort`, all at once, 10 s timeout each.
+Off site (`SERVER_ON_SITE=false`) none is read yet; each is listed with the
+reason (MON-145).
+
+The **expected speed** of a port is set by an operator (MON-142). A port
+without one is listed but never judged.
+
+```ts
+// MON-143
+type PortSpeedVerdict =
+  | 'OK' // linked at or above the expected speed, full duplex
+  | 'SLOW' // linked below the expected speed, or at half duplex
+  | 'NO_LINK' // nothing linked (expected or not)
+  | 'UNKNOWN' // linked and expected, but the router gave no rate
+  | 'NO_EXPECTATION' // linked; nobody set an expected speed
+  | 'PORT_MISSING'; // an expected speed is set, but the router has no enabled port by that name
+
+interface RouterPortDTO {
+  name: string; // "ether2", "sfp-sfpplus1"
+  comment: string | null; // the interface comment on the router
+  linked: boolean | null; // null only on PORT_MISSING
+  rateMbps: number | null; // 10, 100, 1000, 2500, 10000…; null with no link
+  fullDuplex: boolean | null; // null when the router did not say
+  expectedMbps: number | null;
+  verdict: PortSpeedVerdict;
+}
+
+interface RouterPortSpeedsDTO {
+  deviceId: string;
+  name: string; // the device's name in the app
+  identity: string | null; // the router's own name (/system identity)
+  ipAddress: string | null;
+  readable: boolean; // false: not tried, see reason
+  reason: string | null; // why it was not tried (no IP, no login, off site)
+  error: string | null; // tried and failed; ports is then []
+  ports: RouterPortDTO[]; // the router's enabled ports in its order, then PORT_MISSING rows
+}
+```
+
+Allowed expected speeds (Mbps): `10, 100, 1000, 2500, 5000, 10000, 25000,
+40000, 100000`.
+
+---
+
+### `GET /api/routers/port-speeds` — Every MikroTik and its ports
+
+**Status:** 200 | 401
+**Roles:** all (`read`) · `Cache-Control: no-store`
+
+```ts
+// data
+{
+  checkedAt: string; // ISO
+  routers: RouterPortSpeedsDTO[]; // by name; [] when there are none
+}
+```
+
+One router failing does not fail the request: it is listed with its `error`
+and the others are shown (MON-140). It can take up to ~10 s when a router
+does not answer.
+
+**Frontend:** one card per router (`name`, `identity`, IP), a row per port.
+Show `SLOW` red, `OK` green, `NO_LINK` grey, `NO_EXPECTATION` neutral with a
+"set" action, `PORT_MISSING` amber ("the router has no port by that name, so
+remove it or rename it back"). Each row needs a speed picker that calls `PUT …/expected`,
+and each card an "Accept current speeds" button.
+
+---
+
+### `PUT /api/routers/:id/port-speeds/expected` — Set or clear one port's expected speed
+
+**Status:** 200 | 400 | 401 | 403 | 404
+**Roles:** ADMIN, OPERATOR (`update`)
+
+```ts
+// Body
+{
+  portName: string; // as the router names it, 1–64 chars
+  expectedMbps: number | null; // one of the allowed speeds; null clears it
+}
+
+// data
+{
+  deviceId: string;
+  portName: string;
+  expectedMbps: number | null;
+}
+```
+
+The router is not read, so a port can be set while the router is down.
+`400` for a speed not in the list
+(`expected speed must be one of 10, 100, … Mbps`). `404` `Router not found`
+when the device is not one of the routers listed above.
+
+---
+
+### `POST /api/routers/:id/port-speeds/accept-current` — Use today's speeds as expected
+
+**Status:** 200 | 400 | 401 | 403 | 404 | 409 | 502
+**Roles:** ADMIN, OPERATOR (`update`)
+
+No body. Reads the router now and stores each **linked** port's rate as its
+expected speed, replacing what it had. Ports with no link keep theirs
+(MON-144).
+
+```ts
+// data
+RouterPortSpeedsDTO; // the router, judged against its new speeds
+```
+
+`409` `The router cannot be read: <reason>` (no IP, no login, off site).
+`502` `The router did not answer: <error>`, and nothing is changed.
+
+---
+
 ## Vendors `/api/vendors`
 
 ### `POST /api/vendors` — Create

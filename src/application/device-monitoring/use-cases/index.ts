@@ -13,3 +13,6 @@ export * from './RunNetworkSweepUseCase';
 export * from './RunSpeedTestUseCase';
 export * from './ListSpeedTestsUseCase';
 export * from './RunPingToolUseCase';
+export * from './ListRouterPortSpeedsUseCase';
+export * from './SetPortExpectedSpeedUseCase';
+export * from './AcceptCurrentPortSpeedsUseCase';

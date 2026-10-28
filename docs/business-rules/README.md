@@ -15,7 +15,7 @@ different document for a different audience.
 | Customers           | [customers.md](customers.md)                     | `CUS-001` … `CUS-140` |
 | Billing             | [billing.md](billing.md)                         | `BIL-001` … `BIL-264` |
 | Quoting             | [quoting.md](quoting.md)                         | `QUO-001` … `QUO-142` |
-| Device Monitoring   | [device-monitoring.md](device-monitoring.md)     | `MON-001` … `MON-123` |
+| Device Monitoring   | [device-monitoring.md](device-monitoring.md)     | `MON-001` … `MON-146` |
 | Wireless Monitoring | [wireless-monitoring.md](wireless-monitoring.md) | `WLS-001` … `WLS-205` |
 | Service Enforcement | [service-enforcement.md](service-enforcement.md) | `SVC-001` … `SVC-120` |
 | Notifications       | [notifications.md](notifications.md)             | `NOT-001` … `NOT-229` |

@@ -9,3 +9,5 @@ export * from './IRouterTrafficMonitor';
 export * from './INetworkSweepTargetsQuery';
 export * from './IInternetSpeedTester';
 export * from './IPingToolAgentQuery';
+export * from './IRouterPortReader';
+export * from './IPortSpeedTargetsQuery';

@@ -4,3 +4,5 @@ export * from './PollingConfigurationProps';
 export * from './PollingIntervalProps';
 export * from './ReachabilityStatusProps';
 export * from './SpeedTestResultProps';
+export * from './PortSpeedProps';
+export * from './PortExpectedSpeedProps';

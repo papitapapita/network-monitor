@@ -45,3 +45,4 @@ export * from './SpeedTestController';
 export * from './PingToolController';
 export * from './DiscoveredDeviceController';
 export * from './DiscoverySettingsController';
+export * from './PortSpeedController';

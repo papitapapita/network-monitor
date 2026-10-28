@@ -34,6 +34,7 @@ import { createCredentialsRoutes } from './credentials.routes';
 import { createRadioSettingsRoutes } from './radio-settings.routes';
 import { createDeviceBackupRoutes } from './device-backup.routes';
 import { createPowerControlRoutes } from './power-control.routes';
+import { createPortSpeedRoutes } from './port-speed.routes';
 import { createAuthRoutes } from './auth.routes';
 import { createAdminRoutes } from './admin.routes';
 import { createUserRoutes } from './user.routes';
@@ -450,6 +451,12 @@ export function setupRoutes(
   apiRouter.use(
     '/network/speed-tests',
     createSpeedTestRoutes(container.speedTestController)
+  );
+
+  // MikroTik port speeds: /api/routers/port-speeds
+  apiRouter.use(
+    '/routers',
+    createPortSpeedRoutes(container.portSpeedController)
   );
 
   // =====================================

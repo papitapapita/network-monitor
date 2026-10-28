@@ -8,3 +8,4 @@
 // Polling entities
 export * from './PollingConfiguration';
 export * from './SpeedTestResult';
+export * from './PortExpectedSpeed';

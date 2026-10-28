@@ -17,6 +17,7 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 | `MON-080` – `MON-099` | Network sweep                        |
 | `MON-100` – `MON-119` | Internet speed test                  |
 | `MON-120` – `MON-139` | Ping tool                            |
+| `MON-140` – `MON-159` | MikroTik port speeds                 |
 
 This file covers the reachability lifecycle only. The rules that decide **which**
 devices may be monitored at all live with the device itself — see DEV-057
@@ -964,3 +965,158 @@ answer would be a misleading `NO_REPLY` (`MON-023`).
 **Enforced at:** `src/application/device-monitoring/use-cases/RunPingToolUseCase.ts`
 **Message:** `This server is not on the ISP's network: choose an agent to ping from`
 **Tests:** `tests/application/device-monitoring/use-cases/RunPingToolUseCase.test.ts`, `tests/integration/use-cases/device-monitoring/RunPingToolUseCase.integration.test.ts`
+
+## MikroTik port speeds
+
+Each Ethernet port of the company's MikroTiks, the speed it linked at, and
+whether that is the speed it should run at. A port that comes up at 100 Mbps
+where it should be at 1 Gbps usually means a bad cable or connector.
+
+### MON-140 — Port speeds cover the company's MikroTik routers and switches in service
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+`GET /api/routers/port-speeds` lists, by name, every device that is not
+deleted, belongs to the company (`owner` `COMPANY`), is `ACTIVE` or
+`COMMISSIONING`, is a MikroTik (vendor `mikrotik`), and either has a model of
+type `ROUTERBOARD`, `ROUTER` or `SWITCH` or is categorised `GATEWAY` or
+`AGGREGATION_SWITCH`. A model marked as running SwOS is left out. Every
+router is read live and at the same time. A router that does not answer is
+still listed, with `readable: true` and the `error`, and the others are
+shown as usual. Any role may look; nothing is stored by looking.
+
+**Why:** The question is the ISP's own wiring, so a customer's router is not
+part of it. SwOS has no RouterOS API to read the ports from. One router
+that is down must not hide the rest of the network.
+
+**Enforced at:** `src/infrastructure/monitoring/port-speeds/PrismaPortSpeedTargetsQuery.ts`, `src/application/device-monitoring/services/RouterPortInspector.ts`
+**Reached from:** `GET /api/routers/port-speeds` via `PortSpeedController.list`
+**Tests:** `tests/integration/use-cases/device-monitoring/ListRouterPortSpeedsUseCase.integration.test.ts`, `tests/application/device-monitoring/services/RouterPortInspector.test.ts`, `tests/integration/port-speed.routes.test.ts`
+
+### MON-141 — A router's enabled Ethernet ports are read once, and nothing on it changes
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+The router is read over the RouterOS API with the device's saved HTTP
+username and password, on its API port (`MON-066`). The read gets the
+router's own name (`/system identity`), every enabled Ethernet or SFP port
+with its comment, and, for each port, whether it has a link, the rate it
+negotiated (10 Mbps up to 100 Gbps) and whether it runs at full duplex. Each
+read logs in once and logs out at the end. A router that has not answered
+within 10 seconds counts as not answering. If the router refuses to report
+all ports in one request, each port is asked for on its own, so one odd port
+does not hide the others.
+
+**Why:** Only read commands are sent, so checking can never disturb a
+router. Disabled ports are left out because nobody expects them to link.
+
+**Enforced at:** `src/infrastructure/monitoring/port-speeds/RouterOsPortReader.ts`
+**Tests:** `tests/infrastructure/monitoring/port-speeds/RouterOsPortReader.test.ts`
+
+### MON-142 — An operator sets the speed each port should link at
+
+**Type:** Invariant · **Status:** Active
+**Since:** 2026-10-28
+
+Each port of a router can be given one expected speed, which must be one of
+10, 100, 1000, 2500, 5000, 10000, 25000, 40000 or 100000 Mbps. The port is
+named as the router names it (at most 64 characters, spaces around it
+ignored). Setting it again replaces it, and `null` clears it. A port with no
+expected speed is listed but never judged. The router is not read when the
+speed is set, so it can be set while the router is down. The expected
+speeds go when the device itself is removed from the database.
+
+**Why:** Only the ISP knows what is plugged into each port: an old 100 Mbps
+radio on one port is fine, a gigabit backhaul at 100 Mbps is a fault.
+Guessing would give false alarms, so the expected speed is stated, not
+inferred.
+
+**Enforced at:** `src/domain/device-monitoring/value-objects/PortSpeed.ts`, `src/domain/device-monitoring/entities/PortExpectedSpeed.ts`, `src/application/device-monitoring/use-cases/SetPortExpectedSpeedUseCase.ts`
+**Reached from:** `PUT /api/routers/:id/port-speeds/expected` via `PortSpeedController.setExpected`
+**Message:** `expected speed must be one of 10, 100, 1000, 2500, 5000, 10000, 25000, 40000, 100000 Mbps`, `Router not found`
+**Tests:** `tests/domain/device-monitoring/value-objects/PortSpeed.test.ts`, `tests/domain/device-monitoring/entities/PortExpectedSpeed.test.ts`, `tests/integration/use-cases/device-monitoring/SetPortExpectedSpeedUseCase.integration.test.ts`
+
+### MON-143 — A linked port below its expected speed, or at half duplex, is SLOW
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+Each port is given one verdict:
+
+| Verdict          | When                                                                            |
+| ---------------- | ------------------------------------------------------------------------------- |
+| `NO_LINK`        | The port has no link, whether or not it has an expected speed                   |
+| `NO_EXPECTATION` | Linked, but nobody set an expected speed                                        |
+| `UNKNOWN`        | Linked and expected, but the router did not report a rate                       |
+| `SLOW`           | Linked below the expected speed, or at half duplex                              |
+| `OK`             | Linked at or above the expected speed, at full duplex                           |
+| `PORT_MISSING`   | An expected speed is set for a port the router has no enabled port by that name |
+
+A router that does not say whether a port is at full duplex is taken to be at
+full duplex.
+
+**Why:** A port with no link is usually something unplugged on purpose, and
+the far end being down is already reported by reachability alerts. Half
+duplex is a negotiation failure just like a dropped speed. A renamed or
+disabled port would otherwise silently stop being checked, so it is shown.
+
+**Enforced at:** `src/domain/device-monitoring/entities/PortExpectedSpeed.ts` (`isMetBy`), `src/application/device-monitoring/services/RouterPortInspector.ts` (`judgePort`)
+**Tests:** `tests/application/device-monitoring/services/RouterPortInspector.test.ts`, `tests/domain/device-monitoring/entities/PortExpectedSpeed.test.ts`
+
+### MON-144 — "Accept current" makes each linked port's rate its expected speed
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+`POST /api/routers/:id/port-speeds/accept-current` reads the router now and,
+for every port that has a link and reports a rate, stores that rate as its
+expected speed, replacing any it had. Ports without a link keep what they
+had. The answer is the router as `GET /api/routers/port-speeds` shows it,
+judged against the new speeds. If the router does not answer, nothing is
+changed and the answer is `502`.
+
+**Why:** Setting every port by hand is slow on a 24-port switch. When the
+network is known to be right, one click records it, and the operator then
+only corrects the exceptions.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/AcceptCurrentPortSpeedsUseCase.ts`
+**Reached from:** `POST /api/routers/:id/port-speeds/accept-current` via `PortSpeedController.acceptCurrent`
+**Message:** `The router did not answer: <error>`
+**Tests:** `tests/application/device-monitoring/use-cases/PortSpeedUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/AcceptCurrentPortSpeedsUseCase.integration.test.ts`
+
+### MON-145 — Only a router this server reaches, with an address and a login, is read
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+A router with no IP address, or no saved username and password, is listed
+with `readable: false` and the reason, and is not tried. When the server is
+on site it reads every router itself, including one behind an agent. Off
+site (`SERVER_ON_SITE=false`) it reads none: a router behind an agent is
+listed as not supported through an agent yet, and any other as not reached.
+"Accept current" on a router that cannot be read answers `409`.
+
+**Why:** Off site the server cannot reach the ISP's private addresses
+(`MON-023`). Reading ports through the agent can be added the way live
+traffic was (`MON-065`), when an off-site customer needs it.
+
+**Enforced at:** `src/application/device-monitoring/services/resolvePortSpeedTarget.ts`, `src/infrastructure/monitoring/port-speeds/PrismaPortSpeedTargetsQuery.ts`
+**Message:** `The router has no IP address`, `The router has no username and password saved`, `Behind an on-site agent: reading ports through an agent is not supported yet`, `This server is off site and no agent reaches the router`, `The router cannot be read: <reason>`
+**Tests:** `tests/application/device-monitoring/services/resolvePortSpeedTarget.test.ts`, `tests/integration/use-cases/device-monitoring/ListRouterPortSpeedsUseCase.integration.test.ts`
+
+### MON-146 — Administrators and operators set expected speeds; anyone may look
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+Setting, clearing and accepting expected speeds needs the `update`
+permission (administrators and operators); a viewer gets `403`. Listing
+needs only `read`.
+
+**Why:** It is the same level of trust as editing a device. Operators wire
+the network, so they keep its expected speeds up to date.
+
+**Enforced at:** `src/presentation/http/routes/port-speed.routes.ts`
+**Tests:** `tests/integration/port-speed.routes.test.ts`

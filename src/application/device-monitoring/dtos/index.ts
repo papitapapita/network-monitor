@@ -17,3 +17,4 @@ export * from './RouterTrafficDTO';
 export * from './NetworkSweepDTO';
 export * from './SpeedTestDTO';
 export * from './PingToolDTO';
+export * from './PortSpeedDTO';
