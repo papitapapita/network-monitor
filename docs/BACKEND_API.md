@@ -117,8 +117,8 @@ still cannot change credentials; viewers get `403` (IDN-035).
 
 `manage-settings` gates changing the install's settings from the dashboard:
 today `PUT /api/notification-settings` and its test message (IDN-034),
-`PUT /api/billing-settings` (BIL-285), and `PUT /api/wireless/alert-thresholds`
-(WLS-202).
+`PUT /api/billing-settings` (BIL-285), `PUT /api/wireless/alert-thresholds`
+(WLS-202), and `PUT /api/network/discovery-settings` (DEV-213).
 
 `manage-installation` (VENDOR only, IDN-033) gates agent create, re-key and
 revoke, the data-retention purge and the vendor's settings
@@ -3769,6 +3769,53 @@ No body. Returns the `DiscoveredDevice` with `ignoredAt` set (its `accessPointNa
 No body. Returns the `DiscoveredDevice` with `ignoredAt: null`; it is back on the pending list.
 
 > `400` for a malformed id; `404` `{ success: false, error: "Discovered device not found" }`.
+
+---
+
+## Discovery Settings `/api/network/discovery-settings`
+
+The scheduled network scan (DEV-210 – DEV-213): which segments to sweep, how often, and from where. Each run feeds the same suggestions and inbox notice as a manual scan. Standard `{ success, data }` envelope.
+
+```ts
+type DiscoverySegment = {
+  cidr: string            // IPv4 CIDR, /22 to /30; stored as its network address ("192.168.1.77/24" → "192.168.1.0/24")
+  agentId: string | null  // the probe agent that sweeps it; null = this server
+}
+
+type DiscoverySettings = {
+  enabled: boolean
+  intervalHours: number   // whole hours, 1 – 168; default 24
+  segments: DiscoverySegment[] // at most 16
+  lastRunAt: string | null // ISO 8601, when the last scheduled run started; read only
+}
+```
+
+### `GET /api/network/discovery-settings` — Read the settings
+
+**Status:** 200 | 401 · **Role:** any signed-in user
+
+```ts
+{ success: true, data: DiscoverySettings }
+```
+
+> Before anything is saved: `{ enabled: false, intervalHours: 24, segments: [], lastRunAt: null }`.
+
+### `PUT /api/network/discovery-settings` — Replace the settings
+
+**Status:** 200 | 400 | 401 | 403 | 409 | 500 · **Role:** ADMIN, VENDOR (`manage-settings`)
+
+```ts
+// Request body — every field required, no others
+{ enabled: boolean, intervalHours: number, segments: DiscoverySegment[] }
+
+// Response
+{ success: true, data: DiscoverySettings }
+```
+
+> The server checks every 5 minutes; a run starts once `intervalHours` have passed since `lastRunAt` (right away when there is no `lastRunAt`). Segments are swept one after another. Saving keeps `lastRunAt`, so shortening the interval can start a run at the next check.  
+> `400` with the reason, e.g. `segment "10.0.0.0/16" must be an IPv4 CIDR from /22 to /30`, `intervalHours must be a whole number from 1 to 168`, `segment 10.0.0.0/24 is listed twice for the same scanner`, `segment 10.0.0.0/24: agentId must be an agent that is not revoked`.  
+> `409` `segment 192.168.1.0/24 needs an agent — this server is not on the monitored network` on an install whose server is off site (`SERVER_ON_SITE=false`, DEV-212): there, every segment needs an `agentId`. Offer the agent picker (`GET /api/agents`) per segment, with "Servidor" as the null option only on site.  
+> Agent segments can be saved now, but agents cannot sweep yet: until agent 0.9.0 ships, their runs are skipped and logged.
 
 ---
 

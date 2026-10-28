@@ -6,3 +6,4 @@ export * from './DeviceStatus';
 export * from './DeviceCategory';
 export * from './DeviceType';
 export * from './LocationType';
+export * from './DiscoverySettings';

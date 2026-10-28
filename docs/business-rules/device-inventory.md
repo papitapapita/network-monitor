@@ -38,13 +38,13 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Domain**                            |    49 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162, DEV-164, DEV-169, DEV-180, DEV-181, DEV-202, DEV-204 |
-| **Application**                       |    59 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-134, DEV-135, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172, DEV-173, DEV-184, DEV-191, DEV-192, DEV-193, DEV-195, DEV-205, DEV-207 |
+| **Domain**                            |    50 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162, DEV-164, DEV-169, DEV-180, DEV-181, DEV-202, DEV-204, DEV-210 |
+| **Application**                       |    60 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-134, DEV-135, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172, DEV-173, DEV-184, DEV-191, DEV-192, DEV-193, DEV-195, DEV-205, DEV-207, DEV-211 |
 | **Application + Domain**              |    12 | DEV-031, DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160, DEV-182, DEV-183, DEV-185, DEV-194, DEV-200 |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
 | **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
-| **Infrastructure + Application**      |    11 | DEV-072, DEV-084, DEV-148, DEV-149, DEV-186, DEV-190, DEV-201, DEV-203, DEV-206, DEV-208, DEV-209 |
-| **Presentation**                      |     3 | DEV-140, DEV-146, DEV-170                                                                                                                                                                                                                                                                                                                                                                         |
+| **Infrastructure + Application**      |    12 | DEV-072, DEV-084, DEV-148, DEV-149, DEV-186, DEV-190, DEV-201, DEV-203, DEV-206, DEV-208, DEV-209, DEV-212 |
+| **Presentation**                      |     4 | DEV-140, DEV-146, DEV-170, DEV-213                                                                                                                                                                                                                                                                                                                                                                         |
 
 **Half the book sits outside the domain, and most of it belongs there.** The
 three clusters are worth naming, because they are not the same kind of
@@ -2994,7 +2994,7 @@ When the install says its server is not on the monitored network
 private segment such as `192.168.1.0/24` would be looked up on the hosting
 provider's network, and the result would list someone else's hosts, or
 nothing, as if it were the customer's network. Scanning through an agent is
-not built yet.
+not built yet. The scheduled scan follows the same rule (DEV-212).
 
 **Enforced at:** `src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.ts` (`beforeExecute`)
 **Reached from:** `POST /api/network/scan` via `ScanController.scan`
@@ -3358,9 +3358,9 @@ needs to know the PoE side may be incomplete.
 ## Discovery
 
 Hosts the network shows that inventory lacks, kept as suggestions to create a
-device (`/api/network/discovered`). Every source of sightings — a network scan
-and each AP's station list — goes through the same recorder, so they all agree
-on what is new.
+device (`/api/network/discovered`). Every source of sightings — a manual scan,
+the scheduled scan (DEV-210 – DEV-213) and each AP's station list — goes
+through the same recorder, so they all agree on what is new.
 
 ### DEV-200 — A host inventory lacks becomes a suggestion, keyed by its MAC
 
@@ -3558,6 +3558,94 @@ picks the wrong collector.
 **Enforced at:** `src/application/device-inventory/use-cases/GetDiscoveredDevicePrefillUseCase.ts`, `src/infrastructure/persistence/PrismaDiscoveryPrefillQuery.ts`
 **Message:** `Discovered device not found` / `Invalid discovered device ID: <reason>`
 **Tests:** `tests/integration/use-cases/device-inventory/GetDiscoveredDevicePrefillUseCase.integration.test.ts`, `tests/integration/discovered-device.routes.test.ts`
+
+### DEV-210 — The scheduled scan is a list of segments, an interval and an on/off switch
+
+**Type:** Validation · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-10-27
+
+The install has one set of scan settings, replaced as a whole from
+`PUT /api/network/discovery-settings`. The interval is a whole number of hours
+from 1 to 168. There are at most 16 segments. Each segment is an IPv4 CIDR from
+`/22` to `/30`, stored as its network address, and names the agent that sweeps
+it, or none for the server. The same CIDR may appear once for each scanner.
+Until the settings are saved, the scan is off, daily, with no segments.
+
+**Why:** Daily is the default the business chose: a new customer CPE shows up
+by the next morning without anyone running a scan. `/22` is the manual scan's
+limit (DEV-143), the most hosts one sweep pings without flooding the network.
+An hour stops the scan running as a constant background ping. Off by default
+means an upgrade never starts pinging a network nobody configured.
+
+**Enforced at:** `src/domain/device-inventory/value-objects/DiscoverySettings.ts`
+**Reached from:** `PUT /api/network/discovery-settings` via `DiscoverySettingsController.update`
+**Message:** `intervalHours must be a whole number from 1 to 168` / `segments must be at most 16` / `segment "<cidr>" must be an IPv4 CIDR from /22 to /30` / `segment <cidr>: agentId must be an agent id` / `segment <cidr> is listed twice for the same scanner` / `enabled must be true or false`
+**Tests:** `tests/domain/device-inventory/value-objects/DiscoverySettings.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDiscoverySettingsUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/GetDiscoverySettingsUseCase.integration.test.ts`, `tests/integration/discovery-settings.routes.test.ts`
+
+### DEV-211 — A scheduled run sweeps every segment in turn, once the interval has passed
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-27
+
+The server checks every 5 minutes. While the scan is on and has segments, a run
+starts when no run has happened yet, or when the interval has passed since the
+last run started. The run's start is recorded before anything is swept. The
+segments are swept one after the other, never at once. Each segment is recorded
+as its own scan batch (DEV-200 – DEV-207), so it gets its own inbox notice. A
+segment that fails is reported and the run goes on to the next. Saving the
+settings keeps the time of the last run.
+
+**Why:** Recording the start first means a server that restarts during a run,
+or keeps restarting, waits for the next interval instead of sweeping again at
+every boot. One segment at a time keeps the ping load at what a single manual
+scan causes. Checking every few minutes means a change to the settings applies
+within minutes, with no restart.
+
+**Enforced at:** `src/application/device-inventory/use-cases/RunScheduledDiscoveryUseCase.ts`, `src/infrastructure/monitoring/orchestrator/DiscoveryScanOrchestrator.ts`
+**Tests:** `tests/application/device-inventory/use-cases/RunScheduledDiscoveryUseCase.test.ts`, `tests/integration/use-cases/device-inventory/RunScheduledDiscoveryUseCase.integration.test.ts`, `tests/infrastructure/monitoring/orchestrator/DiscoveryScanOrchestrator.test.ts`
+
+### DEV-212 — A segment is swept by the scanner it names; off site, only by an agent
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure + Application
+**Since:** 2026-10-27
+
+A segment's agent must exist and not be revoked when the settings are saved. A
+pending agent counts, as it does for devices (DEV-165). On an install whose
+server is not on the monitored network (DEV-171), a segment with no agent is
+refused with `409` when saved and skipped at each run. Agents cannot sweep yet,
+so until agent 0.9.0 ships an agent segment is saved and its runs are reported
+as not available. A segment whose agent was revoked after saving fails at its
+run the same way.
+
+**Why:** From off site, the server would ping the hosting provider's network
+instead of the customer's (DEV-171). The agent is on the customer's network.
+Agent segments are accepted already so the settings survive the agent upgrade
+unchanged.
+
+**Enforced at:** `src/application/device-inventory/use-cases/UpdateDiscoverySettingsUseCase.ts`, `src/application/device-inventory/use-cases/RunScheduledDiscoveryUseCase.ts`, `src/infrastructure/monitoring/network-scanner/SegmentScanner.ts`
+**Reached from:** `PUT /api/network/discovery-settings`, the scheduled run
+**Message:** `segment <cidr>: agentId must be an agent that is not revoked` / `segment <cidr> needs an agent — this server is not on the monitored network` / `Scanning through an agent is not available yet`
+**Tests:** `tests/application/device-inventory/use-cases/UpdateDiscoverySettingsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/UpdateDiscoverySettingsUseCase.integration.test.ts`, `tests/infrastructure/monitoring/network-scanner/SegmentScanner.test.ts`, `tests/integration/use-cases/device-inventory/RunScheduledDiscoveryUseCase.integration.test.ts`, `tests/integration/discovery-settings.routes.test.ts`
+
+### DEV-213 — Everyone reads the scan settings; only an administrator changes them
+
+**Type:** Authorization · **Status:** Active
+**Layer:** Presentation
+**Since:** 2026-10-27
+
+`GET /api/network/discovery-settings` is open to any signed-in user.
+`PUT` needs `manage-settings` (ADMIN, VENDOR).
+
+**Why:** The settings decide what the server pings and how often. That load on
+the customer's network is the administrator's call, the same as the other
+install settings. Seeing what is scanned helps an operator know why a host
+showed up as a suggestion.
+
+**Enforced at:** `src/presentation/http/routes/discovery-settings.routes.ts`
+**Tests:** `tests/integration/discovery-settings.routes.test.ts`
 
 ---
 

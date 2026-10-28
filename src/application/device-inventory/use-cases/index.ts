@@ -40,3 +40,6 @@ export * from './IgnoreDiscoveredDeviceUseCase';
 export * from './UnignoreDiscoveredDeviceUseCase';
 export * from './GetDiscoveredDevicePrefillUseCase';
 export * from './PurgeStaleDiscoveredDevicesUseCase';
+export * from './GetDiscoverySettingsUseCase';
+export * from './UpdateDiscoverySettingsUseCase';
+export * from './RunScheduledDiscoveryUseCase';

@@ -144,6 +144,7 @@ import {
   PrismaInboxNotificationRepository,
   PrismaSpeedTestResultRepository,
   PrismaDiscoveredDeviceRepository,
+  PrismaDiscoverySettingsRepository,
   PrismaKnownDeviceLookup,
   PrismaDiscoveredDeviceListQuery,
   PrismaDiscoveryPrefillQuery,
@@ -169,6 +170,7 @@ import {
   AlertController,
   ScanController,
   DiscoveredDeviceController,
+  DiscoverySettingsController,
   WirelessController,
   WirelessStreamController,
   NetworkSweepController,
@@ -341,9 +343,13 @@ import { PingService } from '../monitoring/ping';
 import { ProbeHealthReporter } from '../monitoring/health';
 import {
   ArpService,
-  NetworkScannerService
+  NetworkScannerService,
+  SegmentScanner
 } from '../monitoring/network-scanner';
-import { PollingOrchestrator } from '../monitoring/orchestrator';
+import {
+  PollingOrchestrator,
+  DiscoveryScanOrchestrator
+} from '../monitoring/orchestrator';
 import {
   PrismaRouterTrafficTargetsQuery,
   RouterOsTrafficReader,
@@ -555,6 +561,9 @@ import {
   UnignoreDiscoveredDeviceUseCase,
   GetDiscoveredDevicePrefillUseCase,
   PurgeStaleDiscoveredDevicesUseCase,
+  GetDiscoverySettingsUseCase,
+  UpdateDiscoverySettingsUseCase,
+  RunScheduledDiscoveryUseCase,
   AssignDevicesToAgentUseCase
 } from '../../application/device-inventory/use-cases';
 import {
@@ -701,6 +710,8 @@ export class DependencyContainer {
   public alertController: AlertController;
   public scanController: ScanController;
   public discoveredDeviceController: DiscoveredDeviceController;
+  public discoverySettingsController: DiscoverySettingsController;
+  public discoveryScanOrchestrator: DiscoveryScanOrchestrator;
   // Shared by every source of sightings (DEV-200).
   public deviceSightingRecorder: DeviceSightingRecorder;
   private purgeStaleDiscoveredDevicesUseCase: PurgeStaleDiscoveredDevicesUseCase;
@@ -1428,8 +1439,11 @@ export class DependencyContainer {
     // Initialize device use cases
     // Inventory reads agents through its own port, never the probe-agents
     // domain (ADR 0002).
+    const agentAssignmentQuery = new PrismaAgentAssignmentQuery(
+      this.prisma
+    );
     const agentAssignmentPolicy = new AgentAssignmentPolicy(
-      new PrismaAgentAssignmentQuery(this.prisma)
+      agentAssignmentQuery
     );
     const createDeviceUseCase = new CreateDeviceUseCase(
       this.deviceRepository,
@@ -2131,6 +2145,34 @@ export class DependencyContainer {
       new PurgeStaleDiscoveredDevicesUseCase(
         discoveredDeviceRepository
       );
+
+    // DEV-210..213: the scheduled scan.
+    const discoverySettingsRepository =
+      new PrismaDiscoverySettingsRepository(this.prisma);
+    this.discoverySettingsController =
+      new DiscoverySettingsController(
+        new GetDiscoverySettingsUseCase(
+          discoverySettingsRepository,
+          this.logger
+        ),
+        new UpdateDiscoverySettingsUseCase(
+          discoverySettingsRepository,
+          agentAssignmentQuery,
+          this.logger,
+          this.serverOnSite
+        ),
+        this.logger
+      );
+    this.discoveryScanOrchestrator = new DiscoveryScanOrchestrator(
+      new RunScheduledDiscoveryUseCase(
+        discoverySettingsRepository,
+        new SegmentScanner(networkScannerService),
+        this.deviceSightingRecorder,
+        this.serverOnSite
+      ),
+      {},
+      this.logger
+    );
 
     const outageTopologyQuery = new PrismaOutageTopologyQuery(
       this.prisma
@@ -3140,6 +3182,10 @@ export class DependencyContainer {
       {
         name: 'config-backups',
         ...bindJob(this.configBackupOrchestrator)
+      },
+      {
+        name: 'discovery-scan',
+        ...bindJob(this.discoveryScanOrchestrator)
       }
     ];
     if (this.billingCycleOrchestrator) {

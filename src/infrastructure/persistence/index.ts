@@ -25,3 +25,4 @@ export * from './PrismaDiscoveredDeviceRepository';
 export * from './PrismaKnownDeviceLookup';
 export * from './PrismaDiscoveredDeviceListQuery';
 export * from './PrismaDiscoveryPrefillQuery';
+export * from './PrismaDiscoverySettingsRepository';

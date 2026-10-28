@@ -318,6 +318,21 @@ model DiscoveredDevice {
   @@map("discovered_devices")
 }
 
+/// The install's scheduled network scan (DEV-210). One row at most (id is
+/// always 1); no row means it is off.
+model DiscoverySettings {
+  id            Int       @id @default(1) @db.SmallInt
+  enabled       Boolean
+  intervalHours Int       @map("interval_hours") @db.SmallInt
+  /// [{ cidr, agentId | null }]; an agentId is not a FK, a removed agent's
+  /// segment fails at its run (DEV-212).
+  segments      Json      @db.JsonB
+  lastRunAt     DateTime? @map("last_run_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("discovery_settings")
+}
+
 enum ReachabilityStatus {
   UP
   DOWN

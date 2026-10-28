@@ -4,3 +4,4 @@ export * from './DeviceModelMapper';
 export * from './VendorMapper';
 export * from './DeviceCredentialsMapper';
 export * from './DiscoveredDeviceMapper';
+export * from './DiscoverySettingsMapper';

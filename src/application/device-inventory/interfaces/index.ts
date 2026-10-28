@@ -9,3 +9,4 @@ export * from './IKnownDeviceLookup';
 export * from './IDiscoveredDeviceListQuery';
 export * from './IDiscoveryNotifier';
 export * from './IDiscoveryPrefillQuery';
+export * from './ISegmentScanner';

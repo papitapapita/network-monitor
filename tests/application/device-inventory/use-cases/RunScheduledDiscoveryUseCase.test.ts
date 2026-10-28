@@ -1,0 +1,272 @@
+// Source: src/application/device-inventory/use-cases/RunScheduledDiscoveryUseCase.ts
+
+import {
+  RunScheduledDiscoveryUseCase,
+  SCAN_NEEDS_SERVER_ON_SITE
+} from '../../../../src/application/device-inventory/use-cases';
+import {
+  DiscoveredHost,
+  ISegmentScanner
+} from '../../../../src/application/device-inventory/interfaces';
+import {
+  DeviceSightingRecorder,
+  SightingBatch
+} from '../../../../src/application/device-inventory/services';
+import { IDiscoverySettingsRepository } from '../../../../src/domain/device-inventory/repository';
+import { DiscoverySettings } from '../../../../src/domain/device-inventory/value-objects';
+import { DiscoverySegment } from '../../../../src/domain/device-inventory/props';
+import { DiscoverySource } from '../../../../src/domain/device-inventory/enums';
+import { Result } from '../../../../src/domain/shared/core';
+
+const AGENT = '0b9c6f0e-3f4a-4c55-9a51-6f7d2a1c8e10';
+const NOW = new Date('2026-11-03T12:00:00Z');
+const HOUR = 3_600_000;
+
+const HOST: DiscoveredHost = {
+  ipAddress: '192.168.1.20',
+  latencyMs: 3,
+  macAddress: 'AA:BB:CC:DD:EE:01',
+  manufacturer: 'Ubiquiti Inc'
+};
+
+function makeSettings(
+  segments: DiscoverySegment[] = [
+    { cidr: '192.168.1.0/24', agentId: null }
+  ],
+  overrides: { enabled?: boolean; intervalHours?: number } = {}
+): DiscoverySettings {
+  return DiscoverySettings.reconstitute({
+    enabled: overrides.enabled ?? true,
+    intervalHours: overrides.intervalHours ?? 24,
+    segments
+  });
+}
+
+describe('RunScheduledDiscoveryUseCase', () => {
+  let repository: jest.Mocked<IDiscoverySettingsRepository>;
+  let scanner: jest.Mocked<ISegmentScanner>;
+  let recorder: jest.Mocked<DeviceSightingRecorder>;
+
+  function makeUseCase(
+    serverOnSite = true
+  ): RunScheduledDiscoveryUseCase {
+    return new RunScheduledDiscoveryUseCase(
+      repository,
+      scanner,
+      recorder,
+      serverOnSite
+    );
+  }
+
+  beforeEach(() => {
+    repository = {
+      get: jest.fn().mockResolvedValue(Result.ok(makeSettings())),
+      save: jest.fn(),
+      lastRunAt: jest.fn().mockResolvedValue(Result.ok(null)),
+      recordRun: jest.fn().mockResolvedValue(Result.ok())
+    };
+    scanner = {
+      scan: jest.fn().mockResolvedValue(Result.ok([HOST]))
+    };
+    recorder = {
+      record: jest.fn(async (batch: SightingBatch) =>
+        Result.ok(
+          batch.hosts.map(() => ({
+            knownDeviceId: null,
+            discoveredDeviceId: 'd-1',
+            isNew: true
+          }))
+        )
+      )
+    } as unknown as jest.Mocked<DeviceSightingRecorder>;
+  });
+
+  describe('[DEV-211] when it runs', () => {
+    it('runs on the first check after it is turned on', async () => {
+      const result = await makeUseCase().execute({ now: NOW });
+
+      expect(result.value.ran).toBe(true);
+      expect(repository.recordRun).toHaveBeenCalledWith(NOW);
+    });
+
+    it('does not run while it is off', async () => {
+      repository.get.mockResolvedValue(
+        Result.ok(makeSettings(undefined, { enabled: false }))
+      );
+
+      const result = await makeUseCase().execute({ now: NOW });
+
+      expect(result.value).toEqual({ ran: false, segments: [] });
+      expect(scanner.scan).not.toHaveBeenCalled();
+    });
+
+    it('does not run with no segments', async () => {
+      repository.get.mockResolvedValue(Result.ok(makeSettings([])));
+
+      const result = await makeUseCase().execute({ now: NOW });
+
+      expect(result.value.ran).toBe(false);
+    });
+
+    it('waits until the interval has passed since the last run', async () => {
+      repository.lastRunAt.mockResolvedValue(
+        Result.ok(new Date(NOW.getTime() - 24 * HOUR + 1))
+      );
+
+      const result = await makeUseCase().execute({ now: NOW });
+
+      expect(result.value.ran).toBe(false);
+      expect(repository.recordRun).not.toHaveBeenCalled();
+    });
+
+    it('runs once the interval has passed', async () => {
+      repository.lastRunAt.mockResolvedValue(
+        Result.ok(new Date(NOW.getTime() - 24 * HOUR))
+      );
+
+      const result = await makeUseCase().execute({ now: NOW });
+
+      expect(result.value.ran).toBe(true);
+    });
+
+    it('stamps the run before sweeping', async () => {
+      const order: string[] = [];
+      repository.recordRun.mockImplementation(async () => {
+        order.push('stamp');
+        return Result.ok();
+      });
+      scanner.scan.mockImplementation(async () => {
+        order.push('scan');
+        return Result.ok([]);
+      });
+
+      await makeUseCase().execute({ now: NOW });
+
+      expect(order).toEqual(['stamp', 'scan']);
+    });
+
+    it('sweeps nothing when the run cannot be stamped', async () => {
+      repository.recordRun.mockResolvedValue(Result.fail('db down'));
+
+      const result = await makeUseCase().execute({ now: NOW });
+
+      expect(result.isFailure).toBe(true);
+      expect(scanner.scan).not.toHaveBeenCalled();
+    });
+
+    it('fails when the settings cannot be read', async () => {
+      repository.get.mockResolvedValue(Result.fail('db down'));
+
+      const result = await makeUseCase().execute({ now: NOW });
+
+      expect(result.error).toBe('db down');
+    });
+  });
+
+  describe('[DEV-211] each segment', () => {
+    it('is swept one after the other and recorded as a scan', async () => {
+      repository.get.mockResolvedValue(
+        Result.ok(
+          makeSettings([
+            { cidr: '192.168.1.0/24', agentId: null },
+            { cidr: '10.0.0.0/24', agentId: AGENT }
+          ])
+        )
+      );
+      let inFlight = 0;
+      let maxInFlight = 0;
+      scanner.scan.mockImplementation(async () => {
+        inFlight++;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((r) => setImmediate(r));
+        inFlight--;
+        return Result.ok([HOST]);
+      });
+
+      const result = await makeUseCase().execute({ now: NOW });
+
+      expect(maxInFlight).toBe(1);
+      expect(scanner.scan.mock.calls).toEqual([
+        ['192.168.1.0/24', null],
+        ['10.0.0.0/24', AGENT]
+      ]);
+      expect(recorder.record).toHaveBeenCalledWith({
+        source: DiscoverySource.SCAN,
+        segment: '192.168.1.0/24',
+        where: '192.168.1.0/24',
+        seenAt: NOW,
+        hosts: [HOST]
+      });
+      expect(result.value.segments).toEqual([
+        {
+          cidr: '192.168.1.0/24',
+          agentId: null,
+          responsiveCount: 1,
+          newCount: 1,
+          error: null
+        },
+        {
+          cidr: '10.0.0.0/24',
+          agentId: AGENT,
+          responsiveCount: 1,
+          newCount: 1,
+          error: null
+        }
+      ]);
+    });
+
+    it('that fails is reported and the next one still runs', async () => {
+      repository.get.mockResolvedValue(
+        Result.ok(
+          makeSettings([
+            { cidr: '192.168.1.0/24', agentId: null },
+            { cidr: '192.168.2.0/24', agentId: null }
+          ])
+        )
+      );
+      scanner.scan.mockResolvedValueOnce(
+        Result.fail('Scan failed: boom')
+      );
+
+      const result = await makeUseCase().execute({ now: NOW });
+
+      expect(result.value.segments[0]).toEqual({
+        cidr: '192.168.1.0/24',
+        agentId: null,
+        responsiveCount: null,
+        newCount: null,
+        error: 'Scan failed: boom'
+      });
+      expect(result.value.segments[1].error).toBeNull();
+    });
+
+    it('whose sightings cannot be recorded is reported', async () => {
+      recorder.record.mockResolvedValue(Result.fail('disk full'));
+
+      const result = await makeUseCase().execute({ now: NOW });
+
+      expect(result.value.segments[0].error).toBe('disk full');
+    });
+  });
+
+  describe('[DEV-212] off site', () => {
+    it('a server segment is skipped and an agent segment still runs', async () => {
+      repository.get.mockResolvedValue(
+        Result.ok(
+          makeSettings([
+            { cidr: '192.168.1.0/24', agentId: null },
+            { cidr: '10.0.0.0/24', agentId: AGENT }
+          ])
+        )
+      );
+
+      const result = await makeUseCase(false).execute({ now: NOW });
+
+      expect(result.value.segments[0].error).toBe(
+        SCAN_NEEDS_SERVER_ON_SITE
+      );
+      expect(scanner.scan).toHaveBeenCalledTimes(1);
+      expect(scanner.scan).toHaveBeenCalledWith('10.0.0.0/24', AGENT);
+    });
+  });
+});

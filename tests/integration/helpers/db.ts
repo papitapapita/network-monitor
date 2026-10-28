@@ -27,6 +27,8 @@ export async function cleanDatabase(
   await prisma.speedTestResult.deleteMany();
   // No FK to devices: a suggestion outlives the device that claims its MAC.
   await prisma.discoveredDevice.deleteMany();
+  // No row means the scheduled scan is off (DEV-210).
+  await prisma.discoverySettings.deleteMany();
 }
 
 /**

@@ -38,3 +38,4 @@ export * from './inbox-notification.schemas';
 export * from './speed-test.schemas';
 export * from './ping-tool.schemas';
 export * from './discovered-device.schemas';
+export * from './discovery-settings.schemas';

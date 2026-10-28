@@ -4,3 +4,4 @@ export * from './IDeviceHardwareSwapRepository';
 export * from './IDeviceModelRepository';
 export * from './IVendorRepository';
 export * from './IDiscoveredDeviceRepository';
+export * from './IDiscoverySettingsRepository';
