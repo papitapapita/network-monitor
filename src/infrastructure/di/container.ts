@@ -143,6 +143,9 @@ import {
   PrismaPushSubscriptionRepository,
   PrismaInboxNotificationRepository,
   PrismaSpeedTestResultRepository,
+  PrismaDiscoveredDeviceRepository,
+  PrismaKnownDeviceLookup,
+  PrismaDiscoveredDeviceListQuery,
   PrismaInboxRecipientsQuery,
   PrismaNotificationSettingsRepository,
   PrismaVendorSettingsRepository
@@ -164,6 +167,7 @@ import {
   VendorSettingsController,
   AlertController,
   ScanController,
+  DiscoveredDeviceController,
   WirelessController,
   WirelessStreamController,
   NetworkSweepController,
@@ -368,7 +372,8 @@ import {
   WhenConfiguredAlertPublisher,
   WebPushSender,
   PushAlertPublisher,
-  InboxAlertPublisher
+  InboxAlertPublisher,
+  InboxDiscoveryNotifier
 } from '../notifications';
 import {
   OverdueDeviceDownAlertOrchestrator,
@@ -542,11 +547,16 @@ import {
   UpdateDeviceModelUseCase,
   DeleteDeviceModelUseCase,
   ScanNetworkSegmentUseCase,
+  ListDiscoveredDevicesUseCase,
+  IgnoreDiscoveredDeviceUseCase,
+  UnignoreDiscoveredDeviceUseCase,
+  PurgeStaleDiscoveredDevicesUseCase,
   AssignDevicesToAgentUseCase
 } from '../../application/device-inventory/use-cases';
 import {
   AgentAssignmentPolicy,
-  UpstreamAssignment
+  UpstreamAssignment,
+  DeviceSightingRecorder
 } from '../../application/device-inventory/services';
 import {
   ExecutePollingCycleUseCase,
@@ -686,6 +696,10 @@ export class DependencyContainer {
   public agentGateway: AgentGateway;
   public alertController: AlertController;
   public scanController: ScanController;
+  public discoveredDeviceController: DiscoveredDeviceController;
+  // Shared by every source of sightings (DEV-200).
+  public deviceSightingRecorder: DeviceSightingRecorder;
+  private purgeStaleDiscoveredDevicesUseCase: PurgeStaleDiscoveredDevicesUseCase;
   public wirelessController: WirelessController;
   public radioSettingsController: RadioSettingsController;
   public wirelessStreamController: WirelessStreamController;
@@ -1574,15 +1588,6 @@ export class DependencyContainer {
       pingService,
       arpService
     );
-    const scanNetworkSegmentUseCase = new ScanNetworkSegmentUseCase(
-      networkScannerService,
-      this.logger,
-      this.serverOnSite
-    );
-    this.scanController = new ScanController(
-      scanNetworkSegmentUseCase,
-      this.logger
-    );
 
     const probeHealthReporter = new ProbeHealthReporter(this.logger);
 
@@ -2076,6 +2081,47 @@ export class DependencyContainer {
       recordInboxNotificationUseCase,
       this.logger
     );
+
+    // DEV-200..207: hosts the network shows that inventory lacks.
+    const discoveredDeviceRepository =
+      new PrismaDiscoveredDeviceRepository(this.prisma);
+    this.deviceSightingRecorder = new DeviceSightingRecorder(
+      discoveredDeviceRepository,
+      new PrismaKnownDeviceLookup(this.prisma),
+      new InboxDiscoveryNotifier(
+        recordInboxNotificationUseCase,
+        this.logger
+      )
+    );
+    const scanNetworkSegmentUseCase = new ScanNetworkSegmentUseCase(
+      networkScannerService,
+      this.deviceSightingRecorder,
+      this.logger,
+      this.serverOnSite
+    );
+    this.scanController = new ScanController(
+      scanNetworkSegmentUseCase,
+      this.logger
+    );
+    this.discoveredDeviceController = new DiscoveredDeviceController(
+      new ListDiscoveredDevicesUseCase(
+        new PrismaDiscoveredDeviceListQuery(this.prisma),
+        this.logger
+      ),
+      new IgnoreDiscoveredDeviceUseCase(
+        discoveredDeviceRepository,
+        this.logger
+      ),
+      new UnignoreDiscoveredDeviceUseCase(
+        discoveredDeviceRepository,
+        this.logger
+      ),
+      this.logger
+    );
+    this.purgeStaleDiscoveredDevicesUseCase =
+      new PurgeStaleDiscoveredDevicesUseCase(
+        discoveredDeviceRepository
+      );
 
     const outageTopologyQuery = new PrismaOutageTopologyQuery(
       this.prisma
@@ -2600,6 +2646,7 @@ export class DependencyContainer {
       purgeOldWirelessAlertRecordsUseCase,
       purgeDeletedDevicesUseCase,
       purgeOldInboxNotificationsUseCase,
+      this.purgeStaleDiscoveredDevicesUseCase,
       { deletedDeviceGraceDays },
       this.vendorSettingsRepository,
       this.logger

@@ -21,3 +21,4 @@ export * from './DeviceChanges';
 export * from './VendorProps';
 export * from './DeviceModelProps';
 export * from './LocationTypeProps';
+export * from './DiscoveredDeviceProps';

@@ -3301,7 +3301,7 @@ Errors from a request the user just made (a save that failed, a timeout) are
 
 ```ts
 type InboxCategory =
-  | 'device' // device_unreachable
+  | 'device' // device_unreachable, device_discovered (deviceId null — open /api/network/discovered)
   | 'wireless' // wireless:<metric>:<severity>
   | 'agent' // agent_offline, agent_clock, …
   | 'backup' // backup_failing
@@ -3670,22 +3670,76 @@ interface AlertListItemDTO extends AlertDTO {
     segment: string            // the CIDR block that was scanned
     scannedCount: number       // total IP addresses probed
     responsiveCount: number    // hosts that replied to ICMP ping
+    newCount: number           // hosts this scan found for the first time
     discoveredHosts: Array<{
       ipAddress: string
       latencyMs: number
       macAddress: string | null     // null when ARP resolution failed
       manufacturer: string | null   // null when MAC is unknown
+      knownDeviceId: string | null  // the inventory device this host is (MAC, then IP)
+      discoveredDeviceId: string | null // its suggestion; null when known or no MAC
+      isNew: boolean                // first seen by this scan
     }>
   }
 }
 ```
 
 > Probes every host in the CIDR range via ICMP ping and returns all responsive hosts with their latency, MAC address, and manufacturer (where resolvable).  
+> Each host is matched against inventory: `knownDeviceId` is the live device with its MAC, or else its IP (DEV-201) — link it to that device. A host inventory lacks, with a MAC, becomes a suggestion listed at `GET /api/network/discovered` (`discoveredDeviceId`, DEV-200); show it with a "Crear dispositivo" action. A host with no MAC is shown but never suggested.  
+> When a scan finds hosts never suggested before, every user gets one inbox notice (type `device_discovered`, category `device`, `deviceId: null`) — link it to the discovered devices screen (DEV-206).  
 > Returns 400 if the segment is invalid or the range exceeds /22 (1 024 usable hosts).  
 > Returns 500 on unexpected infrastructure errors.
 > Returns 409 `{ success: false, error: "Network scan is not available — this server is not on the monitored network" }`
 > on an install whose server is not on the monitored network
 > (`SERVER_ON_SITE=false`, DEV-171). Hide the scan screen on such installs.
+
+---
+
+## Discovered Devices `/api/network/discovered`
+
+Hosts the network shows that inventory lacks, as suggestions to create a device (DEV-200 – DEV-207). Standard `{ success, data }` envelope.
+
+```ts
+type DiscoveredDevice = {
+  id: string
+  macAddress: string            // upper-case, colons — the suggestion's identity
+  ipAddress: string | null      // where it was seen last
+  manufacturer: string | null   // from the MAC's OUI, e.g. "Ubiquiti Inc"
+  source: 'SCAN' | 'AP_STATION' // AP_STATION arrives in a later release
+  segment: string | null        // the CIDR whose scan saw it last
+  firstSeenAt: string           // ISO 8601
+  lastSeenAt: string
+  ignoredAt: string | null      // set on the ignored list only
+}
+```
+
+### `GET /api/network/discovered` — List suggestions
+
+**Status:** 200 | 400 | 401 · **Role:** any signed-in user
+
+Query: `ignored` — `"true"` lists the ignored ones; default `"false"` lists the ones waiting for a decision. Newest `lastSeenAt` first.
+
+```ts
+// Response
+{ success: true, data: DiscoveredDevice[] }
+```
+
+> A suggestion drops out of the list as soon as a live device owns its MAC or IP (DEV-203), so after "Crear dispositivo" just refetch. To create, open the device form pre-filled with `macAddress`, `ipAddress` and, as a hint, `manufacturer`.  
+> Pending suggestions unseen for 30 days are removed; ignored ones stay (DEV-205).
+
+### `POST /api/network/discovered/:id/ignore` — Ignore a suggestion
+
+**Status:** 200 | 400 | 401 | 403 | 404 · **Role:** OPERATOR, ADMIN, VENDOR
+
+No body. Returns the `DiscoveredDevice` with `ignoredAt` set. Ignoring is permanent until undone: later scans never bring it back or notify about it (DEV-204). Ignoring an already ignored one keeps the first `ignoredAt`.
+
+### `DELETE /api/network/discovered/:id/ignore` — Stop ignoring
+
+**Status:** 200 | 400 | 401 | 403 | 404 · **Role:** OPERATOR, ADMIN, VENDOR
+
+No body. Returns the `DiscoveredDevice` with `ignoredAt: null`; it is back on the pending list.
+
+> `400` for a malformed id; `404` `{ success: false, error: "Discovered device not found" }`.
 
 ---
 

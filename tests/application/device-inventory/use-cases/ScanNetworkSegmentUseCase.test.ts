@@ -10,6 +10,12 @@ import {
 } from '../../../../src/application/device-inventory/interfaces';
 import { ILogger } from '../../../../src/application/shared/interfaces';
 import { ScanNetworkSegmentRequestDTO } from '../../../../src/application/device-inventory/dtos';
+import {
+  DeviceSightingRecorder,
+  SightingBatch
+} from '../../../../src/application/device-inventory/services';
+import { DiscoverySource } from '../../../../src/domain/device-inventory/enums';
+import { Result } from '../../../../src/domain/shared/core';
 
 // ---------------------------------------------------------------------------
 // Stub factories
@@ -29,6 +35,20 @@ function makeLogger(): ILogger {
 
 function makeScanner(): jest.Mocked<INetworkScannerService> {
   return { scan: jest.fn() };
+}
+
+function makeRecorder(): jest.Mocked<DeviceSightingRecorder> {
+  return {
+    record: jest.fn(async (batch: SightingBatch) =>
+      Result.ok(
+        batch.hosts.map(() => ({
+          knownDeviceId: null,
+          discoveredDeviceId: null,
+          isNew: false
+        }))
+      )
+    )
+  } as unknown as jest.Mocked<DeviceSightingRecorder>;
 }
 
 function makeHost(
@@ -54,12 +74,18 @@ function makeRequest(
 describe('ScanNetworkSegmentUseCase', () => {
   let scanner: jest.Mocked<INetworkScannerService>;
   let logger: ILogger;
+  let recorder: jest.Mocked<DeviceSightingRecorder>;
   let useCase: ScanNetworkSegmentUseCase;
 
   beforeEach(() => {
     scanner = makeScanner();
     logger = makeLogger();
-    useCase = new ScanNetworkSegmentUseCase(scanner, logger);
+    recorder = makeRecorder();
+    useCase = new ScanNetworkSegmentUseCase(
+      scanner,
+      recorder,
+      logger
+    );
 
     scanner.scan.mockResolvedValue([]);
   });
@@ -73,6 +99,7 @@ describe('ScanNetworkSegmentUseCase', () => {
     it('should refuse to scan without sweeping anything', async () => {
       const offSite = new ScanNetworkSegmentUseCase(
         scanner,
+        recorder,
         logger,
         false
       );
@@ -289,6 +316,72 @@ describe('ScanNetworkSegmentUseCase', () => {
 
       expect(result.value!.discoveredHosts).toHaveLength(3);
       expect(result.value!.responsiveCount).toBe(3);
+    });
+  });
+
+  describe('[DEV-200] executeImpl — sightings', () => {
+    it('should record every responsive host as a scan of the segment', async () => {
+      const hosts = [makeHost({ ipAddress: '10.0.0.1' })];
+      scanner.scan.mockResolvedValue(hosts);
+
+      await useCase.execute(
+        makeRequest({ segment: ' 10.0.0.0/24 ' })
+      );
+
+      expect(recorder.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: DiscoverySource.SCAN,
+          segment: '10.0.0.0/24',
+          where: '10.0.0.0/24',
+          hosts
+        })
+      );
+    });
+
+    it('should mark each host with what the recorder matched', async () => {
+      scanner.scan.mockResolvedValue([
+        makeHost({ ipAddress: '10.0.0.1' }),
+        makeHost({ ipAddress: '10.0.0.2' })
+      ]);
+      recorder.record.mockResolvedValue(
+        Result.ok([
+          {
+            knownDeviceId: 'dev-1',
+            discoveredDeviceId: null,
+            isNew: false
+          },
+          {
+            knownDeviceId: null,
+            discoveredDeviceId: 'dd-1',
+            isNew: true
+          }
+        ])
+      );
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.value!.newCount).toBe(1);
+      expect(result.value!.discoveredHosts[0]).toMatchObject({
+        ipAddress: '10.0.0.1',
+        knownDeviceId: 'dev-1',
+        discoveredDeviceId: null,
+        isNew: false
+      });
+      expect(result.value!.discoveredHosts[1]).toMatchObject({
+        ipAddress: '10.0.0.2',
+        knownDeviceId: null,
+        discoveredDeviceId: 'dd-1',
+        isNew: true
+      });
+    });
+
+    it('should fail when the sightings cannot be recorded', async () => {
+      recorder.record.mockResolvedValue(Result.fail('db down'));
+
+      const result = await useCase.execute(makeRequest());
+
+      expect(result.isFailure).toBe(true);
+      expect(result.error).toBe('db down');
     });
   });
 

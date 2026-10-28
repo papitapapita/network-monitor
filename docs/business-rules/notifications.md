@@ -2238,11 +2238,11 @@ them one by one.
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
-**Since:** 2026-10-27
+**Since:** 2026-10-27 · **Revised:** 2026-10-27 (`device_discovered`, DEV-206)
 
 | Alert type                               | Category   |
 | ---------------------------------------- | ---------- |
-| `device_unreachable`                     | `device`   |
+| `device_unreachable`, `device_discovered` | `device`   |
 | `wireless:<metric>:<severity>`           | `wireless` |
 | `agent_offline`, `agent_clock`, …        | `agent`    |
 | `backup_failing`                         | `backup`   |

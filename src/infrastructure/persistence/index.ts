@@ -21,3 +21,6 @@ export * from './PrismaReportedApQuery';
 export * from './PrismaInboxNotificationRepository';
 export * from './PrismaInboxRecipientsQuery';
 export * from './PrismaSpeedTestResultRepository';
+export * from './PrismaDiscoveredDeviceRepository';
+export * from './PrismaKnownDeviceLookup';
+export * from './PrismaDiscoveredDeviceListQuery';

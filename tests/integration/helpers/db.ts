@@ -25,6 +25,8 @@ export async function cleanDatabase(
   await prisma.wirelessAlertThresholds.deleteMany();
   // Kept when their user is deleted (MON-103).
   await prisma.speedTestResult.deleteMany();
+  // No FK to devices: a suggestion outlives the device that claims its MAC.
+  await prisma.discoveredDevice.deleteMany();
 }
 
 /**

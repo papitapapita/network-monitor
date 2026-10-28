@@ -7,7 +7,10 @@ import {
   PurgeOldWirelessSnapshotsUseCase,
   PurgeOldWirelessAlertRecordsUseCase
 } from 'application/wireless-monitoring/use-cases';
-import { PurgeDeletedDevicesUseCase } from 'application/device-inventory/use-cases';
+import {
+  PurgeDeletedDevicesUseCase,
+  PurgeStaleDiscoveredDevicesUseCase
+} from 'application/device-inventory/use-cases';
 import { ILogger } from 'application/shared/interfaces';
 import { IVendorSettingsRepository } from 'domain/shared/interfaces';
 
@@ -32,6 +35,7 @@ export class DataRetentionOrchestrator {
     private readonly purgeOldWirelessAlertRecords: PurgeOldWirelessAlertRecordsUseCase,
     private readonly purgeDeletedDevices: PurgeDeletedDevicesUseCase,
     private readonly purgeOldInboxNotifications: PurgeOldInboxNotificationsUseCase,
+    private readonly purgeStaleDiscoveredDevices: PurgeStaleDiscoveredDevicesUseCase,
     private readonly config: RetentionConfig,
     private readonly vendorSettings: IVendorSettingsRepository,
     private readonly logger: ILogger
@@ -105,7 +109,8 @@ export class DataRetentionOrchestrator {
       this.purgeDeletedDevices.execute(
         this.config.deletedDeviceGraceDays
       ),
-      this.purgeOldInboxNotifications.execute()
+      this.purgeOldInboxNotifications.execute(),
+      this.purgeStaleDiscoveredDevices.execute()
     ]);
 
     const [
@@ -114,7 +119,8 @@ export class DataRetentionOrchestrator {
       snapshotResult,
       wirelessAlertResult,
       deletedDeviceResult,
-      inboxResult
+      inboxResult,
+      discoveredResult
     ] = results;
 
     if (pingResult.isFailure) {
@@ -153,6 +159,12 @@ export class DataRetentionOrchestrator {
         new Error(inboxResult.error)
       );
     }
+    if (discoveredResult.isFailure) {
+      this.logger.error(
+        '[DataRetentionOrchestrator] Failed to purge discovered devices',
+        new Error(discoveredResult.error)
+      );
+    }
 
     this.logger.info('[DataRetentionOrchestrator] Purge complete', {
       pingResultsDeleted: pingResult.isSuccess ? pingResult.value : 0,
@@ -168,6 +180,9 @@ export class DataRetentionOrchestrator {
         : 0,
       inboxNotificationsDeleted: inboxResult.isSuccess
         ? inboxResult.value
+        : 0,
+      discoveredDevicesDeleted: discoveredResult.isSuccess
+        ? discoveredResult.value
         : 0
     });
   }

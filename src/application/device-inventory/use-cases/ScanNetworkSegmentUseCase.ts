@@ -5,7 +5,9 @@ import {
   ScanNetworkSegmentRequestDTO,
   ScanNetworkSegmentResponseDTO
 } from '../dtos';
+import { DiscoverySource } from 'domain/device-inventory/enums';
 import { INetworkScannerService } from '../interfaces';
+import { DeviceSightingRecorder } from '../services';
 
 // Shared with the controller, which answers 409 for it (DEV-171).
 export const SCAN_NEEDS_SERVER_ON_SITE =
@@ -17,6 +19,7 @@ export class ScanNetworkSegmentUseCase extends UseCase<
 > {
   constructor(
     private readonly networkScannerService: INetworkScannerService,
+    private readonly sightings: DeviceSightingRecorder,
     logger: ILogger,
     private readonly serverOnSite = true
   ) {
@@ -44,15 +47,27 @@ export class ScanNetworkSegmentUseCase extends UseCase<
 
     const hosts = await this.networkScannerService.scan(segment);
 
+    const recorded = await this.sightings.record({
+      source: DiscoverySource.SCAN,
+      segment,
+      where: segment,
+      seenAt: new Date(),
+      hosts
+    });
+    if (recorded.isFailure) return this.fail(recorded.error);
+    const outcomes = recorded.value;
+
     return this.ok<ScanNetworkSegmentResponseDTO>({
       segment,
       scannedCount: this.calculateCidrHostCount(segment),
       responsiveCount: hosts.length,
-      discoveredHosts: hosts.map((h) => ({
+      newCount: outcomes.filter((o) => o.isNew).length,
+      discoveredHosts: hosts.map((h, i) => ({
         ipAddress: h.ipAddress,
         latencyMs: h.latencyMs,
         macAddress: h.macAddress,
-        manufacturer: h.manufacturer
+        manufacturer: h.manufacturer,
+        ...outcomes[i]
       }))
     });
   }

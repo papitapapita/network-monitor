@@ -18,6 +18,7 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 | `DEV-140` – `DEV-159` | Cross-cutting (access, listing, discovery) |
 | `DEV-160` – `DEV-179` | Device (continued — first block is full)   |
 | `DEV-180` – `DEV-199` | Topology                                   |
+| `DEV-200` – `DEV-219` | Discovery                                  |
 
 Rationales marked _(inferred)_ were reconstructed from the code, not stated by
 the business. They are the ones to read critically.
@@ -37,12 +38,12 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Domain**                            |    47 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162, DEV-164, DEV-169, DEV-180, DEV-181 |
-| **Application**                       |    57 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-134, DEV-135, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172, DEV-173, DEV-184, DEV-191, DEV-192, DEV-193, DEV-195 |
-| **Application + Domain**              |    11 | DEV-031, DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160, DEV-182, DEV-183, DEV-185, DEV-194 |
+| **Domain**                            |    49 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162, DEV-164, DEV-169, DEV-180, DEV-181, DEV-202, DEV-204 |
+| **Application**                       |    59 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-134, DEV-135, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172, DEV-173, DEV-184, DEV-191, DEV-192, DEV-193, DEV-195, DEV-205, DEV-207 |
+| **Application + Domain**              |    12 | DEV-031, DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160, DEV-182, DEV-183, DEV-185, DEV-194, DEV-200 |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
 | **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
-| **Infrastructure + Application**      |     6 | DEV-072, DEV-084, DEV-148, DEV-149, DEV-186, DEV-190 |
+| **Infrastructure + Application**      |     9 | DEV-072, DEV-084, DEV-148, DEV-149, DEV-186, DEV-190, DEV-201, DEV-203, DEV-206 |
 | **Presentation**                      |     3 | DEV-140, DEV-146, DEV-170                                                                                                                                                                                                                                                                                                                                                                         |
 
 **Half the book sits outside the domain, and most of it belongs there.** The
@@ -2523,7 +2524,10 @@ broadcast addresses for prefixes below /31.
 of hosts that could actually have answered, so the responsive/scanned ratio is
 meaningful. /31 and /32 are exempt because they have no reserved pair.
 
-**Enforced at:** `src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.ts:25`, `:50`
+Every responsive host is also matched against inventory and recorded as a
+sighting (DEV-200 – DEV-207).
+
+**Enforced at:** `src/application/device-inventory/use-cases/ScanNetworkSegmentUseCase.ts` (`beforeExecute`, `calculateCidrHostCount`)
 **Message:** `segment is required`
 **Tests:** `tests/integration/use-cases/device-inventory/ScanNetworkSegmentUseCase.integration.test.ts`
 
@@ -3350,6 +3354,155 @@ needs to know the PoE side may be incomplete.
 
 **Enforced at:** `src/application/power-control/services/PoweredDeviceSurvey.ts`, `src/application/device-inventory/use-cases/ListUpstreamSuggestionsUseCase.ts`
 **Tests:** `tests/application/power-control/services/PoweredDeviceSurvey.test.ts`, `tests/application/device-inventory/services/UpstreamSuggester.test.ts`, `tests/application/device-inventory/use-cases/ListUpstreamSuggestionsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ListUpstreamSuggestionsUseCase.integration.test.ts`
+
+## Discovery
+
+Hosts the network shows that inventory lacks, kept as suggestions to create a
+device (`/api/network/discovered`). Every source of sightings — a network scan
+today, an AP's station list next — goes through the same recorder, so they all
+agree on what is new.
+
+### DEV-200 — A host inventory lacks becomes a suggestion, keyed by its MAC
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application + Domain
+**Since:** 2026-10-27
+
+A sighting whose MAC no live device owns (DEV-201) is stored as one discovered
+device per MAC, with its IP, OUI manufacturer, source (`SCAN` or `AP_STATION`)
+and the segment it was seen on. The MAC is normalized like a device's
+(DEV-046). A host with no readable MAC, which is the case on a routed segment
+where the server's ARP table cannot see it, is never stored.
+
+**Why:** The MAC is the only identity a host shows on its own: IPs move with
+DHCP, and a suggestion keyed by IP would turn into a different device every
+lease. Without a MAC there is nothing to say a later sighting is the same host.
+
+**Enforced at:** `src/application/device-inventory/services/DeviceSightingRecorder.ts`, `src/domain/device-inventory/aggregates/DiscoveredDevice.ts` (`create`)
+**Reached from:** `POST /api/network/scan` via `ScanNetworkSegmentUseCase`
+**Tests:** `tests/domain/device-inventory/aggregates/DiscoveredDevice.test.ts`, `tests/application/device-inventory/services/DeviceSightingRecorder.test.ts`, `tests/integration/use-cases/device-inventory/ScanNetworkSegmentUseCase.integration.test.ts`, `tests/integration/scan.routes.test.ts`
+
+### DEV-201 — A host is the inventory device with its MAC, or else its IP
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure + Application
+**Since:** 2026-10-27
+
+Each scanned host reports `knownDeviceId`: the live device with the same MAC,
+or, failing that, the live device with the same IP. A device in the recycle bin
+does not count, so its host is suggested again.
+
+**Why:** Many devices were registered without a MAC, so matching by MAC alone
+would suggest creating devices that already exist. The IP is the fallback, not
+the first choice, because a MAC match is certain and an IP match is only likely.
+
+**Enforced at:** `src/application/device-inventory/services/DeviceSightingRecorder.ts`, `src/infrastructure/persistence/PrismaKnownDeviceLookup.ts`
+**Tests:** `tests/application/device-inventory/services/DeviceSightingRecorder.test.ts`, `tests/integration/use-cases/device-inventory/ScanNetworkSegmentUseCase.integration.test.ts`, `tests/integration/scan.routes.test.ts`
+
+### DEV-202 — Seeing a suggestion again refreshes it
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-10-27
+
+A later sighting of a suggested MAC updates its IP, source, segment and last
+seen time; a field the new sighting lacks (no IP, no manufacturer) keeps its
+earlier value. A sighting older than the last one changes nothing. First seen
+never changes.
+
+**Why:** The list should show where the host is now, without one partial
+sighting erasing what an earlier one learned.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/DiscoveredDevice.ts` (`sighted`)
+**Tests:** `tests/domain/device-inventory/aggregates/DiscoveredDevice.test.ts`, `tests/integration/use-cases/device-inventory/ScanNetworkSegmentUseCase.integration.test.ts`
+
+### DEV-203 — A suggestion disappears once inventory owns its MAC or IP
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure + Application
+**Since:** 2026-10-27
+
+The list leaves out any suggestion whose MAC or IP a live device owns, so
+creating the device clears it at once. The next sighting of that MAC then
+deletes the row.
+
+**Why:** Creating the device is the decision the suggestion asked for; there is
+nothing left to show. Filtering on read means no handler on device create or
+update has to remember to clean up.
+
+**Enforced at:** `src/infrastructure/persistence/PrismaDiscoveredDeviceListQuery.ts`, `src/application/device-inventory/services/DeviceSightingRecorder.ts`
+**Tests:** `tests/integration/use-cases/device-inventory/ListDiscoveredDevicesUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/ScanNetworkSegmentUseCase.integration.test.ts`, `tests/application/device-inventory/services/DeviceSightingRecorder.test.ts`
+
+### DEV-204 — An ignored suggestion stays ignored until someone undoes it
+
+**Type:** Policy · **Status:** Active
+**Layer:** Domain
+**Since:** 2026-10-27
+
+`POST /api/network/discovered/:id/ignore` moves it to the ignored list;
+`DELETE` on the same path moves it back. Later sightings refresh an ignored
+suggestion (DEV-202) but never bring it back or notify about it. Ignoring twice
+keeps the first time. Operators and admins decide; viewers only see the list.
+
+**Why:** A customer's laptop or a neighbour's router will keep answering every
+scan. Ignoring has to be permanent, or the list fills back up with the same
+hosts every day.
+
+**Enforced at:** `src/domain/device-inventory/aggregates/DiscoveredDevice.ts` (`ignore`, `unignore`), `src/presentation/http/routes/discovered-device.routes.ts` (`authorize('create')`)
+**Message:** `Discovered device not found`
+**Tests:** `tests/domain/device-inventory/aggregates/DiscoveredDevice.test.ts`, `tests/integration/use-cases/device-inventory/IgnoreDiscoveredDeviceUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/UnignoreDiscoveredDeviceUseCase.integration.test.ts`, `tests/integration/discovered-device.routes.test.ts`
+
+### DEV-205 — A suggestion unseen for 30 days is dropped
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-27
+
+The nightly retention run deletes pending suggestions last seen more than 30
+days ago. Ignored ones are kept however old.
+
+**Why:** A host gone for a month was a visitor, not equipment to register.
+An ignored one is kept because deleting it would make it new again on its next
+appearance, undoing DEV-204.
+
+**Enforced at:** `src/application/device-inventory/use-cases/PurgeStaleDiscoveredDevicesUseCase.ts`, `src/infrastructure/retention/DataRetentionOrchestrator.ts`
+**Tests:** `tests/integration/use-cases/device-inventory/PurgeStaleDiscoveredDevicesUseCase.integration.test.ts`, `tests/infrastructure/retention/DataRetentionOrchestrator.test.ts`
+
+### DEV-206 — New hosts are announced once per sighting batch, in the inbox only
+
+**Type:** Policy · **Status:** Active
+**Layer:** Infrastructure + Application
+**Since:** 2026-10-27
+
+When a scan finds MACs it has never suggested before, every user's inbox gets
+one notice (type `device_discovered`, category `device`) naming the count and
+the segment, e.g. "Se detectaron 3 dispositivos nuevos en 192.168.1.0/24".
+Refreshed and ignored suggestions send nothing. The notice never goes to
+Telegram or phones, and a failure to record it never fails the scan. Each host
+in the scan response says whether this scan found it first (`isNew`).
+
+**Why:** A new host is something to review, not an outage. One notice per scan
+keeps a first scan of a busy segment from filling the inbox with dozens of
+entries.
+
+**Enforced at:** `src/application/device-inventory/services/DeviceSightingRecorder.ts`, `src/infrastructure/notifications/InboxDiscoveryNotifier.ts`
+**Tests:** `tests/application/device-inventory/services/DeviceSightingRecorder.test.ts`, `tests/infrastructure/notifications/InboxDiscoveryNotifier.test.ts`, `tests/integration/use-cases/device-inventory/ScanNetworkSegmentUseCase.integration.test.ts`, `tests/integration/scan.routes.test.ts`
+
+### DEV-207 — A MAC answering for several addresses identifies none of them
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-27
+
+When one MAC shows up at more than one IP in the same batch, those hosts are
+treated as having no MAC: they are matched by IP only and never stored.
+
+**Why:** That is a router answering ARP for the hosts behind it (proxy ARP).
+Matching by its MAC would label every host as the router, and storing it would
+make one suggestion out of many devices.
+
+**Enforced at:** `src/application/device-inventory/services/DeviceSightingRecorder.ts` (`uniqueMacs`)
+**Tests:** `tests/application/device-inventory/services/DeviceSightingRecorder.test.ts`, `tests/integration/use-cases/device-inventory/ScanNetworkSegmentUseCase.integration.test.ts`
 
 ---
 

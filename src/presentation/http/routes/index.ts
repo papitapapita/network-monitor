@@ -18,6 +18,7 @@ import { createInboxStreamRoutes } from './inbox-stream.routes';
 import { createNotificationSettingsRoutes } from './notification-settings.routes';
 import { createAlertRoutes } from './alert.routes';
 import { createScanRoutes } from './scan.routes';
+import { createDiscoveredDeviceRoutes } from './discovered-device.routes';
 import { createWirelessRoutes } from './wireless.routes';
 import { createAlertThresholdRoutes } from './alert-threshold.routes';
 import { createWirelessStreamRoutes } from './wireless-stream.routes';
@@ -428,6 +429,12 @@ export function setupRoutes(
   apiRouter.use(
     '/network/scan',
     createScanRoutes(container.scanController)
+  );
+
+  // Devices the network shows that inventory lacks: /api/network/discovered
+  apiRouter.use(
+    '/network/discovered',
+    createDiscoveredDeviceRoutes(container.discoveredDeviceController)
   );
 
   // Internet speed test history: /api/network/speed-tests

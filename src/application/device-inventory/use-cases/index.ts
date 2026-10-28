@@ -35,3 +35,7 @@ export * from './GetTopologyUseCase';
 export * from './GetDeviceDescendantsUseCase';
 export * from './ListUpstreamSuggestionsUseCase';
 export * from './AcceptUpstreamSuggestionsUseCase';
+export * from './ListDiscoveredDevicesUseCase';
+export * from './IgnoreDiscoveredDeviceUseCase';
+export * from './UnignoreDiscoveredDeviceUseCase';
+export * from './PurgeStaleDiscoveredDevicesUseCase';

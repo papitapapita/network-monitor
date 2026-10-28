@@ -85,6 +85,7 @@ describe('InboxNotification', () => {
   describe('[NOT-264] category', () => {
     it.each([
       ['device_unreachable', 'device'],
+      ['device_discovered', 'device'],
       ['wireless:signal_dbm:CRITICAL', 'wireless'],
       ['agent_offline', 'agent'],
       ['agent_clock', 'agent'],

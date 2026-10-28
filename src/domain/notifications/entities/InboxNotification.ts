@@ -5,6 +5,11 @@ import { InboxCategory, InboxNotificationProps } from '../props';
 
 const MAX_TYPE_LENGTH = 100;
 
+const DEVICE_TYPES = new Set([
+  'device_unreachable',
+  'device_discovered'
+]);
+
 const SECURITY_TYPES = new Set([
   'sign_in_paused',
   'two_factor_reset'
@@ -164,7 +169,7 @@ export class InboxNotification extends Entity<
 
   // NOT-264
   public static categoryFor(type: string): InboxCategory {
-    if (type === 'device_unreachable') return 'device';
+    if (DEVICE_TYPES.has(type)) return 'device';
     if (type.startsWith('wireless:')) return 'wireless';
     if (type.startsWith('agent_')) return 'agent';
     if (type.startsWith('backup_')) return 'backup';

@@ -4,7 +4,8 @@ import request from 'supertest';
 import { Application } from 'express';
 import { PrismaClient } from '../../src/generated/prisma/client';
 import { createTestApp } from './helpers/createTestApp';
-import { cleanDatabase } from './helpers/db';
+import { cleanDatabase, seedDeviceModel } from './helpers/db';
+import { seedOwnedDevice } from './helpers/discoveredDevices';
 import { seedAndGetToken } from './helpers/auth';
 import { FakeNetworkScannerService } from './helpers/FakeNetworkScannerService';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
@@ -29,7 +30,11 @@ describe('Scan Routes — POST /api/network/scan', () => {
     ({ app, container } = await createTestApp((c) => {
       const logger = c.getLogger();
       c.scanController = new ScanController(
-        new ScanNetworkSegmentUseCase(scanner, logger),
+        new ScanNetworkSegmentUseCase(
+          scanner,
+          c.deviceSightingRecorder,
+          logger
+        ),
         logger
       );
     }));
@@ -145,25 +150,92 @@ describe('Scan Routes — POST /api/network/scan', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
+      const suggestion =
+        await prisma.discoveredDevice.findUniqueOrThrow({
+          where: { macAddress: 'A4:C3:F0:85:AC:11' }
+        });
       expect(res.body.data).toEqual({
         segment: '192.168.1.0/24',
         scannedCount: 254,
         responsiveCount: 2,
+        newCount: 1,
         discoveredHosts: [
           {
             ipAddress: '192.168.1.1',
             latencyMs: 2,
             macAddress: 'A4:C3:F0:85:AC:11',
-            manufacturer: 'TP-Link'
+            manufacturer: 'TP-Link',
+            knownDeviceId: null,
+            discoveredDeviceId: suggestion.id,
+            isNew: true
           },
           {
             ipAddress: '192.168.1.20',
             latencyMs: 5,
             macAddress: null,
-            manufacturer: null
+            manufacturer: null,
+            knownDeviceId: null,
+            discoveredDeviceId: null,
+            isNew: false
           }
         ]
       });
+    });
+
+    it('[DEV-201] 200 — marks a host inventory already has', async () => {
+      const modelId = await seedDeviceModel(prisma);
+      const deviceId = await seedOwnedDevice(prisma, modelId, {
+        macAddress: 'A4:C3:F0:85:AC:11'
+      });
+      scanner.setHosts([
+        {
+          ipAddress: '192.168.1.1',
+          latencyMs: 2,
+          macAddress: 'A4:C3:F0:85:AC:11',
+          manufacturer: 'TP-Link'
+        }
+      ]);
+
+      const res = await scan({ segment: '192.168.1.0/24' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.newCount).toBe(0);
+      expect(res.body.data.discoveredHosts[0]).toMatchObject({
+        knownDeviceId: deviceId,
+        discoveredDeviceId: null,
+        isNew: false
+      });
+    });
+
+    it('[DEV-206] a new host leaves one notice in every inbox', async () => {
+      scanner.setHosts([
+        {
+          ipAddress: '192.168.1.1',
+          latencyMs: 2,
+          macAddress: 'A4:C3:F0:85:AC:11',
+          manufacturer: 'TP-Link'
+        }
+      ]);
+
+      await scan({ segment: '192.168.1.0/24' });
+
+      const notices = await prisma.inboxNotification.findMany({
+        where: { type: 'device_discovered' }
+      });
+      expect(notices).toHaveLength(1);
+      expect(notices[0]).toMatchObject({
+        category: 'device',
+        deviceId: null,
+        title: 'Se detectó un dispositivo nuevo en 192.168.1.0/24'
+      });
+
+      await scan({ segment: '192.168.1.0/24' });
+
+      expect(
+        await prisma.inboxNotification.count({
+          where: { type: 'device_discovered' }
+        })
+      ).toBe(1);
     });
 
     it('200 — reports zero responsive hosts when nothing answers', async () => {
@@ -174,6 +246,7 @@ describe('Scan Routes — POST /api/network/scan', () => {
         segment: '10.0.0.0/30',
         scannedCount: 2,
         responsiveCount: 0,
+        newCount: 0,
         discoveredHosts: []
       });
     });
@@ -237,6 +310,7 @@ describe('[DEV-171] Scan Routes — a server hosted off site', () => {
         c.scanController = new ScanController(
           new ScanNetworkSegmentUseCase(
             scanner,
+            c.deviceSightingRecorder,
             logger,
             c.serverOnSite
           ),

@@ -15,7 +15,7 @@ import { scanNetworkSegmentSchema } from '../validation';
  * under the appropriate path (e.g., /api/network).
  *
  * Routes:
- * - POST /  - Probe a CIDR segment and auto-register discovered hosts
+ * - POST /  - Probe a CIDR segment and suggest the hosts inventory lacks
  *
  * @param controller - ScanController instance (injected by DI container)
  * @returns Express router with all scan routes
@@ -25,17 +25,16 @@ export function createScanRoutes(controller: ScanController): Router {
 
   /**
    * POST /api/network/scan
-   * Probe a CIDR network segment and auto-register new hosts as inventory devices.
+   * Probe a CIDR network segment; hosts inventory lacks become suggestions
+   * (DEV-200), listed at /api/network/discovered.
    *
    * Body: ScanNetworkSegmentInput
-   *   - segment              (required) CIDR block, e.g. "192.168.1.0/24"
-   *   - defaultDeviceModelId (required) UUID v4 of DeviceModel for new hosts
-   *   - defaultOwnerType     (required) COMPANY | CLIENT
+   *   - segment (required) CIDR block, e.g. "192.168.1.0/24"
    *
    * Response: 200 OK with ScanNetworkSegmentResponseDTO
    * Errors:
-   *   400 - Validation failure or invalid segment/model
-   *   404 - Referenced DeviceModel does not exist
+   *   400 - Validation failure or invalid segment
+   *   409 - Server not on the monitored network (DEV-171)
    *   500 - Unexpected infrastructure error
    */
   router.post(

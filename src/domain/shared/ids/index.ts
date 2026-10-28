@@ -24,3 +24,4 @@ export * from './AgentId';
 export * from './ConfigBackupId';
 export * from './InboxNotificationId';
 export * from './SpeedTestResultId';
+export * from './DiscoveredDeviceId';

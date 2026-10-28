@@ -45,3 +45,4 @@ export * from './AssignDevicesToAgentResponseDTO';
 export * from './RetireDeviceAfterCancellationDTOs';
 export * from './TopologyDTO';
 export * from './UpstreamSuggestionDTOs';
+export * from './DiscoveredDeviceDTOs';
