@@ -48,7 +48,16 @@ export function linkedPort(
   rateMbps: number,
   comment: string | null = null
 ): EthernetPortReading {
-  return { name, comment, linked: true, rateMbps, fullDuplex: true };
+  return {
+    name,
+    comment,
+    linked: true,
+    rateMbps,
+    fullDuplex: true,
+    rxErrors: null,
+    linkDowns: null,
+    sfp: null
+  };
 }
 
 export function unlinkedPort(name: string): EthernetPortReading {
@@ -57,6 +66,9 @@ export function unlinkedPort(name: string): EthernetPortReading {
     comment: null,
     linked: false,
     rateMbps: null,
-    fullDuplex: null
+    fullDuplex: null,
+    rxErrors: null,
+    linkDowns: null,
+    sfp: null
   };
 }

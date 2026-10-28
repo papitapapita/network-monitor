@@ -2238,11 +2238,11 @@ them one by one.
 
 **Type:** Invariant · **Status:** Active
 **Layer:** Domain
-**Since:** 2026-10-27 · **Revised:** 2026-10-27 (`device_discovered`, DEV-206), 2026-10-28 (`port_speed_low`, MON-148; `router_rebooted`, `router_health`, MON-171, MON-174)
+**Since:** 2026-10-27 · **Revised:** 2026-10-27 (`device_discovered`, DEV-206), 2026-10-28 (`port_speed_low`, MON-148; `router_rebooted`, `router_health`, MON-171, MON-174; `port_health`, MON-197)
 
 | Alert type                                                                                      | Category   |
 | ----------------------------------------------------------------------------------------------- | ---------- |
-| `device_unreachable`, `device_discovered`, `port_speed_low`, `router_rebooted`, `router_health` | `device`   |
+| `device_unreachable`, `device_discovered`, `port_speed_low`, `router_rebooted`, `router_health`, `port_health` | `device`   |
 | `wireless:<metric>:<severity>`                                                                  | `wireless` |
 | `agent_offline`, `agent_clock`, …                                                               | `agent`    |
 | `backup_failing`                                                                                | `backup`   |

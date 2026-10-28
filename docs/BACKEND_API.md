@@ -1981,6 +1981,24 @@ interface RouterPortDTO {
   expectedMbps: number | null;
   alertOnNoLink: boolean; // MON-149; false without an expected speed
   verdict: PortSpeedVerdict;
+  // MON-198 (since 2026-10-28). All null / [] on PORT_MISSING.
+  rxErrors: number | null; // FCS + alignment errors as read now, since the counters were last reset; null when the router does not count them
+  linkDowns: number | null; // times the link went down, as read now
+  errorsAdded: number | null; // what the last scheduled check added; null when it could not tell (first check, counter reset)
+  linkDownsAdded: number | null; // same, for link-downs
+  sfp: SfpReadingDTO | null; // null on a port with no fibre module
+  issues: PortIssue[]; // problems open on the port (scheduled check)
+}
+
+type PortIssue =
+  | 'ERRORS' // errors added on 2 checks in a row (MON-193)
+  | 'FLAPPING' // flapLinkDowns or more link-downs in one check (MON-194)
+  | 'SFP_RX_LOW'; // fibre receive power under minSfpRxPowerDbm (MON-195)
+
+interface SfpReadingDTO {
+  rxPowerDbm: number | null; // e.g. -7.2
+  txPowerDbm: number | null;
+  temperatureC: number | null;
 }
 
 interface RouterPortSpeedsDTO {
@@ -2023,6 +2041,12 @@ Show `SLOW` red, `OK` green, `NO_LINK` grey, `NO_EXPECTATION` neutral with a
 remove it or rename it back"). Each row needs a speed picker that calls `PUT …/expected`,
 and each card an "Accept current speeds" button and a "Check now" button
 (`GET /api/routers/:id/port-speeds`, below) that refreshes only that card.
+Per row, also show errors and link-downs, with `+errorsAdded` /
+`+linkDownsAdded` in red when above 0 ("en el último chequeo"), and the fibre
+module when `sfp` is set ("Rx -7,2 dBm · Tx -2,1 dBm · 41 °C"). Badge each
+`issues` entry red: `ERRORS` "Suma errores (cable o conector)", `FLAPPING`
+"Se cae y vuelve", `SFP_RX_LOW` "Potencia de fibra baja". Off site, an agent
+older than 0.11.0 sends no counters: they are all null (MON-199).
 
 ---
 
@@ -2105,7 +2129,7 @@ RouterPortSpeedsDTO; // the router, judged against its new speeds
 **Since:** 2026-10-28
 
 Every `PORT_SPEED_CHECK_INTERVAL_MINUTES` (default 10) the server reads each
-router above that has at least one expected speed (MON-147):
+router above (MON-147, MON-192). Ports with an expected speed are judged on it:
 
 - A port `SLOW` on **2 checks in a row** sends one notice. It is not sent
   again while the port stays slow.
@@ -2126,6 +2150,35 @@ Examples:
 
 It is a notification only and does not appear in `GET /api/alerts`. Mute it
 for the whole install with `port_speed_low` in `PUT /api/notification-mutes`.
+
+### Alerts (no endpoint) — `port_health`
+
+**Since:** 2026-10-28
+
+The same scheduled read keeps every port's counters and judges what each
+check added (MON-191..MON-195), with the limits of
+`/api/routers/health-thresholds`:
+
+- `ERRORS`: errors added on **2 checks in a row**; closes after 2 checks in
+  a row with none.
+- `FLAPPING`: `flapLinkDowns` (default 3) or more link-downs in one check;
+  closes on a check with none.
+- `SFP_RX_LOW`: fibre receive power under `minSfpRxPowerDbm` (default -20
+  dBm); closes 1 dB above it. Off with `minSfpRxPowerDbm: null`.
+
+One notice per router per check for what opened and one for what closed,
+type `port_health`, severity `WARNING`, source `Estado de puertos`, inbox
+category `device` (MON-197). Examples:
+
+- `El puerto ether5 (Torre norte) de "Core" sigue sumando errores (+12 en el último chequeo)`
+- `El puerto ether5 de "Core" se cayó 4 veces en el último chequeo`
+- `El puerto sfp1 de "Core" recibe -23,5 dBm por la fibra (menos de -20 dBm)`
+- `3 problemas en puertos de "Core"` (`body` lists them)
+- `El puerto ether5 de "Core" dejó de sumar errores` / `… dejó de caerse` / `… volvió a recibir bien por la fibra (-15 dBm)`
+- `Se normalizaron 2 problemas en puertos de "Core"`
+
+Not in `GET /api/alerts`. Mute with `port_health` in
+`PUT /api/notification-mutes`.
 
 ---
 
@@ -2247,6 +2300,8 @@ interface RouterHealthThresholds {
   minFreeDiskPercent: number; // whole, 1–50; default 5
   maxTemperatureC: number; // whole, 40–110; default 75
   minVoltage: number | null; // 5–60, or null for no voltage alert (default)
+  flapLinkDowns: number; // whole, 1–100; default 3 (MON-194, MON-196)
+  minSfpRxPowerDbm: number | null; // -40–0, or null for no fibre power alert; default -20 (MON-195, MON-196)
 }
 
 // Response
@@ -2263,13 +2318,16 @@ interface RouterHealthThresholds {
 
 **Status:** 200 | 400 | 401 | 403
 
-`manage-settings` (administrators). The whole set, every field required;
-used from the next check on. Answers as `GET`. A value out of range is `400`
-with e.g. `maxTemperatureC must be a whole number from 40 to 110`.
+`manage-settings` (administrators). The whole set, every field required
+except `flapLinkDowns` and `minSfpRxPowerDbm`, which keep what was stored
+when left out (MON-196); used from the next check on. Answers as `GET`. A
+value out of range is `400` with e.g. `maxTemperatureC must be a whole number
+from 40 to 110`.
 
 ```ts
 // Request body
-RouterHealthThresholds;
+Omit<RouterHealthThresholds, 'flapLinkDowns' | 'minSfpRxPowerDbm'> &
+  Partial<Pick<RouterHealthThresholds, 'flapLinkDowns' | 'minSfpRxPowerDbm'>>;
 ```
 
 > **Frontend:** a "Salud de routers" card in Settings, administrators only:
@@ -2277,7 +2335,11 @@ RouterHealthThresholds;
 > temperatura máxima (°C), and a voltage field with an "Alertar por voltaje"
 > switch (off sends `minVoltage: null`). Explain under it that the voltage
 > depends on each board's power supply (12, 24 or 48 V). "Restaurar valores
-> por defecto" fills the form from `defaults`.
+> por defecto" fills the form from `defaults`. A "Puertos" group below:
+> "Caídas de enlace para alertar" (`flapLinkDowns`, per check of 10 min) and
+> "Potencia mínima de fibra (dBm)" with an "Alertar por fibra" switch (off
+> sends `minSfpRxPowerDbm: null`); explain that long-reach modules work
+> below -20 dBm.
 
 ### `GET /api/routers/audit` — Versions and what is worth fixing on each MikroTik
 
@@ -3417,8 +3479,9 @@ so one entry silences both its WARNING and CRITICAL severities.
 
 Besides the device and wireless metrics, the backup notification
 `backup_failing` is muted the same way (see Device Backups, BKP-061), and
-so is the port speed notification `port_speed_low` (MON-148), and the
-MikroTik notices `router_rebooted` and `router_health` (MON-171, MON-174).
+so is the port speed notification `port_speed_low` (MON-148), the port
+notice `port_health` (MON-197), and the MikroTik notices `router_rebooted`
+and `router_health` (MON-171, MON-174).
 `config_changed` no longer exists (BKP-060, removed 2026-10-26).
 
 ### `GET /api/notification-mutes` — List Muted Alert Types
@@ -3714,7 +3777,7 @@ Errors from a request the user just made (a save that failed, a timeout) are
 
 ```ts
 type InboxCategory =
-  | 'device' // device_unreachable, port_speed_low, router_rebooted, router_health, device_discovered (deviceId null — open /api/network/discovered)
+  | 'device' // device_unreachable, port_speed_low, port_health, router_rebooted, router_health, device_discovered (deviceId null — open /api/network/discovered)
   | 'wireless' // wireless:<metric>:<severity>
   | 'agent' // agent_offline, agent_clock, …
   | 'backup' // backup_failing

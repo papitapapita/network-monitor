@@ -28,6 +28,7 @@ export * from './PrismaDiscoveryPrefillQuery';
 export * from './PrismaDiscoverySettingsRepository';
 export * from './PrismaPortExpectedSpeedRepository';
 export * from './PrismaRouterSystemStateRepository';
+export * from './PrismaRouterPortCountersRepository';
 export * from './PrismaRouterHealthThresholdsRepository';
 export * from './PrismaReportedOutageQuery';
 export * from './PrismaDeviceHardwareQuery';

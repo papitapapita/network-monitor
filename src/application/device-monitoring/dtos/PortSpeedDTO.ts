@@ -17,6 +17,25 @@ export interface RouterPortDTO {
   // MON-149: false without an expected speed
   alertOnNoLink: boolean;
   verdict: PortSpeedVerdict;
+  // MON-198: FCS + alignment errors and link-downs as read now, cumulative
+  // since the counters were last reset; null when the router did not say
+  rxErrors: number | null;
+  linkDowns: number | null;
+  // what the last scheduled check added; null when it could not tell
+  errorsAdded: number | null;
+  linkDownsAdded: number | null;
+  // null on a port with no fibre module
+  sfp: SfpReadingDTO | null;
+  // the alerts the scheduled check has open on this port
+  issues: PortIssueDTO[];
+}
+
+export type PortIssueDTO = 'ERRORS' | 'FLAPPING' | 'SFP_RX_LOW';
+
+export interface SfpReadingDTO {
+  rxPowerDbm: number | null;
+  txPowerDbm: number | null;
+  temperatureC: number | null;
 }
 
 export interface RouterPortSpeedsDTO {
@@ -77,10 +96,13 @@ export interface PortSpeedCheckSkipDTO {
 }
 
 export interface CheckPortSpeedsResultDTO {
-  // routers with at least one expected speed that were read
+  // MON-192: every router is read, with or without an expected speed
   routersChecked: number;
-  // routers with an expected speed that could not be read this time
+  // routers that could not be read this time
   skipped: PortSpeedCheckSkipDTO[];
   raised: number;
   recovered: number;
+  // MON-193..MON-195: port alerts opened and closed
+  portIssuesRaised: number;
+  portIssuesRecovered: number;
 }

@@ -14,7 +14,9 @@ const DEFAULTS = {
   minFreeMemoryPercent: 10,
   minFreeDiskPercent: 5,
   maxTemperatureC: 75,
-  minVoltage: null
+  minVoltage: null,
+  flapLinkDowns: 3,
+  minSfpRxPowerDbm: -20
 };
 
 describe('GetRouterHealthThresholdsUseCase — integration', () => {

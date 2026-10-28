@@ -298,4 +298,37 @@ describe('ListRouterPortSpeedsUseCase — integration', () => {
 
     expect(result.value.routers).toEqual([]);
   });
+
+  it('[MON-198] should show what the last scheduled check added and left open on each port', async () => {
+    const deviceId = await seedRouter(prisma, {
+      name: 'Core',
+      deviceModelId: routerboardId,
+      ip: '10.0.0.1'
+    });
+    const sfp = { rxPowerDbm: -26, txPowerDbm: -3, temperatureC: 45 };
+    const serve = (rxErrors: number, linkDowns: number) =>
+      reader.serve('10.0.0.1', [
+        { ...linkedPort('sfp1', 1000), rxErrors, linkDowns, sfp }
+      ]);
+    const check = (now: Date) =>
+      buildPortSpeeds(prisma, reader).check.execute({ now });
+    serve(10, 1);
+    await check(new Date('2026-10-28T15:00:00Z'));
+    serve(25, 2);
+    await check(new Date('2026-10-28T15:10:00Z'));
+    serve(31, 2);
+
+    const result = await list();
+
+    expect(result.value.routers[0]).toMatchObject({ deviceId });
+    expect(result.value.routers[0]!.ports[0]).toMatchObject({
+      name: 'sfp1',
+      rxErrors: 31,
+      linkDowns: 2,
+      errorsAdded: 15,
+      linkDownsAdded: 1,
+      sfp,
+      issues: ['SFP_RX_LOW']
+    });
+  });
 });

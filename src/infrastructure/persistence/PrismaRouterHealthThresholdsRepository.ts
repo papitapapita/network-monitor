@@ -26,7 +26,9 @@ export class PrismaRouterHealthThresholdsRepository
           minFreeMemoryPercent: row.minFreeMemoryPercent,
           minFreeDiskPercent: row.minFreeDiskPercent,
           maxTemperatureC: row.maxTemperatureC,
-          minVoltage: row.minVoltage
+          minVoltage: row.minVoltage,
+          flapLinkDowns: row.flapLinkDowns,
+          minSfpRxPowerDbm: row.minSfpRxPowerDbm
         })
       );
     } catch (error) {

@@ -89,6 +89,7 @@ describe('InboxNotification', () => {
       ['port_speed_low', 'device'],
       ['router_rebooted', 'device'],
       ['router_health', 'device'],
+      ['port_health', 'device'],
       ['wireless:signal_dbm:CRITICAL', 'wireless'],
       ['agent_offline', 'agent'],
       ['agent_clock', 'agent'],

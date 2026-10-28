@@ -87,10 +87,23 @@ export interface RouterHealthThresholdsDTO {
   maxTemperatureC: number;
   // null: no voltage alert
   minVoltage: number | null;
+  // MON-194: link-downs in one check that make a port flapping
+  flapLinkDowns: number;
+  // MON-195: null: no fibre power alert
+  minSfpRxPowerDbm: number | null;
 }
 
-export type UpdateRouterHealthThresholdsRequestDTO =
-  RouterHealthThresholdsDTO;
+// MON-196: the port limits came later; left out, they keep what was stored
+export type UpdateRouterHealthThresholdsRequestDTO = Omit<
+  RouterHealthThresholdsDTO,
+  'flapLinkDowns' | 'minSfpRxPowerDbm'
+> &
+  Partial<
+    Pick<
+      RouterHealthThresholdsDTO,
+      'flapLinkDowns' | 'minSfpRxPowerDbm'
+    >
+  >;
 
 export interface RouterHealthThresholdsResponseDTO {
   thresholds: RouterHealthThresholdsDTO;

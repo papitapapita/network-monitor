@@ -227,7 +227,27 @@ const probeResult = z.union([
           comment: z.string().max(1024).nullable(),
           linked: z.boolean(),
           rateMbps: z.number().positive().nullable(),
-          fullDuplex: z.boolean().nullable()
+          fullDuplex: z.boolean().nullable(),
+          rxErrors: z
+            .number()
+            .int()
+            .nonnegative()
+            .nullable()
+            .optional(),
+          linkDowns: z
+            .number()
+            .int()
+            .nonnegative()
+            .nullable()
+            .optional(),
+          sfp: z
+            .object({
+              rxPowerDbm: z.number().finite().nullable(),
+              txPowerDbm: z.number().finite().nullable(),
+              temperatureC: z.number().finite().nullable()
+            })
+            .nullable()
+            .optional()
         })
       )
       .max(MAX_ETHERNET_PORTS)

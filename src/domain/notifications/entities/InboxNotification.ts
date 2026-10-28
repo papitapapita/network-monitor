@@ -10,7 +10,8 @@ const DEVICE_TYPES = new Set([
   'device_discovered',
   'port_speed_low',
   'router_rebooted',
-  'router_health'
+  'router_health',
+  'port_health'
 ]);
 
 const SECURITY_TYPES = new Set([

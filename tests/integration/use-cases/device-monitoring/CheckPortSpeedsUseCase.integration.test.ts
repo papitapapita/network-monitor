@@ -7,6 +7,7 @@ import {
   DependencyContainer
 } from 'infrastructure/di/container';
 import { PORT_SPEED_LOW_ALERT_TYPE } from '../../../../src/application/device-monitoring/use-cases';
+import { PORT_HEALTH_ALERT_TYPE } from '../../../../src/application/device-monitoring/services';
 import { QUIET_HOURS_SUPPRESSED } from '../../../../src/application/shared/interfaces';
 import { cleanDatabase } from '../../helpers/db';
 import {
@@ -19,6 +20,7 @@ import { RouterPortConnection } from '../../../../src/application/device-monitor
 import {
   buildPortSpeeds,
   checkStateOf,
+  portCounterOf,
   expectedSpeedsOf,
   seedExpectedSpeed,
   seedMikrotikModel,
@@ -205,7 +207,7 @@ describe('CheckPortSpeedsUseCase — integration', () => {
     });
   });
 
-  it('[MON-147] should only read routers that have an expected speed', async () => {
+  it('[MON-192] should read every router, with or without an expected speed', async () => {
     await seedRouter(prisma, {
       name: 'Edge',
       deviceModelId: modelId,
@@ -213,11 +215,15 @@ describe('CheckPortSpeedsUseCase — integration', () => {
     });
     await seedExpectedSpeed(prisma, coreId, 'ether1', 1000);
     reader.serve('10.0.0.1', [linkedPort('ether1', 1000)]);
+    reader.serve('10.0.0.2', [linkedPort('ether1', 100)]);
 
     const result = await check(T1);
 
-    expect(reader.reads.map((r) => r.host)).toEqual(['10.0.0.1']);
-    expect(result.value.routersChecked).toBe(1);
+    expect(reader.reads.map((r) => r.host).sort()).toEqual([
+      '10.0.0.1',
+      '10.0.0.2'
+    ]);
+    expect(result.value.routersChecked).toBe(2);
   });
 
   it('[MON-147] should not check a router out of service', async () => {
@@ -229,10 +235,12 @@ describe('CheckPortSpeedsUseCase — integration', () => {
     });
     await seedExpectedSpeed(prisma, storeId, 'ether1', 1000);
 
+    reader.serve('10.0.0.1', []);
+
     const result = await check(T1);
 
-    expect(reader.reads).toHaveLength(0);
-    expect(result.value.routersChecked).toBe(0);
+    expect(reader.reads.map((r) => r.host)).toEqual(['10.0.0.1']);
+    expect(result.value.routersChecked).toBe(1);
   });
 
   it('[MON-148] should send one notice per router however many ports went slow', async () => {
@@ -306,5 +314,107 @@ describe('CheckPortSpeedsUseCase — integration', () => {
 
     expect(publisher.sent).toHaveLength(0);
     expect(await expectedSpeedsOf(prisma, coreId)).toEqual({});
+  });
+
+  describe('port counters', () => {
+    const port = (rxErrors: number, linkDowns: number) => ({
+      ...linkedPort('ether1', 1000, 'Torre norte'),
+      rxErrors,
+      linkDowns
+    });
+
+    it("[MON-191] should keep each port's counters and what each check added", async () => {
+      reader.serve('10.0.0.1', [port(100, 2)]);
+      await check(T1);
+      reader.serve('10.0.0.1', [port(130, 3)]);
+      await check(T2);
+
+      expect(
+        await portCounterOf(prisma, coreId, 'ether1')
+      ).toMatchObject({
+        rxErrors: BigInt(130),
+        linkDowns: BigInt(3),
+        readAt: T2,
+        errorsAdded: BigInt(30),
+        linkDownsAdded: BigInt(1),
+        errorChecks: 1,
+        issues: []
+      });
+    });
+
+    it('[MON-194] [MON-197] should alert once on a flapping port and keep it open in the database', async () => {
+      reader.serve('10.0.0.1', [port(0, 0)]);
+      await check(T1);
+      reader.serve('10.0.0.1', [port(0, 4)]);
+      const result = await check(T2);
+      await check(T3);
+
+      expect(result.value.portIssuesRaised).toBe(1);
+      expect(publisher.sent).toEqual([
+        expect.objectContaining({
+          deviceId: coreId,
+          type: PORT_HEALTH_ALERT_TYPE,
+          resolved: false,
+          summary:
+            'El puerto ether1 (Torre norte) de "Core" se cayó 4 veces en el último chequeo'
+        }),
+        expect.objectContaining({
+          type: PORT_HEALTH_ALERT_TYPE,
+          resolved: true,
+          summary:
+            'El puerto ether1 (Torre norte) de "Core" dejó de caerse'
+        })
+      ]);
+      expect(
+        (await portCounterOf(prisma, coreId, 'ether1'))?.issues
+      ).toEqual([]);
+    });
+
+    it('[MON-196] should judge on the limits saved for the install', async () => {
+      await prisma.routerHealthThresholds.create({
+        data: {
+          cpuPercent: 90,
+          minFreeMemoryPercent: 10,
+          minFreeDiskPercent: 5,
+          maxTemperatureC: 75,
+          flapLinkDowns: 10
+        }
+      });
+      reader.serve('10.0.0.1', [port(0, 0)]);
+      await check(T1);
+      reader.serve('10.0.0.1', [port(0, 4)]);
+
+      const result = await check(T2);
+
+      expect(result.value.portIssuesRaised).toBe(0);
+      expect(publisher.sent).toHaveLength(0);
+    });
+
+    it('[MON-191] should forget the ports a router no longer lists', async () => {
+      reader.serve('10.0.0.1', [
+        port(0, 0),
+        linkedPort('ether2', 1000)
+      ]);
+      await check(T1);
+      reader.serve('10.0.0.1', [linkedPort('ether2', 1000)]);
+
+      await check(T2);
+
+      expect(
+        await portCounterOf(prisma, coreId, 'ether1')
+      ).toBeNull();
+      expect(
+        await portCounterOf(prisma, coreId, 'ether2')
+      ).not.toBeNull();
+    });
+
+    it("[MON-191] should drop a router's counters with the router", async () => {
+      reader.serve('10.0.0.1', [port(0, 0)]);
+      await check(T1);
+
+      await prisma.device.delete({ where: { id: coreId } });
+
+      expect(await prisma.portCounter.count()).toBe(0);
+    });
   });
 });

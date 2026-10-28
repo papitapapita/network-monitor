@@ -271,6 +271,7 @@ model Device {
   configBackups                ConfigBackup[]
   backupState                  DeviceBackupState?
   portExpectedSpeeds           PortExpectedSpeed[]
+  portCounters                 PortCounter[]
   routerSystemState            RouterSystemState?
 
   @@index([monitoringEnabled])
@@ -612,6 +613,27 @@ model PortExpectedSpeed {
   @@map("port_expected_speeds")
 }
 
+/// MON-191: each port's counters as the last scheduled check read them, the
+/// baseline of the next one, with that check's increases and open alerts.
+model PortCounter {
+  deviceId       String   @map("device_id") @db.Uuid
+  portName       String   @map("port_name") @db.VarChar(64)
+  rxErrors       BigInt?  @map("rx_errors")
+  linkDowns      BigInt?  @map("link_downs")
+  readAt         DateTime @map("read_at") @db.Timestamptz
+  errorsAdded    BigInt?  @map("errors_added")
+  linkDownsAdded BigInt?  @map("link_downs_added")
+  errorChecks    Int      @default(0) @map("error_checks")
+  quietChecks    Int      @default(0) @map("quiet_checks")
+  /// ERRORS, FLAPPING, SFP_RX_LOW
+  issues         String[] @default([]) @db.VarChar(20)
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@id([deviceId, portName])
+  @@map("port_counters")
+}
+
 /// What a MikroTik last said about itself (MON-161): identity, hardware,
 /// versions and health. A failed read keeps the last good reading.
 model RouterSystemState {
@@ -657,6 +679,9 @@ model RouterHealthThresholds {
   minFreeDiskPercent   Int      @map("min_free_disk_percent") @db.SmallInt
   maxTemperatureC      Int      @map("max_temperature_c") @db.SmallInt
   minVoltage           Float?   @map("min_voltage") @db.Real
+  /// MON-194, MON-195
+  flapLinkDowns        Int      @default(3) @map("flap_link_downs") @db.SmallInt
+  minSfpRxPowerDbm     Float?   @default(-20) @map("min_sfp_rx_power_dbm") @db.Real
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("router_health_thresholds")

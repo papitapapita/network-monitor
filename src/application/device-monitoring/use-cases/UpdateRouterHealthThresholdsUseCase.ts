@@ -9,7 +9,7 @@ import {
 } from '../dtos';
 
 // MON-172: replaced as a whole, and used from the next check on with no
-// restart.
+// restart. MON-196: the port limits left out keep what was stored.
 export class UpdateRouterHealthThresholdsUseCase extends UseCase<
   UpdateRouterHealthThresholdsRequestDTO,
   RouterHealthThresholdsResponseDTO
@@ -24,12 +24,20 @@ export class UpdateRouterHealthThresholdsUseCase extends UseCase<
   protected async executeImpl(
     request: UpdateRouterHealthThresholdsRequestDTO
   ): Promise<Result<RouterHealthThresholdsResponseDTO>> {
+    const stored = await this.repository.get();
+    if (stored.isFailure) return Result.fail(stored.error);
     const thresholds = RouterHealthThresholds.create({
       cpuPercent: request.cpuPercent,
       minFreeMemoryPercent: request.minFreeMemoryPercent,
       minFreeDiskPercent: request.minFreeDiskPercent,
       maxTemperatureC: request.maxTemperatureC,
-      minVoltage: request.minVoltage
+      minVoltage: request.minVoltage,
+      flapLinkDowns:
+        request.flapLinkDowns ?? stored.value.flapLinkDowns,
+      minSfpRxPowerDbm:
+        request.minSfpRxPowerDbm === undefined
+          ? stored.value.minSfpRxPowerDbm
+          : request.minSfpRxPowerDbm
     });
     if (thresholds.isFailure) return this.fail(thresholds.error!);
 

@@ -6,7 +6,10 @@ const DEFAULTS: RouterHealthThresholdsProps = {
   minFreeMemoryPercent: 10,
   minFreeDiskPercent: 5,
   maxTemperatureC: 75,
-  minVoltage: null
+  minVoltage: null,
+  flapLinkDowns: 3,
+  // the receive sensitivity of a common 1000BASE-LX module
+  minSfpRxPowerDbm: -20
 };
 
 function wholeInRange(
@@ -50,6 +53,12 @@ export class RouterHealthThresholds extends ValueObject<RouterHealthThresholdsPr
   get minVoltage(): number | null {
     return this._props.minVoltage;
   }
+  get flapLinkDowns(): number {
+    return this._props.flapLinkDowns;
+  }
+  get minSfpRxPowerDbm(): number | null {
+    return this._props.minSfpRxPowerDbm;
+  }
 
   public static defaults(): RouterHealthThresholds {
     return new RouterHealthThresholds({ ...DEFAULTS });
@@ -78,7 +87,9 @@ export class RouterHealthThresholds extends ValueObject<RouterHealthThresholdsPr
         40,
         110
       ) ??
-      RouterHealthThresholds.voltageError(props.minVoltage);
+      RouterHealthThresholds.voltageError(props.minVoltage) ??
+      wholeInRange('flapLinkDowns', props.flapLinkDowns, 1, 100) ??
+      RouterHealthThresholds.sfpPowerError(props.minSfpRxPowerDbm);
     if (error) return Result.fail(error);
     return Result.ok(new RouterHealthThresholds({ ...props }));
   }
@@ -99,6 +110,19 @@ export class RouterHealthThresholds extends ValueObject<RouterHealthThresholdsPr
       value > 60
     ) {
       return 'minVoltage must be null or a number from 5 to 60';
+    }
+    return null;
+  }
+
+  private static sfpPowerError(value: unknown): string | null {
+    if (value === null) return null;
+    if (
+      typeof value !== 'number' ||
+      !Number.isFinite(value) ||
+      value < -40 ||
+      value > 0
+    ) {
+      return 'minSfpRxPowerDbm must be null or a number from -40 to 0';
     }
     return null;
   }

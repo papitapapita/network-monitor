@@ -997,7 +997,7 @@ that is down must not hide the rest of the network.
 ### MON-141 — A router's enabled Ethernet ports are read once, and nothing on it changes
 
 **Type:** Policy · **Status:** Active
-**Since:** 2026-10-28
+**Since:** 2026-10-28 · **Revised:** 2026-10-28 (error counters and fibre module in the same read, MON-190)
 
 The router is read over the RouterOS API with the device's saved HTTP
 username and password, on its API port (`MON-066`). The read gets the
@@ -1007,7 +1007,8 @@ negotiated (10 Mbps up to 100 Gbps) and whether it runs at full duplex. Each
 read logs in once and logs out at the end. A router that has not answered
 within 10 seconds counts as not answering. If the router refuses to report
 all ports in one request, each port is asked for on its own, so one odd port
-does not hide the others.
+does not hide the others. The same login also reads each port's error
+counters and fibre module (MON-190).
 
 **Why:** Only read commands are sent, so checking can never disturb a
 router. Disabled ports are left out because nobody expects them to link.
@@ -1130,12 +1131,11 @@ the network, so they keep its expected speeds up to date.
 ### MON-147 — A port slow on two checks in a row raises one alert, and its recovery is announced
 
 **Type:** Policy · **Status:** Active
-**Since:** 2026-10-28
+**Since:** 2026-10-28 · **Revised:** 2026-10-28 (every router is read, MON-192)
 
 Every `PORT_SPEED_CHECK_INTERVAL_MINUTES` (1–1440, default 10; any other
-value stops the boot) the server reads each router of MON-140 that has at
-least one expected speed. Routers with none are not read. Each port with an
-expected speed is judged as in MON-143:
+value stops the boot) the server reads each router of MON-140 (MON-192).
+Each port with an expected speed is judged as in MON-143:
 
 - **SLOW** adds one to the port's streak. On the second SLOW check in a row
   the port raises an alert. It does not raise again while it stays slow.
@@ -1393,7 +1393,7 @@ cannot be made.
 ### MON-172 — MikroTik health is judged against one set of limits for the install
 
 **Type:** Validation · **Status:** Active
-**Since:** 2026-10-28
+**Since:** 2026-10-28 · **Revised:** 2026-10-28 (port limits, MON-196)
 
 | Limit                  | Default | Allowed                    |
 | ---------------------- | ------- | -------------------------- |
@@ -1402,6 +1402,8 @@ cannot be made.
 | `minFreeDiskPercent`   | 5       | whole, 1–50                |
 | `maxTemperatureC`      | 75      | whole, 40–110              |
 | `minVoltage`           | null    | null, or a number 5–60     |
+| `flapLinkDowns`        | 3       | whole, 1–100 (MON-196)     |
+| `minSfpRxPowerDbm`     | -20     | null, or a number -40–0 (MON-196) |
 
 No saved set means the defaults. `GET /api/routers/health-thresholds` shows
 the set and the defaults to anyone; `PUT` replaces the whole set and needs
@@ -1415,7 +1417,7 @@ them: the voltage alert stays off until the operator sets a minimum. The
 other defaults are the user's choice (2026-10-28).
 
 **Enforced at:** `src/domain/device-monitoring/value-objects/RouterHealthThresholds.ts`, `src/application/device-monitoring/use-cases/GetRouterHealthThresholdsUseCase.ts`, `src/application/device-monitoring/use-cases/UpdateRouterHealthThresholdsUseCase.ts`, `src/infrastructure/persistence/PrismaRouterHealthThresholdsRepository.ts`, `src/presentation/http/routes/router-system.routes.ts`
-**Message:** `cpuPercent must be a whole number from 50 to 99`, `minFreeMemoryPercent must be a whole number from 1 to 50`, `minFreeDiskPercent must be a whole number from 1 to 50`, `maxTemperatureC must be a whole number from 40 to 110`, `minVoltage must be null or a number from 5 to 60`
+**Message:** `cpuPercent must be a whole number from 50 to 99`, `minFreeMemoryPercent must be a whole number from 1 to 50`, `minFreeDiskPercent must be a whole number from 1 to 50`, `maxTemperatureC must be a whole number from 40 to 110`, `minVoltage must be null or a number from 5 to 60`, `flapLinkDowns must be a whole number from 1 to 100`, `minSfpRxPowerDbm must be null or a number from -40 to 0`
 **Tests:** `tests/domain/device-monitoring/value-objects/RouterHealthThresholds.test.ts`, `tests/application/device-monitoring/use-cases/RouterSystemUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/GetRouterHealthThresholdsUseCase.integration.test.ts`, `tests/integration/use-cases/device-monitoring/UpdateRouterHealthThresholdsUseCase.integration.test.ts`, `tests/integration/router-system.routes.test.ts`
 
 ### MON-173 — Each scheduled check judges a MikroTik's CPU, memory, disk, temperature and voltage
@@ -1621,3 +1623,218 @@ upgrade first.
 
 **Enforced at:** `src/application/device-monitoring/use-cases/GetRouterAuditUseCase.ts`, `src/domain/device-monitoring/services/RouterAudit.ts`, `src/presentation/http/routes/router-system.routes.ts`
 **Tests:** `tests/domain/device-monitoring/services/RouterAudit.test.ts`, `tests/application/device-monitoring/use-cases/RouterSystemUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/GetRouterAuditUseCase.integration.test.ts`, `tests/integration/router-system.routes.test.ts`
+
+### MON-190 — The port read also gets each port's error counters, link-downs and fibre module
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+The same login as MON-141 also reads, for each enabled Ethernet or SFP port:
+
+- **Errors received**: FCS errors plus alignment errors
+  (`/interface/ethernet/print stats`), counted since the router last reset
+  them. A switch chip that counts neither gives null. Only the low 32 bits
+  of each count are used: an RB5009 (RouterOS 7.23.5) answered 4294967298
+  for 2 errors, a stray bit above the chip's 32-bit counter.
+- **Link-downs**: how many times the link went down (`/interface/print`),
+  counted the same way.
+- **Fibre module**: receive power and transmit power in dBm and temperature
+  in °C (`/interface/ethernet/monitor`). A port with no module gives null. A
+  module that gives no figures yet is shown with each figure null.
+
+A router that refuses the counters still has its speeds read: the counters
+are null. Nothing on the router changes.
+
+**Why:** A cable with a bad pair often still links at full speed but
+corrupts frames, and FCS errors are where that shows. A port going up and
+down is a loose connector or a dying device on the other end. Fibre receive
+power falls before a fibre link fails.
+
+**Enforced at:** `src/infrastructure/monitoring/port-speeds/RouterOsPortReader.ts`
+**Tests:** `tests/infrastructure/monitoring/port-speeds/RouterOsPortReader.test.ts`
+
+### MON-191 — Each scheduled check keeps every port's counters and judges what was added since the one before
+
+**Type:** Invariant · **Status:** Active
+**Since:** 2026-10-28
+
+The counters of MON-190 only ever grow, so the scheduled check (MON-192)
+keeps each port's last values and records what this check added to them
+(`errorsAdded`, `linkDownsAdded`). What was added cannot be told, and is
+null, on the first check of a port, for a counter the router does not
+report, and when a counter is lower than before (the router rebooted or the
+counters were cleared). That last case is a reset and never a negative
+number: the new value becomes the baseline. A port the router no longer
+lists (removed, renamed or disabled) is forgotten with any problem open on
+it, and nothing is sent. Deleting the router drops its ports' counters.
+
+**Why:** A total of 5,000 errors says nothing about a cable today. 300 more
+in ten minutes does.
+
+**Enforced at:** `src/domain/device-monitoring/aggregates/RouterPortCounters.ts`, `src/infrastructure/persistence/PrismaRouterPortCountersRepository.ts`
+**Tests:** `tests/domain/device-monitoring/aggregates/RouterPortCounters.test.ts`, `tests/integration/use-cases/device-monitoring/CheckPortSpeedsUseCase.integration.test.ts`
+
+### MON-192 — The scheduled port check reads every MikroTik
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+The check of MON-147 reads every router of MON-140, not only those with an
+expected speed. With one read it judges expected speeds (MON-147) and every
+port's counters and fibre module (MON-193..MON-195). A router that cannot be
+read changes nothing for its ports: its counters, streaks and open problems
+stay as they were, and it is logged. The check counts the problems it
+opened (`portIssuesRaised`) and closed (`portIssuesRecovered`). Reading the
+port list (MON-140) or one router (MON-150) only reads: the counters are
+left to the schedule.
+
+**Why:** Errors and flapping can hit any port, including one nobody has set
+a speed for. A read on demand between two scheduled checks would shorten
+the interval and make the "added in one check" figures mean less.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/CheckPortSpeedsUseCase.ts`
+**Tests:** `tests/application/device-monitoring/use-cases/PortSpeedUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/CheckPortSpeedsUseCase.integration.test.ts`
+
+### MON-193 — A port adding errors on two checks in a row has an `ERRORS` problem
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+A check that adds at least one error to a port extends its error streak; a
+check that adds none starts a quiet streak; a check that cannot tell
+(MON-191) ends both. The second check in a row that adds errors opens
+`ERRORS`. Two checks in a row that add none close it. An open problem stays
+open across a counter reset.
+
+**Why:** A few errors once can be a cable being moved. Errors on two checks
+in a row, ten minutes apart, are a fault, as with slow ports (MON-147).
+Waiting for two quiet checks before calling it fixed keeps a cable that
+fails now and then from sending a notice every few minutes.
+
+**Enforced at:** `src/domain/device-monitoring/aggregates/RouterPortCounters.ts`
+**Tests:** `tests/domain/device-monitoring/aggregates/RouterPortCounters.test.ts`
+
+### MON-194 — A port with `flapLinkDowns` link-downs in one check is `FLAPPING`
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+A check that adds at least `flapLinkDowns` link-downs (MON-196, default 3)
+to a port opens `FLAPPING`. A check that adds none closes it. A check that
+adds fewer than the limit, or cannot tell, leaves it as it is.
+
+**Why:** A port that goes down once was probably unplugged or its far end
+rebooted, which the device-down alerts already cover. Three times in ten
+minutes is a link that cannot stay up.
+
+**Enforced at:** `src/domain/device-monitoring/aggregates/RouterPortCounters.ts`
+**Tests:** `tests/domain/device-monitoring/aggregates/RouterPortCounters.test.ts`, `tests/integration/use-cases/device-monitoring/CheckPortSpeedsUseCase.integration.test.ts`
+
+### MON-195 — Fibre receive power under `minSfpRxPowerDbm` is `SFP_RX_LOW`
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+A port whose fibre module receives less than `minSfpRxPowerDbm` (MON-196,
+default -20 dBm) opens `SFP_RX_LOW` on that check. It closes when the
+module receives at least 1 dB above the limit. A module that gives no
+figure leaves it as it is. With no minimum set (null), the problem is never
+opened, and an open one is closed silently.
+
+**Why:** -20 dBm is the receive sensitivity of a common 1000BASE-LX module:
+below it the link is about to drop. Long-reach modules work lower, so the
+operator can lower the limit or turn it off. The 1 dB margin stops a reading
+hovering at the limit from sending a notice every check.
+
+**Enforced at:** `src/domain/device-monitoring/aggregates/RouterPortCounters.ts`
+**Tests:** `tests/domain/device-monitoring/aggregates/RouterPortCounters.test.ts`
+
+### MON-196 — The port limits are part of the install's router health limits
+
+**Type:** Validation · **Status:** Active
+**Since:** 2026-10-28
+
+`flapLinkDowns` (whole, 1–100, default 3) and `minSfpRxPowerDbm` (null or
+-40–0 dBm, default -20) are kept with the limits of MON-172, read and saved
+through `GET`/`PUT /api/routers/health-thresholds`. A `PUT` that leaves out
+either of them keeps what was stored, so a body written before they existed
+still saves. A value out of range is `400` and nothing is saved. The next
+check uses the new limits.
+
+**Why:** These are all limits of the same routers, set by the same person
+on the same screen.
+
+**Enforced at:** `src/domain/device-monitoring/value-objects/RouterHealthThresholds.ts`, `src/application/device-monitoring/use-cases/UpdateRouterHealthThresholdsUseCase.ts`, `src/presentation/http/validation/router-system.schemas.ts`
+**Message:** `flapLinkDowns must be a whole number from 1 to 100`, `minSfpRxPowerDbm must be null or a number from -40 to 0`
+**Tests:** `tests/domain/device-monitoring/value-objects/RouterHealthThresholds.test.ts`, `tests/integration/use-cases/device-monitoring/UpdateRouterHealthThresholdsUseCase.integration.test.ts`, `tests/integration/router-system.routes.test.ts`
+
+### MON-197 — Port problems are one `port_health` notice per router and check
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+The port problems a check opens on one router send one notice, and the ones
+it closes send one recovery. A port is named with its comment when it has
+one:
+
+- One problem:
+  - `El puerto ether5 (Torre norte) de "Core" sigue sumando errores (+12 en el último chequeo)`
+  - `El puerto ether5 de "Core" se cayó 4 veces en el último chequeo`
+  - `El puerto sfp1 de "Core" recibe -23,5 dBm por la fibra (menos de -20 dBm)`
+- Several: `3 problemas en puertos de "Core"`, one line each in the detail,
+  e.g. `• sfp1: se cayó 4 veces en el último chequeo`.
+- One recovery: `El puerto ether5 de "Core" dejó de sumar errores`, `… dejó
+  de caerse`, `… volvió a recibir bien por la fibra (-15 dBm)`.
+- Several recoveries: `Se normalizaron 2 problemas en puertos de "Core"`,
+  one line each.
+
+Numbers use a decimal comma. Type `port_health` (a recovery has the same
+type, `resolved: true`), severity WARNING, source `Estado de puertos`,
+through the shared publisher, so quiet hours and muted types apply. A notice
+that is withheld or fails is not sent again: the problem stays open.
+
+**Why:** As with health problems (MON-174), one message per router reads
+better than one per port.
+
+**Enforced at:** `src/application/device-monitoring/services/PortHealthNotifier.ts`, `src/application/device-monitoring/use-cases/CheckPortSpeedsUseCase.ts`
+**Tests:** `tests/application/device-monitoring/services/PortHealthNotifier.test.ts`, `tests/application/device-monitoring/use-cases/PortSpeedUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/CheckPortSpeedsUseCase.integration.test.ts`
+
+### MON-198 — The port list shows each port's counters, what the last check added, its fibre module and its open problems
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+Each port of `GET /api/routers/port-speeds`, `GET /api/routers/:id/port-speeds`
+and the "accept current" answer carries:
+
+- `rxErrors` and `linkDowns` as read now (MON-190);
+- `errorsAdded` and `linkDownsAdded` as the last scheduled check recorded
+  them (MON-191);
+- `sfp` (`rxPowerDbm`, `txPowerDbm`, `temperatureC`) as read now, or null;
+- `issues`, the problems open on the port (`ERRORS`, `FLAPPING`,
+  `SFP_RX_LOW`).
+
+A port the router no longer has (`PORT_MISSING`) has them all null and no
+issues.
+
+**Why:** The operator sees the bad cable and the weak fibre beside the
+speed, on the page they already use for the ports.
+
+**Enforced at:** `src/application/device-monitoring/services/RouterPortInspector.ts`, `src/application/device-monitoring/dtos/PortSpeedDTO.ts`
+**Tests:** `tests/application/device-monitoring/services/RouterPortInspector.test.ts`, `tests/integration/use-cases/device-monitoring/ListRouterPortSpeedsUseCase.integration.test.ts`
+
+### MON-199 — An agent older than 0.11.0 still reads ports, without counters
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+Off site, the counters and fibre module come in the agent's `ports` answer
+(AGT-122) as optional fields. An agent that leaves them out is read as
+before, with every counter and the fibre module null, so its routers are
+judged on speed only until the agent updates.
+
+**Why:** Agents update on their own (ADR 0002 phase 2), but not all at
+once, and an agent mid-update must not lose the port speeds.
+
+**Enforced at:** `src/presentation/ws/agent/agentMessageSchema.ts`, `src/presentation/ws/agent/ConnectedAgents.ts`, `src/agent/protocol/messages.ts`
+**Tests:** `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/integration/agent-ports.test.ts`

@@ -2,8 +2,13 @@ import { PrismaClient } from '../../../src/generated/prisma/client';
 import { DeviceId } from '../../../src/domain/shared/ids';
 import { PrismaDeviceCredentialsRepository } from '../../../src/infrastructure/persistence/PrismaDeviceCredentialsRepository';
 import { PrismaPortExpectedSpeedRepository } from '../../../src/infrastructure/persistence/PrismaPortExpectedSpeedRepository';
+import { PrismaRouterHealthThresholdsRepository } from '../../../src/infrastructure/persistence/PrismaRouterHealthThresholdsRepository';
+import { PrismaRouterPortCountersRepository } from '../../../src/infrastructure/persistence/PrismaRouterPortCountersRepository';
 import { PrismaPortSpeedTargetsQuery } from '../../../src/infrastructure/monitoring/port-speeds/PrismaPortSpeedTargetsQuery';
-import { RouterPortInspector } from '../../../src/application/device-monitoring/services';
+import {
+  PortHealthNotifier,
+  RouterPortInspector
+} from '../../../src/application/device-monitoring/services';
 import {
   AcceptCurrentPortSpeedsUseCase,
   CheckPortSpeedsUseCase,
@@ -112,6 +117,17 @@ export async function seedExpectedSpeed(
   });
 }
 
+// MON-191: what the scheduled check kept of one router's port.
+export async function portCounterOf(
+  prisma: PrismaClient,
+  deviceId: string,
+  portName: string
+) {
+  return prisma.portCounter.findUnique({
+    where: { deviceId_portName: { deviceId, portName } }
+  });
+}
+
 // The check state of one router's port.
 export async function checkStateOf(
   prisma: PrismaClient,
@@ -152,7 +168,13 @@ export function buildPortSpeeds(
     opts.serverOnSite ?? true
   );
   const repository = new PrismaPortExpectedSpeedRepository(prisma);
-  const inspector = new RouterPortInspector(reader, repository);
+  const counters = new PrismaRouterPortCountersRepository(prisma);
+  const inspector = new RouterPortInspector(
+    reader,
+    repository,
+    counters
+  );
+  const publisher = opts.publisher ?? new FakeAlertPublisher();
   return {
     list: new ListRouterPortSpeedsUseCase(targets, inspector, logger),
     get: new GetRouterPortSpeedsUseCase(targets, inspector, logger),
@@ -171,7 +193,10 @@ export function buildPortSpeeds(
       targets,
       inspector,
       repository,
-      opts.publisher ?? new FakeAlertPublisher(),
+      counters,
+      new PrismaRouterHealthThresholdsRepository(prisma),
+      publisher,
+      new PortHealthNotifier(publisher, logger),
       logger
     )
   };

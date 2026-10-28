@@ -268,6 +268,57 @@ describe('Agent port speeds — end to end, server hosted off site', () => {
     ]);
   });
 
+  it("[MON-190] brings each port's counters and fibre module through the agent", async () => {
+    const sfp = {
+      rxPowerDbm: -7.2,
+      txPowerDbm: -2.1,
+      temperatureC: 41
+    };
+    router.serve(
+      '192.168.77.1',
+      [
+        {
+          ...linkedPort('sfp1', 1000),
+          rxErrors: 12,
+          linkDowns: 3,
+          sfp
+        }
+      ],
+      'Core-Norte'
+    );
+    await routerBehindAgent();
+
+    const [core] = await listRouters();
+
+    expect(core!.ports[0]).toMatchObject({
+      name: 'sfp1',
+      rxErrors: 12,
+      linkDowns: 3,
+      sfp
+    });
+  });
+
+  it('[MON-190] shows no counters for an agent that does not send them', async () => {
+    // what an agent before 0.11.0 answers: no counters, no module
+    const { rxErrors, linkDowns, sfp, ...old } = linkedPort(
+      'ether1',
+      1000
+    );
+    void [rxErrors, linkDowns, sfp];
+    router.serve('192.168.77.1', [old as never], 'Core-Norte');
+    await routerBehindAgent();
+
+    const [core] = await listRouters();
+
+    expect(core!.ports[0]).toMatchObject({
+      name: 'ether1',
+      rateMbps: 1000,
+      rxErrors: null,
+      linkDowns: null,
+      sfp: null
+    });
+  });
+
   it('[MON-145] passes on why the agent could not read the router', async () => {
     router.answer(
       '192.168.77.1',

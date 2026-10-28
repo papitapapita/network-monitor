@@ -1,7 +1,12 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
+import { RouterPortCounters } from 'domain/device-monitoring/aggregates';
 import { PortExpectedSpeed } from 'domain/device-monitoring/entities';
-import { IPortExpectedSpeedRepository } from 'domain/device-monitoring/repository';
+import { PortCounterProps } from 'domain/device-monitoring/props';
+import {
+  IPortExpectedSpeedRepository,
+  IRouterPortCountersRepository
+} from 'domain/device-monitoring/repository';
 import {
   EthernetPortReading,
   IRouterPortReader,
@@ -28,19 +33,34 @@ export type RouterPortRead =
 export class RouterPortInspector {
   constructor(
     private readonly reader: IRouterPortReader,
-    private readonly expectations: IPortExpectedSpeedRepository
+    private readonly expectations: IPortExpectedSpeedRepository,
+    private readonly counters: IRouterPortCountersRepository
   ) {}
 
   async inspect(
     candidates: PortSpeedRouterCandidate[]
   ): Promise<Result<RouterPortSpeedsDTO[]>> {
-    const [reads, expected] = await Promise.all([
+    const [reads, expected, counters] = await Promise.all([
       Promise.all(candidates.map((c) => this.read(c))),
-      this.expectedFor(candidates)
+      this.expectedFor(candidates),
+      this.countersOf(candidates)
     ]);
     if (expected.isFailure) return Result.fail(expected.error);
+    if (counters.isFailure) return Result.fail(counters.error);
     return Result.ok(
-      reads.map((r) => toRouterDTO(r, expected.value))
+      reads.map((r) =>
+        toRouterDTO(r, expected.value, counterOf(counters.value, r))
+      )
+    );
+  }
+
+  // MON-198: what the scheduled check last made of each router's ports
+  async countersOf(
+    candidates: PortSpeedRouterCandidate[]
+  ): Promise<Result<RouterPortCounters[]>> {
+    if (candidates.length === 0) return Result.ok([]);
+    return this.counters.listForDevices(
+      candidates.map((c) => DeviceId.parse(c.deviceId).value)
     );
   }
 
@@ -65,9 +85,21 @@ export class RouterPortInspector {
   }
 }
 
+export function counterOf(
+  counters: RouterPortCounters[],
+  read: RouterPortRead
+): RouterPortCounters | null {
+  return (
+    counters.find(
+      (c) => c.deviceId.toString() === read.candidate.deviceId
+    ) ?? null
+  );
+}
+
 export function toRouterDTO(
   read: RouterPortRead,
-  expected: PortExpectedSpeed[]
+  expected: PortExpectedSpeed[],
+  counters: RouterPortCounters | null
 ): RouterPortSpeedsDTO {
   const base: RouterPortSpeedsDTO = {
     deviceId: read.candidate.deviceId,
@@ -93,7 +125,11 @@ export function toRouterDTO(
   );
   const seen = new Set(read.reading.ports.map((p) => p.name));
   const ports = read.reading.ports.map((p) =>
-    toPortDTO(p, mine.get(p.name) ?? null)
+    toPortDTO(
+      p,
+      mine.get(p.name) ?? null,
+      counters?.port(p.name) ?? null
+    )
   );
   // MON-143: an expectation on a port the router no longer has is shown,
   // so a renamed port does not silently stop being checked.
@@ -108,7 +144,13 @@ export function toRouterDTO(
         fullDuplex: null,
         expectedMbps: e.expected.mbps,
         alertOnNoLink: e.alertOnNoLink,
-        verdict: 'PORT_MISSING'
+        verdict: 'PORT_MISSING',
+        rxErrors: null,
+        linkDowns: null,
+        errorsAdded: null,
+        linkDownsAdded: null,
+        sfp: null,
+        issues: []
       })
     );
 
@@ -122,7 +164,8 @@ export function toRouterDTO(
 
 function toPortDTO(
   port: EthernetPortReading,
-  expected: PortExpectedSpeed | null
+  expected: PortExpectedSpeed | null,
+  counter: PortCounterProps | null
 ): RouterPortDTO {
   return {
     name: port.name,
@@ -132,7 +175,13 @@ function toPortDTO(
     fullDuplex: port.fullDuplex,
     expectedMbps: expected?.expected.mbps ?? null,
     alertOnNoLink: expected?.alertOnNoLink ?? false,
-    verdict: judgePort(port, expected)
+    verdict: judgePort(port, expected),
+    rxErrors: port.rxErrors,
+    linkDowns: port.linkDowns,
+    errorsAdded: counter?.errorsAdded ?? null,
+    linkDownsAdded: counter?.linkDownsAdded ?? null,
+    sfp: port.sfp ? { ...port.sfp } : null,
+    issues: counter?.issues ?? []
   };
 }
 

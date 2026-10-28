@@ -12,7 +12,9 @@ export const updateRouterHealthThresholdsSchema = z.object({
       minFreeMemoryPercent: z.number().int(),
       minFreeDiskPercent: z.number().int(),
       maxTemperatureC: z.number().int(),
-      minVoltage: z.number().nullable()
+      minVoltage: z.number().nullable(),
+      flapLinkDowns: z.number().int().optional(),
+      minSfpRxPowerDbm: z.number().nullable().optional()
     })
     .strict()
 });

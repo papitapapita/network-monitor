@@ -86,7 +86,11 @@ const trafficMatches: Same<
   InterfaceTrafficReading,
   InterfaceTrafficWire
 > = true;
-const portMatches: Same<EthernetPortReading, EthernetPortWire> = true;
+// MON-190: the counters are optional on the wire only, for older agents
+const portMatches: Same<
+  EthernetPortReading,
+  Required<EthernetPortWire>
+> = true;
 const routerLoginMatches: Same<RouterApiLogin, TrafficLoginWire> =
   true;
 const formatsMatch: Same<
@@ -907,7 +911,10 @@ describe('ProbeRunner', () => {
       comment: 'Torre Norte',
       linked: true,
       rateMbps: 100,
-      fullDuplex: false
+      fullDuplex: false,
+      rxErrors: 3,
+      linkDowns: 1,
+      sfp: null
     };
 
     const withPorts = (reader?: IRouterPortReader) =>

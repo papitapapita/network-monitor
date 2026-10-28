@@ -149,6 +149,7 @@ import {
   PrismaPortExpectedSpeedRepository,
   PrismaRouterSystemStateRepository,
   PrismaRouterHealthThresholdsRepository,
+  PrismaRouterPortCountersRepository,
   PrismaReportedOutageQuery,
   PrismaDiscoveredDeviceRepository,
   PrismaDiscoverySettingsRepository,
@@ -393,6 +394,7 @@ import {
 } from 'application/device-monitoring/use-cases';
 import {
   RouterPortInspector,
+  PortHealthNotifier,
   RouterSystemRecorder,
   RouterSystemNotifier
 } from 'application/device-monitoring/services';
@@ -1733,11 +1735,15 @@ export class DependencyContainer {
     const portExpectedSpeeds = new PrismaPortExpectedSpeedRepository(
       this.prisma
     );
+    const routerPortCounters = new PrismaRouterPortCountersRepository(
+      this.prisma
+    );
     const routerPortInspector = new RouterPortInspector(
       this.serverOnSite
         ? new RouterOsPortReader(this.logger)
         : new AgentChannelPortReader(connectedAgents),
-      portExpectedSpeeds
+      portExpectedSpeeds,
+      routerPortCounters
     );
     this.portSpeedController = new PortSpeedController(
       new ListRouterPortSpeedsUseCase(
@@ -2277,7 +2283,10 @@ export class DependencyContainer {
         portSpeedTargets,
         routerPortInspector,
         portExpectedSpeeds,
+        routerPortCounters,
+        routerHealthThresholds,
         alertPublisher,
+        new PortHealthNotifier(alertPublisher, this.logger),
         this.logger
       ),
       { checkIntervalMs: loadPortSpeedCheckIntervalMs(process.env) },

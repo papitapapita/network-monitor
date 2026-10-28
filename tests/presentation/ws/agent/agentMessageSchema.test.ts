@@ -242,6 +242,40 @@ describe('parseAgentMessage', () => {
     });
   });
 
+  it('[MON-190] accepts a ports answer with counters and a fibre module', () => {
+    const answer = {
+      type: 'probe.result',
+      requestId: 'p-1',
+      kind: 'ports',
+      at: 1,
+      identity: null,
+      ports: [
+        {
+          name: 'sfp1',
+          comment: null,
+          linked: true,
+          rateMbps: 1000,
+          fullDuplex: true,
+          rxErrors: 12,
+          linkDowns: 3,
+          sfp: {
+            rxPowerDbm: -7.2,
+            txPowerDbm: null,
+            temperatureC: 41
+          }
+        }
+      ]
+    };
+
+    expect(ok(answer)).toEqual(answer);
+    expect(
+      ok({
+        ...answer,
+        ports: [{ ...answer.ports[0], rxErrors: -1 }]
+      })
+    ).toBeNull();
+  });
+
   it('[AGT-122] rejects a ports answer with more ports than the protocol allows', () => {
     expect(
       ok({

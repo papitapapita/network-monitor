@@ -25,14 +25,18 @@ const THRESHOLDS = {
   minFreeMemoryPercent: 15,
   minFreeDiskPercent: 8,
   maxTemperatureC: 70,
-  minVoltage: 22.5
+  minVoltage: 22.5,
+  flapLinkDowns: 5,
+  minSfpRxPowerDbm: -24
 };
 const DEFAULTS = {
   cpuPercent: 90,
   minFreeMemoryPercent: 10,
   minFreeDiskPercent: 5,
   maxTemperatureC: 75,
-  minVoltage: null
+  minVoltage: null,
+  flapLinkDowns: 3,
+  minSfpRxPowerDbm: -20
 };
 
 describe('Router system routes', () => {
@@ -229,6 +233,30 @@ describe('Router system routes', () => {
         .get(THRESHOLDS_PATH)
         .set('Authorization', `Bearer ${viewerToken}`);
       expect(read.body.data.thresholds.cpuPercent).toBe(85);
+    });
+
+    it('[MON-196] should answer 200 and keep the port limits when a body leaves them out', async () => {
+      await put(adminToken, THRESHOLDS);
+      const { flapLinkDowns, minSfpRxPowerDbm, ...older } =
+        THRESHOLDS;
+
+      const res = await put(adminToken, { ...older, cpuPercent: 95 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.thresholds).toMatchObject({
+        cpuPercent: 95,
+        flapLinkDowns,
+        minSfpRxPowerDbm
+      });
+    });
+
+    it('[MON-196] should answer 400 for a port limit out of range', async () => {
+      const res = await put(adminToken, {
+        ...THRESHOLDS,
+        minSfpRxPowerDbm: 3
+      });
+
+      expect(res.status).toBe(400);
     });
 
     it('[MON-172] should answer 400 for a limit out of range', async () => {

@@ -9,7 +9,12 @@ import {
   IRouterPortReader,
   PortSpeedRouterCandidate
 } from '../../../../src/application/device-monitoring/interfaces';
-import { IPortExpectedSpeedRepository } from '../../../../src/domain/device-monitoring/repository';
+import {
+  IPortExpectedSpeedRepository,
+  IRouterPortCountersRepository
+} from '../../../../src/domain/device-monitoring/repository';
+import { RouterPortCounters } from '../../../../src/domain/device-monitoring/aggregates';
+import { RouterHealthThresholds } from '../../../../src/domain/device-monitoring/value-objects';
 import { PortExpectedSpeed } from '../../../../src/domain/device-monitoring/entities';
 import { DeviceId } from '../../../../src/domain/shared/ids';
 import { Result } from '../../../../src/domain/shared/core/Result';
@@ -44,6 +49,9 @@ function makePort(
     linked: true,
     rateMbps: 1000,
     fullDuplex: true,
+    rxErrors: null,
+    linkDowns: null,
+    sfp: null,
     ...overrides
   };
 }
@@ -71,6 +79,24 @@ function makeRepository(
     delete: jest.fn()
   };
 }
+
+function makeCounters(
+  counters: RouterPortCounters[] = []
+): jest.Mocked<IRouterPortCountersRepository> {
+  return {
+    listForDevices: jest.fn().mockResolvedValue(Result.ok(counters)),
+    saveAll: jest.fn()
+  };
+}
+
+const NO_COUNTERS = {
+  rxErrors: null,
+  linkDowns: null,
+  errorsAdded: null,
+  linkDownsAdded: null,
+  sfp: null,
+  issues: []
+};
 
 describe('judgePort', () => {
   it('[MON-143] should be NO_LINK without a link, expected or not', () => {
@@ -154,7 +180,8 @@ describe('RouterPortInspector', () => {
         makeExpected('ether1', 1000),
         makeExpected('ether2', 1000),
         makeExpected('ether1', 100, EDGE_ID)
-      ])
+      ]),
+      makeCounters()
     );
 
     const result = await inspector.inspect([makeCandidate()]);
@@ -177,7 +204,8 @@ describe('RouterPortInspector', () => {
             fullDuplex: true,
             expectedMbps: 1000,
             alertOnNoLink: false,
-            verdict: 'OK'
+            verdict: 'OK',
+            ...NO_COUNTERS
           },
           {
             name: 'ether2',
@@ -187,7 +215,8 @@ describe('RouterPortInspector', () => {
             fullDuplex: true,
             expectedMbps: 1000,
             alertOnNoLink: false,
-            verdict: 'SLOW'
+            verdict: 'SLOW',
+            ...NO_COUNTERS
           },
           {
             name: 'ether3',
@@ -197,7 +226,8 @@ describe('RouterPortInspector', () => {
             fullDuplex: true,
             expectedMbps: null,
             alertOnNoLink: false,
-            verdict: 'NO_LINK'
+            verdict: 'NO_LINK',
+            ...NO_COUNTERS
           }
         ]
       }
@@ -209,13 +239,78 @@ describe('RouterPortInspector', () => {
     });
   });
 
+  it('[MON-198] should show the counters read now beside what the last check added and left open', async () => {
+    const sfp = {
+      rxPowerDbm: -22.5,
+      txPowerDbm: -5,
+      temperatureC: 41
+    };
+    reader.read.mockResolvedValue(
+      Result.ok({
+        identity: null,
+        ports: [
+          makePort({ name: 'sfp1', rxErrors: 40, linkDowns: 9, sfp })
+        ]
+      })
+    );
+    const counters = RouterPortCounters.createInitial(
+      DeviceId.parse(CORE_ID).value
+    );
+    const reading = { name: 'sfp1', sfpRxPowerDbm: -22.5 };
+    const at = new Date('2026-10-28T15:00:00Z');
+    counters.recordCheck(
+      [{ ...reading, rxErrors: 10, linkDowns: 2 }],
+      RouterHealthThresholds.defaults(),
+      at
+    );
+    counters.recordCheck(
+      [{ ...reading, rxErrors: 30, linkDowns: 6 }],
+      RouterHealthThresholds.defaults(),
+      at
+    );
+    const inspector = new RouterPortInspector(
+      reader,
+      makeRepository([]),
+      makeCounters([counters])
+    );
+
+    const result = await inspector.inspect([makeCandidate()]);
+
+    expect(result.value[0]!.ports[0]).toMatchObject({
+      rxErrors: 40,
+      linkDowns: 9,
+      errorsAdded: 20,
+      linkDownsAdded: 4,
+      sfp,
+      issues: ['FLAPPING', 'SFP_RX_LOW']
+    });
+  });
+
+  it('should fail when the counters cannot be loaded', async () => {
+    reader.read.mockResolvedValue(
+      Result.ok({ identity: null, ports: [] })
+    );
+    const counters = makeCounters();
+    counters.listForDevices.mockResolvedValue(Result.fail('db down'));
+    const inspector = new RouterPortInspector(
+      reader,
+      makeRepository([]),
+      counters
+    );
+
+    const result = await inspector.inspect([makeCandidate()]);
+
+    expect(result.error).toBe('db down');
+  });
+
   it('[MON-143] should show an expectation on a port the router no longer has', async () => {
     reader.read.mockResolvedValue(
       Result.ok({ identity: null, ports: [makePort()] })
     );
     const inspector = new RouterPortInspector(
       reader,
-      makeRepository([makeExpected('ether9', 1000)])
+      makeRepository([makeExpected('ether9', 1000)]),
+      makeCounters()
     );
 
     const result = await inspector.inspect([makeCandidate()]);
@@ -228,7 +323,8 @@ describe('RouterPortInspector', () => {
       fullDuplex: null,
       expectedMbps: 1000,
       alertOnNoLink: false,
-      verdict: 'PORT_MISSING'
+      verdict: 'PORT_MISSING',
+      ...NO_COUNTERS
     });
   });
 
@@ -240,7 +336,8 @@ describe('RouterPortInspector', () => {
     );
     const inspector = new RouterPortInspector(
       reader,
-      makeRepository([])
+      makeRepository([]),
+      makeCounters()
     );
 
     const result = await inspector.inspect([
@@ -262,7 +359,8 @@ describe('RouterPortInspector', () => {
   it('[MON-145] should list a router it cannot read with the reason, without trying it', async () => {
     const inspector = new RouterPortInspector(
       reader,
-      makeRepository([])
+      makeRepository([]),
+      makeCounters()
     );
 
     const result = await inspector.inspect([
@@ -286,7 +384,11 @@ describe('RouterPortInspector', () => {
     repository.listForDevices.mockResolvedValue(
       Result.fail('db down')
     );
-    const inspector = new RouterPortInspector(reader, repository);
+    const inspector = new RouterPortInspector(
+      reader,
+      repository,
+      makeCounters()
+    );
 
     const result = await inspector.inspect([makeCandidate()]);
 
@@ -296,7 +398,11 @@ describe('RouterPortInspector', () => {
 
   it('should not query expectations when there are no routers', async () => {
     const repository = makeRepository([]);
-    const inspector = new RouterPortInspector(reader, repository);
+    const inspector = new RouterPortInspector(
+      reader,
+      repository,
+      makeCounters()
+    );
 
     const result = await inspector.inspect([]);
 

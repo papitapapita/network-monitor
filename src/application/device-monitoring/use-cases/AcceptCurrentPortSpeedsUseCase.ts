@@ -91,6 +91,14 @@ export class AcceptCurrentPortSpeedsUseCase extends UseCase<
     const saved = await this.repository.saveAll(accepted);
     if (saved.isFailure) return Result.fail(saved.error);
 
-    return this.ok(toRouterDTO(read, [...byPort.values()]));
+    const counters = await this.inspector.countersOf([router.value]);
+    if (counters.isFailure) return Result.fail(counters.error);
+    return this.ok(
+      toRouterDTO(
+        read,
+        [...byPort.values()],
+        counters.value[0] ?? null
+      )
+    );
   }
 }

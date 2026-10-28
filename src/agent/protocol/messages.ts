@@ -243,13 +243,24 @@ export interface DiscoveredHostWire {
 export const MAX_ETHERNET_PORTS = 128;
 
 // One enabled Ethernet port and what it negotiated (AGT-122). `rateMbps` and
-// `fullDuplex` are null when the router did not say.
+// `fullDuplex` are null when the router did not say. The counters and the
+// fibre module reading came with 0.11.0 (MON-190); an older agent leaves
+// them out.
 export interface EthernetPortWire {
   name: string;
   comment: string | null;
   linked: boolean;
   rateMbps: number | null;
   fullDuplex: boolean | null;
+  rxErrors?: number | null;
+  linkDowns?: number | null;
+  sfp?: SfpWire | null;
+}
+
+export interface SfpWire {
+  rxPowerDbm: number | null;
+  txPowerDbm: number | null;
+  temperatureC: number | null;
 }
 
 // AGT-123: the only RouterOS commands a print request may run. All of them

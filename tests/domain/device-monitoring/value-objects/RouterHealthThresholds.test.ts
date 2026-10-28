@@ -12,12 +12,14 @@ function makeProps(
     minFreeDiskPercent: 5,
     maxTemperatureC: 75,
     minVoltage: null,
+    flapLinkDowns: 3,
+    minSfpRxPowerDbm: -20,
     ...overrides
   };
 }
 
 describe('RouterHealthThresholds', () => {
-  it('[MON-172] should default to CPU 90 %, memory 10 %, disk 5 %, 75 °C and no voltage', () => {
+  it('[MON-172] [MON-196] should default to CPU 90 %, memory 10 %, disk 5 %, 75 °C, no voltage, 3 link-downs and -20 dBm', () => {
     expect(RouterHealthThresholds.defaults().values).toEqual(
       makeProps()
     );
@@ -30,6 +32,15 @@ describe('RouterHealthThresholds', () => {
 
     expect(result.isSuccess).toBe(true);
     expect(result.value.minVoltage).toBe(11.5);
+  });
+
+  it('[MON-196] should accept the fibre power alert switched off', () => {
+    const result = RouterHealthThresholds.create(
+      makeProps({ minSfpRxPowerDbm: null, flapLinkDowns: 10 })
+    );
+
+    expect(result.value.minSfpRxPowerDbm).toBeNull();
+    expect(result.value.flapLinkDowns).toBe(10);
   });
 
   it.each([
@@ -64,8 +75,24 @@ describe('RouterHealthThresholds', () => {
     [
       { minVoltage: 61 },
       'minVoltage must be null or a number from 5 to 60'
+    ],
+    [
+      { flapLinkDowns: 0 },
+      'flapLinkDowns must be a whole number from 1 to 100'
+    ],
+    [
+      { flapLinkDowns: 2.5 },
+      'flapLinkDowns must be a whole number from 1 to 100'
+    ],
+    [
+      { minSfpRxPowerDbm: -41 },
+      'minSfpRxPowerDbm must be null or a number from -40 to 0'
+    ],
+    [
+      { minSfpRxPowerDbm: 0.5 },
+      'minSfpRxPowerDbm must be null or a number from -40 to 0'
     ]
-  ])('[MON-172] should refuse %o', (overrides, error) => {
+  ])('[MON-172] [MON-196] should refuse %o', (overrides, error) => {
     const result = RouterHealthThresholds.create(
       makeProps(overrides)
     );

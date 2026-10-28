@@ -2,11 +2,22 @@ import { Result } from 'domain/shared/core';
 import { AlertSeverity } from 'domain/shared/enums';
 import { DeviceId } from 'domain/shared/ids';
 import {
+  PortHealthChange,
+  RouterPortCounters
+} from 'domain/device-monitoring/aggregates';
+import {
   PortCheckOutcome,
   PortExpectedSpeed
 } from 'domain/device-monitoring/entities';
-import { IPortExpectedSpeedRepository } from 'domain/device-monitoring/repository';
-import { PortSpeed } from 'domain/device-monitoring/value-objects';
+import {
+  IPortExpectedSpeedRepository,
+  IRouterHealthThresholdsRepository,
+  IRouterPortCountersRepository
+} from 'domain/device-monitoring/repository';
+import {
+  PortSpeed,
+  RouterHealthThresholds
+} from 'domain/device-monitoring/value-objects';
 import { UseCase } from 'application/shared/core';
 import {
   IAlertPublisher,
@@ -18,7 +29,11 @@ import {
   IPortSpeedTargetsQuery,
   PortSpeedRouterCandidate
 } from '../interfaces';
-import { judgePort, RouterPortInspector } from '../services';
+import {
+  judgePort,
+  PortHealthNotifier,
+  RouterPortInspector
+} from '../services';
 import {
   CheckPortSpeedsRequestDTO,
   CheckPortSpeedsResultDTO,
@@ -40,10 +55,16 @@ interface RouterOutcome {
   checked: PortExpectedSpeed[];
   raised: PortChange[];
   recovered: PortChange[];
+  // MON-191: null when the router was not read
+  counters: RouterPortCounters | null;
+  ports: EthernetPortReading[];
+  portHealth: PortHealthChange;
 }
 
-// MON-147: the scheduled check. Only routers with an expected speed are read;
-// a router that cannot be read leaves its ports' state as it was.
+// MON-147, MON-192: the scheduled check. Every router is read: ports with an
+// expected speed are judged on it, and every port's counters and fibre
+// module on MON-193..MON-195. A router that cannot be read leaves its ports'
+// state as it was.
 export class CheckPortSpeedsUseCase extends UseCase<
   CheckPortSpeedsRequestDTO,
   CheckPortSpeedsResultDTO
@@ -52,7 +73,10 @@ export class CheckPortSpeedsUseCase extends UseCase<
     private readonly targets: IPortSpeedTargetsQuery,
     private readonly inspector: RouterPortInspector,
     private readonly repository: IPortExpectedSpeedRepository,
+    private readonly counters: IRouterPortCountersRepository,
+    private readonly thresholds: IRouterHealthThresholdsRepository,
     private readonly alertPublisher: IAlertPublisher,
+    private readonly portHealth: PortHealthNotifier,
     logger: ILogger
   ) {
     super(logger, 'CheckPortSpeedsUseCase');
@@ -65,29 +89,63 @@ export class CheckPortSpeedsUseCase extends UseCase<
     if (candidates.isFailure) return Result.fail(candidates.error);
     if (candidates.value.length === 0) return this.ok(empty());
 
-    const expectations = await this.repository.listForDevices(
-      candidates.value.map((c) => DeviceId.parse(c.deviceId).value)
+    const deviceIds = candidates.value.map(
+      (c) => DeviceId.parse(c.deviceId).value
     );
+    const expectations =
+      await this.repository.listForDevices(deviceIds);
     if (expectations.isFailure) {
       return Result.fail(expectations.error);
     }
     const byDevice = groupByDevice(expectations.value);
+    const stored = await this.counters.listForDevices(deviceIds);
+    if (stored.isFailure) return Result.fail(stored.error);
+    const countersByDevice = new Map(
+      stored.value.map((c) => [c.deviceId.toString(), c])
+    );
+    const thresholds = await this.thresholds.get();
+    if (thresholds.isFailure) return Result.fail(thresholds.error);
 
     const outcomes = await Promise.all(
-      candidates.value
-        .filter((c) => byDevice.has(c.deviceId))
-        .map((c) =>
-          this.check(c, byDevice.get(c.deviceId)!, request.now)
+      candidates.value.map((c) =>
+        this.check(
+          c,
+          byDevice.get(c.deviceId) ?? [],
+          countersByDevice.get(c.deviceId) ??
+            RouterPortCounters.createInitial(
+              DeviceId.parse(c.deviceId).value
+            ),
+          thresholds.value,
+          request.now
         )
+      )
     );
 
     const saved = await this.repository.saveCheckState(
       outcomes.flatMap((o) => o.checked)
     );
     if (saved.isFailure) return Result.fail(saved.error);
+    const savedCounters = await this.counters.saveAll(
+      outcomes
+        .map((o) => o.counters)
+        .filter((c): c is RouterPortCounters => c !== null)
+    );
+    if (savedCounters.isFailure) {
+      return Result.fail(savedCounters.error);
+    }
 
     for (const outcome of outcomes) {
       await this.notify(outcome, request.now);
+      if (outcome.counters) {
+        await this.portHealth.notify(
+          outcome.candidate,
+          outcome.ports,
+          outcome.counters,
+          outcome.portHealth,
+          thresholds.value,
+          request.now
+        );
+      }
     }
 
     return this.ok({
@@ -97,13 +155,23 @@ export class CheckPortSpeedsUseCase extends UseCase<
         .map((o) => o.skipped)
         .filter((s): s is PortSpeedCheckSkipDTO => s !== null),
       raised: outcomes.reduce((n, o) => n + o.raised.length, 0),
-      recovered: outcomes.reduce((n, o) => n + o.recovered.length, 0)
+      recovered: outcomes.reduce((n, o) => n + o.recovered.length, 0),
+      portIssuesRaised: outcomes.reduce(
+        (n, o) => n + o.portHealth.raised.length,
+        0
+      ),
+      portIssuesRecovered: outcomes.reduce(
+        (n, o) => n + o.portHealth.recovered.length,
+        0
+      )
     });
   }
 
   private async check(
     candidate: PortSpeedRouterCandidate,
     expectations: PortExpectedSpeed[],
+    counters: RouterPortCounters,
+    thresholds: RouterHealthThresholds,
     now: Date
   ): Promise<RouterOutcome> {
     const outcome: RouterOutcome = {
@@ -111,7 +179,10 @@ export class CheckPortSpeedsUseCase extends UseCase<
       skipped: null,
       checked: [],
       raised: [],
-      recovered: []
+      recovered: [],
+      counters: null,
+      ports: [],
+      portHealth: { raised: [], recovered: [] }
     };
     const read = await this.inspector.read(candidate);
     if (!('reading' in read)) {
@@ -122,6 +193,19 @@ export class CheckPortSpeedsUseCase extends UseCase<
       };
       return outcome;
     }
+
+    outcome.ports = read.reading.ports;
+    outcome.counters = counters;
+    outcome.portHealth = counters.recordCheck(
+      read.reading.ports.map((p) => ({
+        name: p.name,
+        rxErrors: p.rxErrors,
+        linkDowns: p.linkDowns,
+        sfpRxPowerDbm: p.sfp?.rxPowerDbm ?? null
+      })),
+      thresholds,
+      now
+    );
 
     const ports = new Map(read.reading.ports.map((p) => [p.name, p]));
     for (const expected of expectations) {
@@ -216,7 +300,14 @@ export class CheckPortSpeedsUseCase extends UseCase<
 }
 
 function empty(): CheckPortSpeedsResultDTO {
-  return { routersChecked: 0, skipped: [], raised: 0, recovered: 0 };
+  return {
+    routersChecked: 0,
+    skipped: [],
+    raised: 0,
+    recovered: 0,
+    portIssuesRaised: 0,
+    portIssuesRecovered: 0
+  };
 }
 
 function groupByDevice(

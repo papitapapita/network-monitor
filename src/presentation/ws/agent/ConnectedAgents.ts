@@ -331,7 +331,12 @@ export class ConnectedAgents
       ok: true,
       reading: {
         identity: answer.result.identity,
-        ports: answer.result.ports
+        ports: answer.result.ports.map((port) => ({
+          ...port,
+          rxErrors: port.rxErrors ?? null,
+          linkDowns: port.linkDowns ?? null,
+          sfp: port.sfp ?? null
+        }))
       },
       measuredAt: answer.measuredAt
     };

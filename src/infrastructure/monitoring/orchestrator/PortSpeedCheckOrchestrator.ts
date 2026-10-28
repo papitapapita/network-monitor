@@ -5,7 +5,7 @@ interface OrchestratorConfig {
   checkIntervalMs?: number;
 }
 
-// MON-147: reads every MikroTik with an expected port speed on an interval.
+// MON-147, MON-192: reads every MikroTik's ports on an interval.
 export class PortSpeedCheckOrchestrator {
   private readonly checkIntervalMs: number;
   private intervalId: ReturnType<typeof setInterval> | null = null;

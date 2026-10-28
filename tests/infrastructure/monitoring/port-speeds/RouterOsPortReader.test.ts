@@ -64,6 +64,8 @@ const ROUTER: Record<string, Answer> = {
   ]
 };
 
+const NO_COUNTERS = { rxErrors: null, linkDowns: null, sfp: null };
+
 describe('RouterOsPortReader', () => {
   const read = (answers: Record<string, Answer>) => {
     const { session, calls } = makeSession(answers);
@@ -87,28 +89,32 @@ describe('RouterOsPortReader', () => {
           comment: 'Uplink ISP 1',
           linked: true,
           rateMbps: 1000,
-          fullDuplex: true
+          fullDuplex: true,
+          ...NO_COUNTERS
         },
         {
           name: 'ether2',
           comment: null,
           linked: true,
           rateMbps: 100,
-          fullDuplex: false
+          fullDuplex: false,
+          ...NO_COUNTERS
         },
         {
           name: 'ether3',
           comment: null,
           linked: false,
           rateMbps: null,
-          fullDuplex: null
+          fullDuplex: null,
+          ...NO_COUNTERS
         },
         {
           name: 'sfp-sfpplus1',
           comment: null,
           linked: true,
           rateMbps: 10000,
-          fullDuplex: true
+          fullDuplex: true,
+          ...NO_COUNTERS
         }
       ]
     });
@@ -163,16 +169,151 @@ describe('RouterOsPortReader', () => {
         comment: null,
         linked: true,
         rateMbps: 1000,
-        fullDuplex: true
+        fullDuplex: true,
+        ...NO_COUNTERS
       },
       {
         name: 'ether2',
         comment: null,
         linked: false,
         rateMbps: null,
-        fullDuplex: null
+        fullDuplex: null,
+        ...NO_COUNTERS
       }
     ]);
+  });
+
+  it('[MON-190] should read error counters, link-downs and the fibre module of each port', async () => {
+    const { result, calls } = await read({
+      ...ROUTER,
+      '/interface/ethernet/print': (params) =>
+        params.includes('=stats=')
+          ? [
+              {
+                name: 'ether1',
+                'rx-fcs-error': '12',
+                'rx-align-error': '3'
+              },
+              { name: 'ether2', 'rx-fcs-error': '7' },
+              {
+                name: 'sfp-sfpplus1',
+                'rx-fcs-error': '0',
+                'rx-align-error': '0'
+              }
+            ]
+          : [
+              { name: 'ether1' },
+              { name: 'ether2' },
+              { name: 'ether3' },
+              { name: 'sfp-sfpplus1' }
+            ],
+      '/interface/print': [
+        { name: 'ether1', 'link-downs': '4' },
+        { name: 'ether2', 'link-downs': '0' },
+        { name: 'bridge1', 'link-downs': '9' },
+        { name: 'sfp-sfpplus1', 'link-downs': '2' }
+      ],
+      '/interface/ethernet/monitor': [
+        { name: 'ether1', status: 'link-ok', rate: '1Gbps' },
+        { name: 'ether2', status: 'link-ok', rate: '100Mbps' },
+        {
+          name: 'ether3',
+          status: 'no-link',
+          'sfp-module-present': 'false'
+        },
+        {
+          name: 'sfp-sfpplus1',
+          status: 'link-ok',
+          rate: '10Gbps',
+          'sfp-module-present': 'true',
+          'sfp-rx-power': '-7.215dBm',
+          'sfp-tx-power': '-2.1',
+          'sfp-temperature': '41C'
+        }
+      ]
+    });
+
+    expect(
+      result.value.ports.map(
+        ({ name, rxErrors, linkDowns, sfp }) => ({
+          name,
+          rxErrors,
+          linkDowns,
+          sfp
+        })
+      )
+    ).toEqual([
+      { name: 'ether1', rxErrors: 15, linkDowns: 4, sfp: null },
+      { name: 'ether2', rxErrors: 7, linkDowns: 0, sfp: null },
+      { name: 'ether3', rxErrors: null, linkDowns: null, sfp: null },
+      {
+        name: 'sfp-sfpplus1',
+        rxErrors: 0,
+        linkDowns: 2,
+        sfp: {
+          rxPowerDbm: -7.215,
+          txPowerDbm: -2.1,
+          temperatureC: 41
+        }
+      }
+    ]);
+    expect(calls.map((c) => [c.command, c.params])).toContainEqual([
+      '/interface/print',
+      ['=.proplist=name,link-downs']
+    ]);
+  });
+
+  it('[MON-190] should drop a stray bit above the 32-bit error counter', async () => {
+    const { result } = await read({
+      ...ROUTER,
+      '/interface/ethernet/print': (params) =>
+        params.includes('=stats=')
+          ? [{ name: 'ether3', 'rx-fcs-error': '4294967298' }]
+          : [{ name: 'ether3' }]
+    });
+
+    expect(result.value.ports[0]!.rxErrors).toBe(2);
+  });
+
+  it('[MON-190] should show a module with no readings yet as a fibre port without figures', async () => {
+    const { result } = await read({
+      ...ROUTER,
+      '/interface/ethernet/print': [{ name: 'sfp1' }],
+      '/interface/ethernet/monitor': [
+        {
+          name: 'sfp1',
+          status: 'no-link',
+          'sfp-module-present': 'true'
+        }
+      ]
+    });
+
+    expect(result.value.ports[0]!.sfp).toEqual({
+      rxPowerDbm: null,
+      txPowerDbm: null,
+      temperatureC: null
+    });
+  });
+
+  it('[MON-190] should still read the speeds when the counters are refused', async () => {
+    const { result } = await read({
+      ...ROUTER,
+      '/interface/ethernet/print': (params) => {
+        if (params.includes('=stats='))
+          throw new Error('bad argument');
+        return [{ name: 'ether1' }];
+      },
+      '/interface/print': () => {
+        throw new Error('not allowed');
+      }
+    });
+
+    expect(result.value.ports[0]).toMatchObject({
+      name: 'ether1',
+      rateMbps: 1000,
+      rxErrors: null,
+      linkDowns: null
+    });
   });
 
   it('[MON-141] should take the port name from the order asked when the row has none', async () => {

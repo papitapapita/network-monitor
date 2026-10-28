@@ -1540,7 +1540,7 @@ hundred times.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Agent program · Presentation
-**Since:** 2026-10-28
+**Since:** 2026-10-28 · **Revised:** 2026-10-28 (counters and fibre module from 0.11.0, MON-190, MON-199)
 
 From version `0.10.0` the hello names `ports` beside `probe`, `enforce`,
 `backup`, `traffic`, `sweep`, `hostname` and `discover`. The backend sends a
@@ -1554,7 +1554,10 @@ reads it with the reader the server uses on site (`MON-141`): one login, the
 router's identity, its enabled Ethernet ports and what each negotiated, then
 the login is closed. It answers with the identity and each port's name,
 comment, link, rate in Mbps and duplex (rate and duplex null when the router
-did not say). A router that refuses or does not answer is answered with an
+did not say). From `0.11.0` each port also carries its error count,
+link-downs and fibre module (`MON-190`); these are optional, and an answer
+without them is read with them null (`MON-199`). A negative count is a
+protocol error. A router that refuses or does not answer is answered with an
 error. The login lives only as long as the request, like a backup login
 (`AGT-115`), and is never saved or logged. The request counts as one of the 4
 requests at once of `AGT-101`.

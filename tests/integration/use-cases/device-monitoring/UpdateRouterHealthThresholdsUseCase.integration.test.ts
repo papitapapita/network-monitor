@@ -37,6 +37,8 @@ describe('UpdateRouterHealthThresholdsUseCase — integration', () => {
   const update = (
     body: Omit<typeof WANTED, 'minVoltage'> & {
       minVoltage: number | null;
+      flapLinkDowns?: number;
+      minSfpRxPowerDbm?: number | null;
     }
   ) =>
     buildRouterSystems(
@@ -65,6 +67,33 @@ describe('UpdateRouterHealthThresholdsUseCase — integration', () => {
       where: { id: 1 }
     });
     expect(row?.minVoltage).toBeNull();
+  });
+
+  it('[MON-196] should keep the stored port limits when they are left out', async () => {
+    await update({
+      ...WANTED,
+      flapLinkDowns: 6,
+      minSfpRxPowerDbm: -25
+    });
+
+    const result = await update(WANTED);
+
+    expect(result.value.thresholds).toMatchObject({
+      flapLinkDowns: 6,
+      minSfpRxPowerDbm: -25
+    });
+  });
+
+  it('[MON-196] should switch the fibre power alert off with no minimum', async () => {
+    await update(WANTED);
+
+    await update({ ...WANTED, minSfpRxPowerDbm: null });
+
+    const row = await prisma.routerHealthThresholds.findUnique({
+      where: { id: 1 }
+    });
+    expect(row?.minSfpRxPowerDbm).toBeNull();
+    expect(row?.flapLinkDowns).toBe(3);
   });
 
   it('[MON-172] should refuse a threshold out of range and keep the saved ones', async () => {

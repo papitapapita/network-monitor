@@ -19,12 +19,22 @@ import {
 } from '../../../../src/application/device-monitoring/use-cases/CheckPortSpeedsUseCase';
 import { RouterPortInspector } from '../../../../src/application/device-monitoring/services/RouterPortInspector';
 import {
+  PORT_HEALTH_ALERT_TYPE,
+  PortHealthNotifier
+} from '../../../../src/application/device-monitoring/services/PortHealthNotifier';
+import {
   EthernetPortReading,
   IPortSpeedTargetsQuery,
   IRouterPortReader,
   PortSpeedRouterCandidate
 } from '../../../../src/application/device-monitoring/interfaces';
-import { IPortExpectedSpeedRepository } from '../../../../src/domain/device-monitoring/repository';
+import {
+  IPortExpectedSpeedRepository,
+  IRouterHealthThresholdsRepository,
+  IRouterPortCountersRepository
+} from '../../../../src/domain/device-monitoring/repository';
+import { RouterPortCounters } from '../../../../src/domain/device-monitoring/aggregates';
+import { RouterHealthThresholds } from '../../../../src/domain/device-monitoring/value-objects';
 import { PortExpectedSpeed } from '../../../../src/domain/device-monitoring/entities';
 import { DeviceId } from '../../../../src/domain/shared/ids';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
@@ -72,6 +82,9 @@ function makePort(
     linked: true,
     rateMbps: 1000,
     fullDuplex: true,
+    rxErrors: null,
+    linkDowns: null,
+    sfp: null,
     ...overrides
   };
 }
@@ -87,6 +100,25 @@ function makeExpected(
     expectedMbps,
     alertOnNoLink
   }).value;
+}
+
+class InMemoryPortCounters implements IRouterPortCountersRepository {
+  readonly rows = new Map<string, RouterPortCounters>();
+  readonly saves: RouterPortCounters[][] = [];
+
+  async listForDevices(ids: DeviceId[]) {
+    return Result.ok(
+      ids
+        .map((id) => this.rows.get(id.toString()))
+        .filter((c): c is RouterPortCounters => c !== undefined)
+    );
+  }
+
+  async saveAll(counters: RouterPortCounters[]) {
+    this.saves.push(counters);
+    counters.forEach((c) => this.rows.set(c.deviceId.toString(), c));
+    return Result.ok<void>();
+  }
 }
 
 // An in-memory store keyed like the table: one row per device and port.
@@ -178,7 +210,8 @@ describe('ListRouterPortSpeedsUseCase', () => {
       makeTargets(),
       new RouterPortInspector(
         makeReader([makePort({ rateMbps: 100 })]),
-        repository
+        repository,
+        new InMemoryPortCounters()
       ),
       makeLogger(),
       () => NOW
@@ -198,7 +231,8 @@ describe('ListRouterPortSpeedsUseCase', () => {
       targets,
       new RouterPortInspector(
         makeReader([]),
-        new InMemoryPortExpectedSpeeds()
+        new InMemoryPortExpectedSpeeds(),
+        new InMemoryPortCounters()
       ),
       makeLogger()
     );
@@ -221,7 +255,8 @@ describe('GetRouterPortSpeedsUseCase', () => {
           reader,
           new InMemoryPortExpectedSpeeds([
             makeExpected('ether1', 1000)
-          ])
+          ]),
+          new InMemoryPortCounters()
         ),
         makeLogger(),
         () => NOW
@@ -440,7 +475,11 @@ describe('AcceptCurrentPortSpeedsUseCase', () => {
       repository,
       useCase: new AcceptCurrentPortSpeedsUseCase(
         targets,
-        new RouterPortInspector(reader, repository),
+        new RouterPortInspector(
+          reader,
+          repository,
+          new InMemoryPortCounters()
+        ),
         repository,
         makeLogger()
       )
@@ -558,17 +597,33 @@ describe('CheckPortSpeedsUseCase', () => {
     };
   }
 
+  function makeThresholds(): jest.Mocked<IRouterHealthThresholdsRepository> {
+    return {
+      get: jest
+        .fn()
+        .mockResolvedValue(
+          Result.ok(RouterHealthThresholds.defaults())
+        ),
+      save: jest.fn()
+    };
+  }
+
   function makeUseCase(
     reader: IRouterPortReader,
     repository: InMemoryPortExpectedSpeeds,
     publisher: IAlertPublisher,
-    targets: IPortSpeedTargetsQuery = makeTargets()
+    targets: IPortSpeedTargetsQuery = makeTargets(),
+    counters = new InMemoryPortCounters(),
+    thresholds = makeThresholds()
   ) {
     return new CheckPortSpeedsUseCase(
       targets,
-      new RouterPortInspector(reader, repository),
+      new RouterPortInspector(reader, repository, counters),
       repository,
+      counters,
+      thresholds,
       publisher,
+      new PortHealthNotifier(publisher, makeLogger()),
       makeLogger()
     );
   }
@@ -589,7 +644,9 @@ describe('CheckPortSpeedsUseCase', () => {
       routersChecked: 1,
       skipped: [],
       raised: 0,
-      recovered: 0
+      recovered: 0,
+      portIssuesRaised: 0,
+      portIssuesRecovered: 0
     });
     expect(publisher.publish).not.toHaveBeenCalled();
     expect(repository.checkStateSaves[0][0].slowChecks).toBe(1);
@@ -827,23 +884,113 @@ describe('CheckPortSpeedsUseCase', () => {
         { deviceId: ROUTER_ID, name: 'RB4011 Core', why: 'timed out' }
       ],
       raised: 0,
-      recovered: 0
+      recovered: 0,
+      portIssuesRaised: 0,
+      portIssuesRecovered: 0
     });
     expect(expected.slowChecks).toBe(1);
     expect(repository.checkStateSaves).toEqual([[]]);
   });
 
-  it('[MON-147] should not read a router without any expected speed', async () => {
-    const reader = makeReader([makePort()]);
+  it('[MON-192] should read a router without any expected speed for its counters', async () => {
+    const reader = makeReader([
+      makePort({ rxErrors: 5, linkDowns: 1 })
+    ]);
+    const counters = new InMemoryPortCounters();
 
     const result = await makeUseCase(
       reader,
       new InMemoryPortExpectedSpeeds(),
-      makePublisher()
+      makePublisher(),
+      makeTargets(),
+      counters
     ).execute({ now: NOW });
 
-    expect(reader.read).not.toHaveBeenCalled();
-    expect(result.value.routersChecked).toBe(0);
+    expect(reader.read).toHaveBeenCalledTimes(1);
+    expect(result.value.routersChecked).toBe(1);
+    expect(
+      counters.rows.get(ROUTER_ID)!.port('ether1')
+    ).toMatchObject({
+      rxErrors: 5,
+      linkDowns: 1,
+      readAt: NOW,
+      errorsAdded: null
+    });
+  });
+
+  it('[MON-192] should keep the counters of a router that did not answer', async () => {
+    const counters = new InMemoryPortCounters();
+    const reader = makeReader([makePort({ rxErrors: 5 })]);
+    const useCase = makeUseCase(
+      reader,
+      new InMemoryPortExpectedSpeeds(),
+      makePublisher(),
+      makeTargets(),
+      counters
+    );
+    await useCase.execute({ now: NOW });
+
+    reader.read.mockResolvedValue(Result.fail('timed out'));
+    await useCase.execute({ now: LATER });
+
+    expect(counters.saves[1]).toEqual([]);
+    expect(
+      counters.rows.get(ROUTER_ID)!.port('ether1')!.readAt
+    ).toEqual(NOW);
+  });
+
+  it('[MON-197] should tell of a port whose errors grew on two checks in a row, and of its recovery', async () => {
+    const publisher = makePublisher();
+    const reader = makeReader([]);
+    const useCase = makeUseCase(
+      reader,
+      new InMemoryPortExpectedSpeeds(),
+      publisher
+    );
+    const errors = (rxErrors: number) =>
+      reader.read.mockResolvedValue(
+        Result.ok({
+          identity: 'Core',
+          ports: [makePort({ comment: 'Torre norte', rxErrors })]
+        })
+      );
+
+    for (const count of [10, 20, 32]) {
+      errors(count);
+      await useCase.execute({ now: LATER });
+    }
+    for (let i = 0; i < 2; i++) await useCase.execute({ now: LATER });
+
+    expect(publisher.sent).toEqual([
+      expect.objectContaining({
+        type: PORT_HEALTH_ALERT_TYPE,
+        resolved: false,
+        summary:
+          'El puerto ether1 (Torre norte) de "RB4011 Core" sigue sumando errores (+12 en el último chequeo)'
+      }),
+      expect.objectContaining({
+        type: PORT_HEALTH_ALERT_TYPE,
+        resolved: true,
+        summary:
+          'El puerto ether1 (Torre norte) de "RB4011 Core" dejó de sumar errores'
+      })
+    ]);
+  });
+
+  it('[MON-196] should fail when the thresholds cannot be read', async () => {
+    const thresholds = makeThresholds();
+    thresholds.get.mockResolvedValue(Result.fail('db down'));
+
+    const result = await makeUseCase(
+      makeReader([]),
+      new InMemoryPortExpectedSpeeds(),
+      makePublisher(),
+      makeTargets(),
+      new InMemoryPortCounters(),
+      thresholds
+    ).execute({ now: NOW });
+
+    expect(result.error).toBe('db down');
   });
 
   it('[MON-148] should send one notice for several ports of a router', async () => {

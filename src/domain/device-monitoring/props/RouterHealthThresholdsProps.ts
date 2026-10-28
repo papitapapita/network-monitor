@@ -7,4 +7,8 @@ export interface RouterHealthThresholdsProps {
   minFreeDiskPercent: number;
   maxTemperatureC: number;
   minVoltage: number | null;
+  // MON-194: link-downs in one check that make a port flapping
+  flapLinkDowns: number;
+  // MON-195: null switches the fibre power alert off
+  minSfpRxPowerDbm: number | null;
 }
