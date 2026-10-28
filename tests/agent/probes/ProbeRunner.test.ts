@@ -38,9 +38,11 @@ import type {
 } from '../../../src/application/wireless-monitoring/interfaces';
 import { WirelessCollectorRegistry } from '../../../src/infrastructure/wireless-monitoring/collectors';
 import { RadioHostnameWriterRegistry } from '../../../src/infrastructure/wireless-monitoring/radio-settings';
+import { RouterOsApiPrinter } from '../../../src/infrastructure/monitoring/routeros/RouterOsApiPrinter';
 import type {
   EthernetPortReading,
   InterfaceTrafficReading,
+  IRouterOsPrinter,
   IRouterPortReader,
   IRouterTrafficReader,
   RouterApiLogin
@@ -979,6 +981,139 @@ describe('ProbeRunner', () => {
 
     it('[AGT-122] never logs the router login it was given', async () => {
       await runner.run(portsRequest());
+
+      const logged = JSON.stringify(
+        Object.values(logger)
+          .filter((fn) => jest.isMockFunction(fn))
+          .flatMap((fn) => (fn as jest.Mock).mock.calls)
+      );
+      expect(logged).not.toContain('router-secreto');
+    });
+  });
+  describe('routeros-print', () => {
+    const printRequest = (
+      commands: unknown = [
+        { command: '/system/identity/print', params: [] }
+      ]
+    ): ProbeRequestMessage =>
+      ({
+        type: 'probe',
+        requestId: 'r-1',
+        kind: 'routeros-print',
+        ip: '10.0.0.1',
+        login: {
+          username: 'api',
+          password: 'router-secreto',
+          apiPort: 8729
+        },
+        commands
+      }) as ProbeRequestMessage;
+
+    const withPrinter = (printer?: IRouterOsPrinter) =>
+      new ProbeRunner(
+        ping,
+        new WirelessCollectorRegistry({}),
+        new ConfigFetcherRegistry([]),
+        traffic,
+        logger,
+        { maxConcurrent: 4, maxQueued: 100 },
+        ping,
+        new RadioHostnameWriterRegistry({}),
+        undefined,
+        undefined,
+        printer
+      );
+
+    let printer: jest.Mocked<IRouterOsPrinter>;
+
+    beforeEach(() => {
+      printer = {
+        print: jest
+          .fn()
+          .mockResolvedValue(
+            Result.ok([{ rows: [{ name: 'Core' }] }])
+          )
+      };
+      runner = withPrinter(printer);
+    });
+
+    it('[AGT-123] runs the commands on the router it was given', async () => {
+      const result = await runner.run(printRequest());
+
+      expect(printer.print).toHaveBeenCalledWith(
+        {
+          host: '10.0.0.1',
+          login: {
+            username: 'api',
+            password: 'router-secreto',
+            apiPort: 8729
+          },
+          agentId: null
+        },
+        [{ command: '/system/identity/print', params: [] }]
+      );
+      expect(result).toEqual({
+        type: 'probe.result',
+        requestId: 'r-1',
+        kind: 'routeros-print',
+        at: expect.any(Number),
+        answers: [{ rows: [{ name: 'Core' }] }]
+      });
+    });
+
+    it('[AGT-123] answers an error when the router cannot be logged into', async () => {
+      printer.print.mockResolvedValue(
+        Result.fail(
+          'RouterOS API error: invalid user name or password'
+        )
+      );
+
+      expect(await runner.run(printRequest())).toEqual({
+        type: 'probe.result',
+        requestId: 'r-1',
+        error: 'RouterOS API error: invalid user name or password'
+      });
+    });
+
+    it('[AGT-123] answers an error for a request without commands', async () => {
+      expect(await runner.run(printRequest(null))).toMatchObject({
+        error: 'No commands to run'
+      });
+      expect(await runner.run(printRequest('reboot'))).toEqual({
+        type: 'probe.result',
+        requestId: 'r-1',
+        error: 'No commands to run'
+      });
+      expect(printer.print).not.toHaveBeenCalled();
+    });
+
+    it('[AGT-123] answers an error when built without a printer', async () => {
+      expect(await withPrinter().run(printRequest())).toEqual({
+        type: 'probe.result',
+        requestId: 'r-1',
+        error: 'Reading routers is not supported by this agent'
+      });
+    });
+
+    it('[AGT-123] never runs a command off the allow-list on the real printer', async () => {
+      const write = jest.fn();
+      const real = new RouterOsApiPrinter(undefined, async () => ({
+        write,
+        close: async () => undefined
+      }));
+
+      const result = await withPrinter(real).run(
+        printRequest([{ command: '/system/reboot', params: [] }])
+      );
+
+      expect(result).toMatchObject({
+        answers: [{ error: 'Command not allowed: /system/reboot' }]
+      });
+      expect(write).not.toHaveBeenCalled();
+    });
+
+    it('[AGT-123] never logs the router login it was given', async () => {
+      await runner.run(printRequest());
 
       const logged = JSON.stringify(
         Object.values(logger)

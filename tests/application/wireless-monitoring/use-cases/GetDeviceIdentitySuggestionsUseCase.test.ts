@@ -3,12 +3,12 @@
 import { GetDeviceIdentitySuggestionsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase';
 import { IWirelessSnapshotRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessSnapshotRepository';
 import { IWirelessDeviceConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessDeviceConfigRepository';
+import { IDeviceRepository } from '../../../../src/application/wireless-monitoring/interfaces';
 import {
   DeviceHardware,
-  IDeviceHardwareQuery,
-  IDeviceRepository
-} from '../../../../src/application/wireless-monitoring/interfaces';
-import { HardwareChangeAssessor } from '../../../../src/application/wireless-monitoring/services';
+  IDeviceHardwareQuery
+} from '../../../../src/application/device-inventory/interfaces';
+import { HardwareChangeAssessor } from '../../../../src/application/device-inventory/services';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import {
@@ -115,6 +115,7 @@ function makeHardware(
     deviceId: DEVICE_UUID,
     name: 'AP Roof1',
     macAddress: 'AA:BB:CC:DD:EE:01',
+    serialNumber: null,
     inInventory: false,
     deviceModelId: ROCKET_MODEL_UUID,
     modelName: 'Rocket 5AC Lite',
@@ -128,7 +129,8 @@ function makeHardwareQuery(): jest.Mocked<IDeviceHardwareQuery> {
     findHardware: jest
       .fn()
       .mockResolvedValue(Result.ok(makeHardware())),
-    findPolledHardware: jest.fn(),
+    findReportedHardware: jest.fn(),
+    findDevicesBySerial: jest.fn().mockResolvedValue(Result.ok([])),
     findDevicesByMac: jest.fn().mockResolvedValue(Result.ok([])),
     findConfirmedModelNames: jest
       .fn()

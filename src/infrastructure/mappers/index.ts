@@ -12,3 +12,4 @@ export * from './InboxNotificationMapper';
 export * from './SpeedTestResultMapper';
 export * from './DiscoveredDeviceMapper';
 export * from './PortExpectedSpeedMapper';
+export * from './RouterSystemStateMapper';

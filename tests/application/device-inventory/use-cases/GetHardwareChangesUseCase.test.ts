@@ -1,21 +1,14 @@
-// Source: src/application/wireless-monitoring/use-cases/GetHardwareChangesUseCase.ts
+// Source: src/application/device-inventory/use-cases/GetHardwareChangesUseCase.ts
 
-import { GetHardwareChangesUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetHardwareChangesUseCase';
-import { HardwareChangeAssessor } from '../../../../src/application/wireless-monitoring/services';
+import { GetHardwareChangesUseCase } from '../../../../src/application/device-inventory/use-cases/GetHardwareChangesUseCase';
+import { HardwareChangeAssessor } from '../../../../src/application/device-inventory/services';
 import {
   DeviceHardware,
-  IDeviceHardwareQuery
-} from '../../../../src/application/wireless-monitoring/interfaces';
-import { IWirelessSnapshotRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessSnapshotRepository';
+  IDeviceHardwareQuery,
+  ReportedHardware
+} from '../../../../src/application/device-inventory/interfaces';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
-import {
-  DeviceId,
-  SnapshotId
-} from '../../../../src/domain/shared/ids';
-import { WirelessSnapshot } from '../../../../src/domain/wireless-monitoring';
-import { WirelessMetrics } from '../../../../src/domain/wireless-monitoring/value-objects/WirelessMetrics';
-import { WirelessMetricsProps } from '../../../../src/domain/wireless-monitoring/props/WirelessMetricsProps';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -24,9 +17,13 @@ import { WirelessMetricsProps } from '../../../../src/domain/wireless-monitoring
 const AP_UUID = '550e8400-e29b-41d4-a716-446655440001';
 const CPE_UUID = '550e8400-e29b-41d4-a716-446655440002';
 const OTHER_UUID = '550e8400-e29b-41d4-a716-446655440003';
+const ROUTER_UUID = '550e8400-e29b-41d4-a716-446655440004';
 const ROCKET_MODEL_UUID = '550e8400-e29b-41d4-a716-446655440010';
 const POWERBEAM_MODEL_UUID = '550e8400-e29b-41d4-a716-446655440011';
+const RB4011_MODEL_UUID = '550e8400-e29b-41d4-a716-446655440012';
 const UBIQUITI_UUID = '550e8400-e29b-41d4-a716-446655440020';
+const MIKROTIK_UUID = '550e8400-e29b-41d4-a716-446655440021';
+const COLLECTED_AT = new Date('2026-10-27T12:00:00.000Z');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -53,6 +50,7 @@ function makeHardware(
     deviceId: AP_UUID,
     name: 'AP Torre Norte',
     macAddress: 'AA:BB:CC:DD:EE:01',
+    serialNumber: null,
     inInventory: false,
     deviceModelId: ROCKET_MODEL_UUID,
     modelName: 'Rocket 5AC Lite',
@@ -61,31 +59,68 @@ function makeHardware(
   };
 }
 
-function makeSnapshot(
-  deviceUuid: string,
-  metrics: Partial<WirelessMetricsProps>
-): WirelessSnapshot {
-  return WirelessSnapshot.reconstitute(SnapshotId.create(), {
-    deviceId: DeviceId.parse(deviceUuid).value,
-    deviceType: 'ACCESS_POINT',
-    collectedAt: new Date('2026-10-27T12:00:00.000Z'),
-    collectionMethod: 'http_api',
-    metrics: WirelessMetrics.reconstitute({
-      macAddress: null,
-      deviceModel: null,
-      ...metrics
-    } as WirelessMetricsProps),
-    clients: [],
-    alerts: [],
-    remoteApDeviceId: null
+function makeRouterHardware(
+  overrides: Partial<DeviceHardware> = {}
+): DeviceHardware {
+  return makeHardware({
+    deviceId: ROUTER_UUID,
+    name: 'Core-Insetel',
+    macAddress: 'DC:2C:6E:00:00:01',
+    serialNumber: 'D4440E1A2B3C',
+    deviceModelId: RB4011_MODEL_UUID,
+    modelName: 'RB4011iGS+',
+    vendorId: MIKROTIK_UUID,
+    ...overrides
   });
+}
+
+interface Reported {
+  macAddress?: string | null;
+  deviceModel?: string | null;
+}
+
+function radio(
+  hardware: DeviceHardware,
+  reported: Reported
+): ReportedHardware {
+  return {
+    hardware,
+    source: 'RADIO',
+    reportedAt: COLLECTED_AT,
+    macAddress: reported.macAddress ?? null,
+    deviceModel: reported.deviceModel ?? null,
+    serialNumber: null,
+    identity: null
+  };
+}
+
+function router(
+  hardware: DeviceHardware,
+  reported: Partial<
+    Pick<
+      ReportedHardware,
+      'macAddress' | 'deviceModel' | 'serialNumber' | 'identity'
+    >
+  > = {}
+): ReportedHardware {
+  return {
+    hardware,
+    source: 'ROUTER',
+    reportedAt: COLLECTED_AT,
+    macAddress: 'DC:2C:6E:00:00:01',
+    deviceModel: 'RB4011iGS+',
+    serialNumber: 'D4440E1A2B3C',
+    identity: 'Core-Insetel',
+    ...reported
+  };
 }
 
 function makeHardwareQuery(): jest.Mocked<IDeviceHardwareQuery> {
   return {
     findHardware: jest.fn(),
-    findPolledHardware: jest.fn().mockResolvedValue(Result.ok([])),
+    findReportedHardware: jest.fn().mockResolvedValue(Result.ok([])),
     findDevicesByMac: jest.fn().mockResolvedValue(Result.ok([])),
+    findDevicesBySerial: jest.fn().mockResolvedValue(Result.ok([])),
     findConfirmedModelNames: jest
       .fn()
       .mockResolvedValue(Result.ok([])),
@@ -95,52 +130,40 @@ function makeHardwareQuery(): jest.Mocked<IDeviceHardwareQuery> {
           id: POWERBEAM_MODEL_UUID,
           model: 'PowerBeam 5AC ISO',
           vendorId: UBIQUITI_UUID
+        },
+        {
+          id: RB4011_MODEL_UUID,
+          model: 'RB4011iGS+',
+          vendorId: MIKROTIK_UUID
         }
       ])
     )
   };
 }
 
-function makeSnapshotRepo(): jest.Mocked<IWirelessSnapshotRepository> {
-  return {
-    save: jest.fn(),
-    findById: jest.fn(),
-    findLatestByDevice: jest.fn(),
-    findLatestForAllDevices: jest
-      .fn()
-      .mockResolvedValue(Result.ok([])),
-    findHistoryByDevice: jest.fn(),
-    deleteOlderThan: jest.fn()
-  };
-}
-
 // ---------------------------------------------------------------------------
 
 describe('[WLS-154] GetHardwareChangesUseCase', () => {
-  let snapshotRepo: jest.Mocked<IWirelessSnapshotRepository>;
   let hardwareQuery: jest.Mocked<IDeviceHardwareQuery>;
   let useCase: GetHardwareChangesUseCase;
 
   beforeEach(() => {
-    snapshotRepo = makeSnapshotRepo();
     hardwareQuery = makeHardwareQuery();
     const logger = makeLogger();
     useCase = new GetHardwareChangesUseCase(
-      snapshotRepo,
       hardwareQuery,
       new HardwareChangeAssessor(hardwareQuery, logger),
       logger
     );
   });
 
-  function polling(
-    devices: Array<[DeviceHardware, Partial<WirelessMetricsProps>]>
-  ): void {
-    hardwareQuery.findPolledHardware.mockResolvedValue(
-      Result.ok(devices.map(([h]) => h))
-    );
-    snapshotRepo.findLatestForAllDevices.mockResolvedValue(
-      Result.ok(devices.map(([h, m]) => makeSnapshot(h.deviceId, m)))
+  function polling(devices: Array<[DeviceHardware, Reported]>): void {
+    reporting(devices.map(([h, m]) => radio(h, m)));
+  }
+
+  function reporting(reports: ReportedHardware[]): void {
+    hardwareQuery.findReportedHardware.mockResolvedValue(
+      Result.ok(reports)
     );
   }
 
@@ -180,6 +203,7 @@ describe('[WLS-154] GetHardwareChangesUseCase', () => {
       {
         deviceId: AP_UUID,
         name: 'AP Torre Norte',
+        source: 'RADIO',
         collectedAt: '2026-10-27T12:00:00.000Z',
         suggestions: [
           {
@@ -216,16 +240,6 @@ describe('[WLS-154] GetHardwareChangesUseCase', () => {
         { macAddress: 'AA:BB:CC:DD:EE:01' }
       ]
     ]);
-
-    const result = await useCase.execute();
-
-    expect(result.value.devices).toHaveLength(0);
-  });
-
-  it('should skip polled radios that have no snapshot yet', async () => {
-    hardwareQuery.findPolledHardware.mockResolvedValue(
-      Result.ok([makeHardware()])
-    );
 
     const result = await useCase.execute();
 
@@ -359,7 +373,7 @@ describe('[WLS-154] GetHardwareChangesUseCase', () => {
   });
 
   it.each([
-    ['polled hardware', 'findPolledHardware'],
+    ['reported hardware', 'findReportedHardware'],
     ['catalog', 'findCatalogModels']
   ] as const)(
     'should fail when the %s cannot be read',
@@ -376,16 +390,197 @@ describe('[WLS-154] GetHardwareChangesUseCase', () => {
       expect(result.isFailure).toBe(true);
     }
   );
+});
 
-  it('should fail when the snapshots cannot be read', async () => {
-    snapshotRepo.findLatestForAllDevices.mockResolvedValue(
-      Result.fail('db down')
+describe('[DEV-215] GetHardwareChangesUseCase — MikroTiks', () => {
+  let hardwareQuery: jest.Mocked<IDeviceHardwareQuery>;
+  let useCase: GetHardwareChangesUseCase;
+
+  beforeEach(() => {
+    hardwareQuery = makeHardwareQuery();
+    const logger = makeLogger();
+    useCase = new GetHardwareChangesUseCase(
+      hardwareQuery,
+      new HardwareChangeAssessor(hardwareQuery, logger),
+      logger
+    );
+  });
+
+  const reporting = (reports: ReportedHardware[]) =>
+    hardwareQuery.findReportedHardware.mockResolvedValue(
+      Result.ok(reports)
+    );
+
+  it('[DEV-215] should leave out a router whose serial, model and name match', async () => {
+    reporting([router(makeRouterHardware())]);
+
+    const result = await useCase.execute();
+
+    expect(result.value.devices).toEqual([]);
+  });
+
+  it('[DEV-215] should list a router reporting another serial, to replace or correct', async () => {
+    reporting([
+      router(makeRouterHardware(), { serialNumber: 'HG5094Z' })
+    ]);
+
+    const result = await useCase.execute();
+
+    expect(result.value.devices).toEqual([
+      {
+        deviceId: ROUTER_UUID,
+        name: 'Core-Insetel',
+        source: 'ROUTER',
+        collectedAt: '2026-10-27T12:00:00.000Z',
+        suggestions: [
+          {
+            field: 'serialNumber',
+            currentValue: 'D4440E1A2B3C',
+            suggestedValue: 'HG5094Z',
+            currentLabel: null,
+            suggestedLabel: null,
+            actions: ['REPLACE', 'UPDATE'],
+            swapWith: null
+          }
+        ]
+      }
+    ]);
+  });
+
+  it('[DEV-215] should compare serials without case or spaces', async () => {
+    reporting([
+      router(makeRouterHardware({ serialNumber: ' d4440e1a2b3c ' }))
+    ]);
+
+    const result = await useCase.execute();
+
+    expect(result.value.devices).toEqual([]);
+  });
+
+  it('[DEV-215] should not compare the MAC of a router that reports a serial', async () => {
+    reporting([
+      router(makeRouterHardware(), {
+        macAddress: 'DC:2C:6E:00:00:09'
+      })
+    ]);
+
+    const result = await useCase.execute();
+
+    expect(result.value.devices).toEqual([]);
+    expect(hardwareQuery.findDevicesByMac).not.toHaveBeenCalled();
+  });
+
+  it('[DEV-215] should compare the MAC of a router without a serial', async () => {
+    reporting([
+      router(makeRouterHardware(), {
+        serialNumber: null,
+        macAddress: 'DC:2C:6E:00:00:09'
+      })
+    ]);
+
+    const result = await useCase.execute();
+
+    expect(result.value.devices[0]!.suggestions).toEqual([
+      expect.objectContaining({
+        field: 'macAddress',
+        suggestedValue: 'DC:2C:6E:00:00:09'
+      })
+    ]);
+  });
+
+  it('[DEV-215] should not list a router whose only difference is a serial missing from inventory', async () => {
+    reporting([router(makeRouterHardware({ serialNumber: null }))]);
+
+    const result = await useCase.execute();
+
+    expect(result.value.devices).toEqual([]);
+  });
+
+  it('[DEV-216] should offer a swap when the serial belongs to another device', async () => {
+    reporting([
+      router(makeRouterHardware(), { serialNumber: 'HG5094Z' })
+    ]);
+    hardwareQuery.findDevicesBySerial.mockResolvedValue(
+      Result.ok([
+        {
+          deviceId: OTHER_UUID,
+          name: 'Switch Norte',
+          serialNumber: 'hg5094z'
+        }
+      ])
     );
 
     const result = await useCase.execute();
 
-    expect(result.error).toContain(
-      'Failed to load wireless snapshots'
-    );
+    expect(hardwareQuery.findDevicesBySerial).toHaveBeenCalledWith([
+      'HG5094Z'
+    ]);
+    expect(result.value.devices[0]!.suggestions[0]).toMatchObject({
+      field: 'serialNumber',
+      actions: ['SWAP'],
+      swapWith: { deviceId: OTHER_UUID, name: 'Switch Norte' }
+    });
+  });
+
+  it('[DEV-216] should list a router that names itself differently, to rename in the app', async () => {
+    reporting([
+      router(makeRouterHardware({ name: 'Core' }), {
+        identity: 'Core-Insetel'
+      })
+    ]);
+
+    const result = await useCase.execute();
+
+    expect(result.value.devices[0]!.suggestions).toEqual([
+      {
+        field: 'name',
+        currentValue: 'Core',
+        suggestedValue: 'Core-Insetel',
+        currentLabel: null,
+        suggestedLabel: null,
+        actions: ['UPDATE'],
+        swapWith: null
+      }
+    ]);
+  });
+
+  it('[DEV-216] should not call a change of case a different name', async () => {
+    reporting([
+      router(makeRouterHardware({ name: 'core-insetel ' }), {
+        identity: 'CORE-INSETEL'
+      })
+    ]);
+
+    const result = await useCase.execute();
+
+    expect(result.value.devices).toEqual([]);
+  });
+
+  it('[DEV-215] should not call a different model name a change while the serial matches', async () => {
+    reporting([
+      router(makeRouterHardware(), {
+        deviceModel: 'RB4011iGS+5HacQ2HnD'
+      })
+    ]);
+
+    const result = await useCase.execute();
+
+    expect(result.value.devices).toEqual([]);
+  });
+
+  it('[DEV-215] should list radios and routers together, by name', async () => {
+    reporting([
+      router(makeRouterHardware(), { serialNumber: 'HG5094Z' }),
+      radio(makeHardware(), { macAddress: 'AA:BB:CC:DD:EE:99' })
+    ]);
+
+    const result = await useCase.execute();
+
+    expect(
+      result.value.devices.map((d) => [d.name, d.source])
+    ).toEqual([
+      ['AP Torre Norte', 'RADIO'],
+      ['Core-Insetel', 'ROUTER']
+    ]);
   });
 });

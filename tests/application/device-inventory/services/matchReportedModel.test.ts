@@ -1,9 +1,9 @@
-// Source: src/application/wireless-monitoring/services/matchReportedModel.ts
+// Source: src/application/device-inventory/services/matchReportedModel.ts
 
 import {
   matchReportedModel,
   normalizeModelName
-} from '../../../../src/application/wireless-monitoring/services/matchReportedModel';
+} from '../../../../src/application/device-inventory/services/matchReportedModel';
 
 describe('[WLS-152] matchReportedModel', () => {
   const catalog = [

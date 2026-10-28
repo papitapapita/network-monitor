@@ -36,9 +36,10 @@ export const CloseCode = {
 // request only to one that named `backup` (AGT-113), a traffic request only
 // to one that named `traffic` (AGT-116), a sweep request only to one
 // that named `sweep` (AGT-119), a discover request only to one that named
-// `discover` (AGT-121), and a ports request only to one that named `ports`
-// (AGT-122), so an older agent never receives a request it does not
-// understand.
+// `discover` (AGT-121), a ports request only to one that named `ports`
+// (AGT-122), and a RouterOS print request only to one that named
+// `routeros-print` (AGT-123), so an older agent never receives a request it
+// does not understand.
 export type AgentCapability =
   | 'probe'
   | 'enforce'
@@ -47,7 +48,8 @@ export type AgentCapability =
   | 'sweep'
   | 'hostname'
   | 'discover'
-  | 'ports';
+  | 'ports'
+  | 'routeros-print';
 
 export const AGENT_CAPABILITIES: readonly AgentCapability[] = [
   'probe',
@@ -57,7 +59,8 @@ export const AGENT_CAPABILITIES: readonly AgentCapability[] = [
   'sweep',
   'hostname',
   'discover',
-  'ports'
+  'ports',
+  'routeros-print'
 ];
 
 // ── Agent → backend ───────────────────────────────────────────────────────
@@ -249,6 +252,74 @@ export interface EthernetPortWire {
   fullDuplex: boolean | null;
 }
 
+// AGT-123: the only RouterOS commands a print request may run. All of them
+// read; none changes the router. A `monitor` streams until stopped, so it
+// must carry `=once=`. The list lives here so it ships inside the agent:
+// a backend cannot make an agent run anything else.
+export const ROUTEROS_PRINT_COMMANDS: readonly string[] = [
+  '/system/identity/print',
+  '/system/resource/print',
+  '/system/routerboard/print',
+  '/system/health/print',
+  '/interface/print',
+  '/interface/ethernet/print',
+  '/interface/ethernet/monitor',
+  '/interface/bridge/host/print',
+  '/ip/arp/print',
+  '/ip/dhcp-server/lease/print',
+  '/ip/neighbor/print',
+  '/ip/neighbor/discovery-settings/print',
+  '/ip/service/print',
+  '/user/print'
+];
+
+// Words a command may carry: which properties, which rows, which ports, and
+// the switches that make a print or monitor answer once.
+const ROUTEROS_PRINT_PARAM =
+  /^(=\.proplist=[\w.,-]*|\?[^\r\n]*|=numbers=[^\r\n]*|=once=|=stats=|=detail=|=without-paging=)$/;
+
+export const MAX_ROUTEROS_PRINT_COMMANDS = 8;
+export const MAX_ROUTEROS_PRINT_PARAMS = 8;
+// Rows over all commands of one answer: a busy bridge host table fits.
+export const MAX_ROUTEROS_PRINT_ROWS = 5000;
+// A property value as answered: a long comment is cut to this.
+export const MAX_ROUTEROS_VALUE_LENGTH = 1024;
+// Properties of one row: an Ethernet port's statistics are the widest.
+export const MAX_ROUTEROS_ROW_PROPERTIES = 256;
+
+export interface RouterOsCommandWire {
+  command: string;
+  params: string[];
+}
+
+// Why a command may not run, or null when it may (AGT-123).
+export function refuseRouterOsCommand(
+  command: RouterOsCommandWire
+): string | null {
+  if (!ROUTEROS_PRINT_COMMANDS.includes(command.command)) {
+    return `Command not allowed: ${command.command}`;
+  }
+  if (command.params.length > MAX_ROUTEROS_PRINT_PARAMS) {
+    return 'Too many command words';
+  }
+  const refused = command.params.find(
+    (p) => !ROUTEROS_PRINT_PARAM.test(p)
+  );
+  if (refused !== undefined) return `Word not allowed: ${refused}`;
+  if (
+    command.command.endsWith('/monitor') &&
+    !command.params.includes('=once=')
+  ) {
+    return 'A monitor must answer once';
+  }
+  return null;
+}
+
+// One command's rows, or why it alone failed.
+export type RouterOsAnswerWire =
+  | { rows: Record<string, string>[] }
+  | { error: string };
+
 // The answer to one probe request (AGT-101). `at` is the agent-clock time
 // the measurement started; `error` means it could not be made at all.
 export type ProbeResultMessage =
@@ -309,6 +380,14 @@ export type ProbeResultMessage =
       // the router's own name (`/system identity`)
       identity: string | null;
       ports: EthernetPortWire[];
+    }
+  | {
+      type: 'probe.result';
+      requestId: string;
+      kind: 'routeros-print';
+      at: number;
+      // One per command of the request, in the same order.
+      answers: RouterOsAnswerWire[];
     }
   | { type: 'probe.result'; requestId: string; error: string };
 
@@ -401,8 +480,8 @@ export interface BackupLoginWire {
 }
 
 // The router's RouterOS API login for a traffic request, held by the agent
-// only while it reads the router (AGT-118), and for a ports request, held
-// only until it answers (AGT-122).
+// only while it reads the router (AGT-118), and for a ports or RouterOS print
+// request, held only until it answers (AGT-122, AGT-123).
 export interface TrafficLoginWire {
   username: string;
   password: string;
@@ -433,7 +512,8 @@ export type BackupDeviceKindWire =
 // `hostname` changes the name a radio gives itself (AGT-120); a `discover`
 // pings every address of a segment and reads the MACs of those that
 // answered (AGT-121); a `ports` reads what each of a router's Ethernet ports
-// negotiated (AGT-122).
+// negotiated (AGT-122); a `routeros-print` runs a batch of allowed read-only
+// RouterOS commands in one login and answers with their rows (AGT-123).
 export type ProbeRequestMessage =
   | {
       type: 'probe';
@@ -495,6 +575,14 @@ export type ProbeRequestMessage =
       kind: 'ports';
       ip: string;
       login: TrafficLoginWire;
+    }
+  | {
+      type: 'probe';
+      requestId: string;
+      kind: 'routeros-print';
+      ip: string;
+      login: TrafficLoginWire;
+      commands: RouterOsCommandWire[];
     };
 
 // The enforcement router's address and API login, sent with each enforce

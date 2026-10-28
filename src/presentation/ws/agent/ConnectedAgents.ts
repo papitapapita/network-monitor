@@ -20,6 +20,8 @@ import type {
 import type {
   InterfaceTrafficReading,
   RouterConnectionTarget,
+  RouterOsCommand,
+  RouterOsPrintAnswer,
   RouterPortConnection,
   RouterPortsReading
 } from 'application/device-monitoring/interfaces';
@@ -66,6 +68,8 @@ export interface ProbeTimeouts {
   // A RouterOS API login and three reads (AGT-122), for the list page and
   // the scheduled check alike.
   portsMs?: number;
+  // A RouterOS API login and a batch of reads (AGT-123).
+  routerOsPrintMs?: number;
 }
 
 export const DEFAULT_PROBE_TIMEOUTS: ProbeTimeouts = {
@@ -77,7 +81,8 @@ export const DEFAULT_PROBE_TIMEOUTS: ProbeTimeouts = {
   sweepMs: 20_000,
   hostnameMs: 25_000,
   discoverMs: 90_000,
-  portsMs: 20_000
+  portsMs: 20_000,
+  routerOsPrintMs: 25_000
 };
 
 const DEFAULT_ENFORCE_MS = 20_000;
@@ -87,6 +92,7 @@ const DEFAULT_SWEEP_MS = 20_000;
 const DEFAULT_HOSTNAME_MS = 25_000;
 const DEFAULT_DISCOVER_MS = 90_000;
 const DEFAULT_PORTS_MS = 20_000;
+const DEFAULT_ROUTEROS_PRINT_MS = 25_000;
 
 // The agents connected right now, one session each (AGT-045), and the way
 // the rest of the backend asks one of them to measure a device (AGT-103).
@@ -331,6 +337,37 @@ export class ConnectedAgents
     };
   }
 
+  async printRouterOs(
+    agentId: string,
+    router: RouterPortConnection,
+    commands: RouterOsCommand[]
+  ): Promise<AgentProbeOutcome<RouterOsPrintAnswer[]>> {
+    const answer = await this.probe(
+      agentId,
+      {
+        type: 'probe',
+        kind: 'routeros-print',
+        ip: router.host,
+        login: router.login,
+        commands
+      },
+      this.probeTimeouts.routerOsPrintMs ?? DEFAULT_ROUTEROS_PRINT_MS
+    );
+    if (!answer.ok) return answer;
+    if (answer.result.kind !== 'routeros-print') return wrongKind();
+    if (answer.result.answers.length !== commands.length) {
+      return fail(
+        'AGENT_ERROR',
+        'The agent answered a different number of commands'
+      );
+    }
+    return {
+      ok: true,
+      reading: answer.result.answers,
+      measuredAt: answer.measuredAt
+    };
+  }
+
   async enforce(
     agentId: string,
     router: RouterConnection,
@@ -430,7 +467,9 @@ const UNSUPPORTED: Record<ProbeRequest['kind'], string> = {
   sweep: 'The agent must be updated to sweep the network',
   hostname: 'The agent must be updated to rename radios',
   discover: 'The agent must be updated to scan the network',
-  ports: 'The agent must be updated to read port speeds'
+  ports: 'The agent must be updated to read port speeds',
+  'routeros-print':
+    'The agent must be updated to read this from routers'
 };
 
 function fail(

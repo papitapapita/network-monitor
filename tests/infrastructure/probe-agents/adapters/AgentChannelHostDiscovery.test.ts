@@ -10,7 +10,8 @@ describe('AgentChannelHostDiscovery', () => {
     sweep: jest.fn(),
     setHostname: jest.fn(),
     discover: jest.fn(),
-    readPorts: jest.fn()
+    readPorts: jest.fn(),
+    printRouterOs: jest.fn()
   } satisfies jest.Mocked<IAgentProbeChannel>;
   const discovery = new AgentChannelHostDiscovery(channel);
 

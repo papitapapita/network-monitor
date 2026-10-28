@@ -43,3 +43,4 @@ export * from './PurgeStaleDiscoveredDevicesUseCase';
 export * from './GetDiscoverySettingsUseCase';
 export * from './UpdateDiscoverySettingsUseCase';
 export * from './RunScheduledDiscoveryUseCase';
+export * from './GetHardwareChangesUseCase';

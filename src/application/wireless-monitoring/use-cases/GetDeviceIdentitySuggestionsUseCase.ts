@@ -8,16 +8,12 @@ import {
 } from 'domain/wireless-monitoring';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
+import { IDeviceHardwareQuery } from 'application/device-inventory/interfaces';
+import { HardwareChangeAssessor } from 'application/device-inventory/services';
+import { DeviceIdentitySuggestionDTO } from 'application/device-inventory/dtos';
+import { IDeviceRepository } from '../interfaces';
+import { resolveReportedAp } from '../services';
 import {
-  IDeviceHardwareQuery,
-  IDeviceRepository
-} from '../interfaces';
-import {
-  HardwareChangeAssessor,
-  resolveReportedAp
-} from '../services';
-import {
-  DeviceIdentitySuggestionDTO,
   DeviceIdentitySuggestionsResponseDTO,
   GetWirelessClientsRequestDTO
 } from '../dtos';

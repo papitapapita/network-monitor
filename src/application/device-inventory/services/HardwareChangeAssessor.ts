@@ -4,11 +4,9 @@ import { ILogger } from 'application/shared/interfaces';
 import {
   CatalogModel,
   DeviceHardware,
-  IDeviceHardwareQuery
+  IDeviceHardwareQuery,
+  ReportedHardware
 } from '../interfaces';
-
-// Normalized reported name → catalog model ids confirmed for it.
-type ConfirmedNames = Map<string, string[]>;
 import {
   DeviceIdentitySuggestionAction,
   DeviceIdentitySuggestionDTO,
@@ -19,27 +17,40 @@ import {
   normalizeModelName
 } from './matchReportedModel';
 
+// Normalized reported name → catalog model ids confirmed for it.
+type ConfirmedNames = Map<string, string[]>;
+
 export function normalizeMac(mac: string): string {
   const result = MACAddress.create(mac);
   return result.isSuccess ? result.value.value : mac.toUpperCase();
 }
 
-export interface ReportedHardware {
-  hardware: DeviceHardware;
-  macAddress: string | null;
-  deviceModel: string | null;
+export function normalizeSerial(serial: string): string {
+  return serial.trim().toUpperCase();
 }
+
+// What one box says about itself. A radio reports its MAC and model; a
+// MikroTik also its serial and the name it gives itself (DEV-215).
+export type AssessedReport = Pick<
+  ReportedHardware,
+  'hardware' | 'macAddress' | 'deviceModel'
+> &
+  Partial<Pick<ReportedHardware, 'serialNumber' | 'identity'>>;
 
 interface Differences {
   hardware: DeviceHardware;
   currentMac: string | null;
   polledMac: string | null;
+  currentSerial: string | null;
+  polledSerial: string | null;
   polledModel: string | null;
+  polledIdentity: string | null;
 }
 
-// Compares what radios report about their own hardware with inventory and
-// says how each difference should be resolved (WLS-152, WLS-153, WLS-155).
-// Takes a batch so the fleet view costs a few lookups, not a few per radio.
+// Compares what boxes report about their own hardware with inventory and
+// says how each difference should be resolved (WLS-152, WLS-153, WLS-155,
+// DEV-215, DEV-216). Takes a batch so the fleet view costs a few lookups,
+// not a few per box.
 export class HardwareChangeAssessor {
   constructor(
     private readonly hardwareQuery: IDeviceHardwareQuery,
@@ -47,7 +58,7 @@ export class HardwareChangeAssessor {
   ) {}
 
   public async assess(
-    reports: ReportedHardware[]
+    reports: AssessedReport[]
   ): Promise<Result<Map<string, DeviceIdentitySuggestionDTO[]>>> {
     const naive = reports.map((r) => this.differences(r));
     const confirmed = await this.loadConfirmedNamesIfNeeded(naive);
@@ -55,7 +66,9 @@ export class HardwareChangeAssessor {
       this.withoutConfirmedName(d, confirmed)
     );
 
-    const swapsResult = await this.findSwapCandidates(differences);
+    const macSwaps = await this.findSwapCandidatesByMac(differences);
+    const serialSwaps =
+      await this.findSwapCandidatesBySerial(differences);
     const catalogResult = await this.loadCatalogIfNeeded(differences);
     if (catalogResult.isFailure) {
       return Result.fail(catalogResult.error);
@@ -63,10 +76,37 @@ export class HardwareChangeAssessor {
 
     const byDevice = new Map<string, DeviceIdentitySuggestionDTO[]>();
     for (const d of differences) {
-      const swapWith = d.polledMac
-        ? (swapsResult.get(d.polledMac) ?? null)
-        : null;
+      const swapWith =
+        (d.polledSerial ? serialSwaps.get(d.polledSerial) : null) ??
+        (d.polledMac ? macSwaps.get(d.polledMac) : null) ??
+        null;
       const suggestions: DeviceIdentitySuggestionDTO[] = [];
+
+      if (d.polledIdentity) {
+        suggestions.push({
+          field: 'name',
+          currentValue: d.hardware.name,
+          suggestedValue: d.polledIdentity,
+          currentLabel: null,
+          suggestedLabel: null,
+          actions: ['UPDATE'],
+          swapWith: null
+        });
+      }
+
+      if (d.polledSerial) {
+        suggestions.push({
+          field: 'serialNumber',
+          currentValue: d.hardware.serialNumber,
+          suggestedValue: d.polledSerial,
+          currentLabel: null,
+          suggestedLabel: null,
+          actions: swapWith
+            ? ['SWAP']
+            : this.identifierActions(d.currentSerial, d.hardware),
+          swapWith
+        });
+      }
 
       if (d.polledMac) {
         suggestions.push({
@@ -75,7 +115,9 @@ export class HardwareChangeAssessor {
           suggestedValue: d.polledMac,
           currentLabel: null,
           suggestedLabel: null,
-          actions: swapWith ? ['SWAP'] : this.macActions(d),
+          actions: swapWith
+            ? ['SWAP']
+            : this.identifierActions(d.currentMac, d.hardware),
           swapWith
         });
       }
@@ -107,7 +149,7 @@ export class HardwareChangeAssessor {
     return Result.ok(byDevice);
   }
 
-  private differences(report: ReportedHardware): Differences {
+  private differences(report: AssessedReport): Differences {
     const { hardware } = report;
     const currentMac = hardware.macAddress
       ? normalizeMac(hardware.macAddress)
@@ -115,10 +157,20 @@ export class HardwareChangeAssessor {
     const reportedMac = report.macAddress
       ? normalizeMac(report.macAddress)
       : null;
+    const currentSerial = hardware.serialNumber?.trim()
+      ? normalizeSerial(hardware.serialNumber)
+      : null;
+    const reportedSerial = report.serialNumber?.trim()
+      ? normalizeSerial(report.serialNumber)
+      : null;
     const reportedModel = report.deviceModel?.trim() || null;
-    // The MAC on file reported back means the same box, so a different model
-    // name can only be AirOS and the catalog spelling it differently.
-    const sameBox = currentMac !== null && reportedMac === currentMac;
+    const reportedIdentity = report.identity?.trim() || null;
+    // The MAC or serial on file reported back means the same box, so a
+    // different model name can only be the box and the catalog spelling it
+    // differently.
+    const sameBox =
+      (currentMac !== null && reportedMac === currentMac) ||
+      (currentSerial !== null && reportedSerial === currentSerial);
 
     return {
       hardware,
@@ -127,12 +179,24 @@ export class HardwareChangeAssessor {
         reportedMac && reportedMac !== currentMac
           ? reportedMac
           : null,
+      currentSerial,
+      polledSerial:
+        reportedSerial && reportedSerial !== currentSerial
+          ? reportedSerial
+          : null,
       polledModel:
         reportedModel &&
         !sameBox &&
         normalizeModelName(reportedModel) !==
           normalizeModelName(hardware.modelName)
           ? reportedModel
+          : null,
+      // DEV-216: case and surrounding spaces are not a different name
+      polledIdentity:
+        reportedIdentity &&
+        reportedIdentity.toLowerCase() !==
+          hardware.name.trim().toLowerCase()
+          ? reportedIdentity
           : null
     };
   }
@@ -176,13 +240,14 @@ export class HardwareChangeAssessor {
     return confirmed;
   }
 
-  // A unit in service that reports a different MAC is most likely a swapped
-  // box, but could be a typo when the MAC was entered — so both are offered,
-  // replacement first.
-  private macActions(
-    d: Differences
+  // A unit in service that reports a different MAC or serial is most likely
+  // a swapped box, but could be a typo when it was entered — so both are
+  // offered, replacement first.
+  private identifierActions(
+    current: string | null,
+    hardware: DeviceHardware
   ): DeviceIdentitySuggestionAction[] {
-    if (d.currentMac === null || d.hardware.inInventory) {
+    if (current === null || hardware.inInventory) {
       return ['UPDATE'];
     }
     return ['REPLACE', 'UPDATE'];
@@ -191,7 +256,7 @@ export class HardwareChangeAssessor {
   // A reported MAC on another inventory record means the two units traded
   // places, which swap-hardware handles and replace would refuse (the MAC is
   // taken). A failed lookup only costs the swap hint, so it is not fatal.
-  private async findSwapCandidates(
+  private async findSwapCandidatesByMac(
     differences: Differences[]
   ): Promise<Map<string, SwapCandidateDTO>> {
     const swaps = new Map<string, SwapCandidateDTO>();
@@ -210,6 +275,33 @@ export class HardwareChangeAssessor {
     }
     for (const owner of ownersResult.value) {
       swaps.set(normalizeMac(owner.macAddress), {
+        deviceId: owner.deviceId,
+        name: owner.name
+      });
+    }
+    return swaps;
+  }
+
+  // DEV-216: the same for a serial a MikroTik reports.
+  private async findSwapCandidatesBySerial(
+    differences: Differences[]
+  ): Promise<Map<string, SwapCandidateDTO>> {
+    const swaps = new Map<string, SwapCandidateDTO>();
+    const serials = differences
+      .map((d) => d.polledSerial)
+      .filter((serial): serial is string => serial !== null);
+    if (serials.length === 0) return swaps;
+
+    const ownersResult =
+      await this.hardwareQuery.findDevicesBySerial(serials);
+    if (ownersResult.isFailure) {
+      this.logger.warn('Device lookup by serial failed', {
+        error: ownersResult.error
+      });
+      return swaps;
+    }
+    for (const owner of ownersResult.value) {
+      swaps.set(normalizeSerial(owner.serialNumber), {
         deviceId: owner.deviceId,
         name: owner.name
       });

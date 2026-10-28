@@ -261,6 +261,54 @@ describe('parseAgentMessage', () => {
     ).toBeNull();
   });
 
+  it('[AGT-123] accepts a RouterOS print answer with rows and errors', () => {
+    const answer = {
+      type: 'probe.result',
+      requestId: 'r-1',
+      kind: 'routeros-print',
+      at: 1,
+      answers: [
+        { rows: [{ name: 'Core', 'board-name': 'RB4011iGS+' }] },
+        { error: 'no such command' },
+        { rows: [] }
+      ]
+    };
+
+    expect(ok(answer)).toEqual(answer);
+  });
+
+  it('[AGT-123] rejects a RouterOS print answer over the limits', () => {
+    const base = {
+      type: 'probe.result',
+      requestId: 'r-1',
+      kind: 'routeros-print',
+      at: 1
+    };
+    expect(
+      ok({
+        ...base,
+        answers: [
+          { rows: Array.from({ length: 5001 }, () => ({ a: '1' })) }
+        ]
+      })
+    ).toBeNull();
+    expect(
+      ok({
+        ...base,
+        answers: Array.from({ length: 9 }, () => ({ rows: [] }))
+      })
+    ).toBeNull();
+    expect(
+      ok({ ...base, answers: [{ rows: [{ a: 'x'.repeat(1025) }] }] })
+    ).toBeNull();
+    expect(
+      ok({ ...base, answers: [{ rows: [{ a: 1 }] }] })
+    ).toBeNull();
+    expect(
+      ok({ ...base, answers: [{ rows: [], error: 'both' }] })
+    ).toBeNull();
+  });
+
   it('[AGT-111] accepts every shape of enforce answer', () => {
     const answers = [
       {

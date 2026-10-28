@@ -2129,6 +2129,89 @@ for the whole install with `port_speed_low` in `PUT /api/notification-mutes`.
 
 ---
 
+## Router System `/api/routers/system`, `/api/routers/:id/system`
+
+**Since:** 2026-10-28
+
+What each company MikroTik (the same routers and switches as Port Speeds) says
+about itself: its own name, hardware, versions and health. The server reads
+every router every `ROUTER_SYSTEM_CHECK_INTERVAL_MINUTES` (default 10) and
+keeps the last good reading (MON-160, MON-161). Off site it reads through the
+router's agent, which needs agent 0.11.0 (AGT-123).
+
+```ts
+interface RouterSystemReading {
+  identity: string | null; // the name the router gives itself
+  model: string | null; // RouterBOARD model, e.g. "RB4011iGS+"
+  serialNumber: string | null;
+  macAddress: string | null; // factory MAC of ether1
+  boardName: string | null;
+  routerOsVersion: string | null; // "7.15.3"
+  currentFirmware: string | null; // RouterBOARD firmware installed
+  upgradeFirmware: string | null; // firmware the installed RouterOS brings
+  uptimeSeconds: number | null;
+  cpuLoadPercent: number | null; // 0–100
+  freeMemoryBytes: number | null;
+  totalMemoryBytes: number | null;
+  freeHddBytes: number | null;
+  totalHddBytes: number | null;
+  voltage: number | null; // volts
+  temperatureC: number | null;
+}
+
+interface RouterSystem {
+  deviceId: string;
+  name: string; // the name in the app
+  ipAddress: string | null;
+  readable: boolean; // false: never read, `reason` says why
+  reason: string | null;
+  system: RouterSystemReading | null; // last good reading; null until one
+  readAt: string | null; // ISO 8601, when `system` was read
+  attemptedAt: string | null; // ISO 8601, the last attempt
+  lastError: string | null; // the last attempt's error, null when it worked
+}
+```
+
+Every field of `system` is null when the router did not say: a CHR has no
+RouterBOARD, many boards have no voltage or temperature sensor.
+
+### `GET /api/routers/system` — Every MikroTik and what it last said
+
+**Status:** 200 | 401
+
+Every role. Reads nothing live: the stored readings, at most one interval old
+(MON-162). `Cache-Control: no-store`.
+
+```ts
+// Response
+{ success: true, data: { routers: RouterSystem[] } } // by name
+```
+
+### `GET /api/routers/:id/system` — One MikroTik, read now
+
+**Status:** 200 | 400 | 401 | 404
+
+Every role. Reads the router now and keeps the reading (MON-163). A router
+that cannot be read or does not answer is still `200`, with `reason` or
+`lastError` (the last good `system` is kept). `404 Router not found` for a
+device that is not one of the MikroTiks.
+
+```ts
+// Response
+{ success: true, data: { router: RouterSystem } }
+```
+
+> **Frontend:** a "Routers" table: app name, `identity` (highlight it when it
+> differs from the app name), model, serial, RouterOS version, uptime as days
+> and hours, CPU %, memory and disk used, voltage and temperature, and
+> `readAt` as "hace N min". Show `lastError` in red under the name when set,
+> and `reason` instead of the values for an unreadable router. A "Leer ahora"
+> button per row calls `GET /api/routers/:id/system` and replaces the row.
+> Firmware: when `currentFirmware !== upgradeFirmware`, show "Firmware
+> pendiente".
+
+---
+
 ## Vendors `/api/vendors`
 
 ### `POST /api/vendors` — Create
@@ -4350,7 +4433,7 @@ limit?: number // 1–1000
   polled: boolean; // false if the device has never been polled
   collectedAt: string | null; // ISO 8601 from the latest snapshot
   suggestions: Array<{
-    field: 'name' | 'macAddress' | 'upstreamDeviceId' | 'deviceModel'; // was 'parentApDeviceId' before 2026-10-28
+    field: 'name' | 'macAddress' | 'serialNumber' | 'upstreamDeviceId' | 'deviceModel'; // was 'parentApDeviceId' before 2026-10-28; 'serialNumber' only for MikroTiks in the hardware-changes list
     currentValue: string | null; // from device-inventory
     suggestedValue: string | null; // from the latest AirOS poll; null only for deviceModel not in the catalog
     currentLabel: string | null; // upstreamDeviceId: declared AP's name; deviceModel: model on file
@@ -5075,11 +5158,14 @@ Since 2026-10-27. Requires the `read` permission (every role).
   devices: Array<{
     deviceId: string;
     name: string; // from device-inventory
-    collectedAt: string; // ISO 8601, the poll the comparison used
-    // Same shape as the per-device identity suggestions, but only
-    // 'macAddress' and 'deviceModel' entries.
+    source: 'RADIO' | 'ROUTER'; // since 2026-10-28
+    collectedAt: string; // ISO 8601, when the box reported it
+    // Same shape as the per-device identity suggestions. A radio has
+    // 'macAddress' and 'deviceModel' entries; a MikroTik 'name',
+    // 'serialNumber', 'deviceModel', and 'macAddress' only when it has no
+    // serial.
     suggestions: DeviceIdentitySuggestion[];
-  }>; // sorted by name, not paged
+  }>; // radios and routers together, sorted by name, not paged
 }
 ```
 
@@ -5090,12 +5176,28 @@ Since 2026-10-27. Requires the `read` permission (every role).
 > `GET /api/devices/:id/wireless/identity/suggestions` (WLS-152, WLS-153), so
 > the `actions` table there applies as-is.
 >
+> **Since 2026-10-28 it also lists MikroTiks** (`source: 'ROUTER'`, DEV-215,
+> DEV-216), from what each router last said about itself (see
+> `GET /api/routers/system`):
+>
+> - `serialNumber`: the router reports another serial. Actions as for a MAC:
+>   `UPDATE` when none is on file or the unit is in `INVENTORY`, else
+>   `REPLACE` then `UPDATE`; `SWAP` with `swapWith` when that serial is on
+>   another device. `UPDATE` is `PATCH /api/devices/:id { serialNumber }`.
+> - `name`: the router calls itself something else (its identity); the only
+>   action is `UPDATE`, `PATCH /api/devices/:id { name: suggestedValue }`.
+> - `deviceModel`: as for radios.
+>
+> The path stays under `/wireless` so existing screens keep working.
+>
 > **Frontend:** a "Hardware changes" screen, one card per device: the name, what
 > changed (`currentLabel`/`currentValue` → `suggestedLabel`/`suggestedValue`)
 > and one button for the first action of the device's suggestions. `SWAP`
 > devices come in pairs, each pointing at the other; accepting either fixes
 > both, so refetch after any action. An empty `devices` array means nothing to
 > fix. Show a count on the menu entry if it helps; the list is cheap to fetch.
+> Show a small "Radio" / "Router" tag from `source`, and label `serialNumber`
+> "Serie" and a router's `name` "Nombre en el router".
 
 ---
 

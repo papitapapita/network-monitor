@@ -4,8 +4,8 @@ import { PrismaWirelessSnapshotRepository } from 'infrastructure/wireless-monito
 import { PrismaWirelessDeviceConfigRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository';
 import { WirelessDeviceRepositoryAdapter } from 'infrastructure/wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
-import { PrismaDeviceHardwareQuery } from 'infrastructure/wireless-monitoring/queries';
-import { HardwareChangeAssessor } from 'application/wireless-monitoring/services';
+import { PrismaDeviceHardwareQuery } from 'infrastructure/persistence/PrismaDeviceHardwareQuery';
+import { HardwareChangeAssessor } from 'application/device-inventory/services';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
 import { UpstreamAssignment } from 'application/device-inventory/services';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';

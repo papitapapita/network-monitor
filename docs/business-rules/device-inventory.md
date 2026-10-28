@@ -3784,3 +3784,62 @@ override is dropped in a refactor, no test fails, no request errors, and no
 operator sees anything different. The evidence lands in log files — which
 DEV-129's own rationale notes are retained and less protected than the
 database — and it is found by reading them, if ever.
+
+### DEV-215 — A MikroTik whose serial, model or MAC no longer matches its record is a hardware change
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-10-28
+
+The hardware-changes list (WLS-154) also checks every MikroTik that is in
+service (`ACTIVE` or `COMMISSIONING`, not deleted) and has a stored reading
+(MON-161). Each listed device carries `source`: `RADIO` or `ROUTER`, and
+`collectedAt`, when the box reported.
+
+A router is compared by its **serial**: the RouterBOARD serial against the
+serial on file, without case or surrounding spaces. Its MAC is compared only
+when the router reports no serial (a CHR). The model RouterOS reports is
+compared with the catalog as for radios (WLS-152, WLS-155). A model name
+reported by a router whose serial matches the one on file confirms that name
+for the catalog model, as a radio's MAC does.
+
+A serial suggestion offers the same actions as a MAC one (WLS-152): `UPDATE`
+when none is on file or the unit is in `INVENTORY`, otherwise `REPLACE` then
+`UPDATE`. A serial filled in where none was on file does not list a router by
+itself. A router taken out of service drops off the list but keeps its stored
+reading.
+
+**Why:** Every port of a MikroTik has its own MAC, and the MAC typed into the
+record may be any of them, so the MAC would flag routers that never changed.
+The serial is one per box and printed on it. A retired router's last reading
+is often the box that replaced it, so it must not stay on the list.
+
+**Enforced at:** `src/application/device-inventory/use-cases/GetHardwareChangesUseCase.ts`, `src/application/device-inventory/services/HardwareChangeAssessor.ts`, `src/infrastructure/persistence/PrismaDeviceHardwareQuery.ts` (`findReportedHardware`, `findConfirmedModelNames`)
+**Reached from:** `GET /api/wireless/hardware-changes`
+**Tests:** `tests/application/device-inventory/use-cases/GetHardwareChangesUseCase.test.ts`, `tests/infrastructure/persistence/PrismaDeviceHardwareQuery.test.ts`, `tests/integration/use-cases/device-inventory/GetHardwareChangesUseCase.integration.test.ts`
+
+### DEV-216 — A MikroTik naming itself differently, or reporting another unit's serial, is listed with what to do
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-10-28
+
+When the name a MikroTik gives itself (its identity) differs from its name in
+the app, ignoring case and surrounding spaces, the router is listed with a
+`name` suggestion: the identity, action `UPDATE` (`PATCH /api/devices/:id`).
+That alone lists the router.
+
+When the serial a router reports belongs to another device in inventory
+(deleted devices do not count), its `serialNumber` and `deviceModel`
+suggestions offer only `SWAP`, with `swapWith` naming that device, as WLS-153
+does for a radio's MAC. A failed lookup is logged and the suggestions fall
+back to DEV-215.
+
+**Why:** The app name and the router's own name are what operators read in two
+different tools; when they drift, people mistake one router for another. A
+serial already on another record means two units traded places, which
+swap-hardware handles and replace would refuse.
+
+**Enforced at:** `src/application/device-inventory/services/HardwareChangeAssessor.ts` (`findSwapCandidatesBySerial`, `differences`), `src/infrastructure/persistence/PrismaDeviceHardwareQuery.ts` (`findDevicesBySerial`)
+**Reached from:** `GET /api/wireless/hardware-changes`
+**Tests:** `tests/application/device-inventory/use-cases/GetHardwareChangesUseCase.test.ts`, `tests/infrastructure/persistence/PrismaDeviceHardwareQuery.test.ts`, `tests/integration/use-cases/device-inventory/GetHardwareChangesUseCase.integration.test.ts`

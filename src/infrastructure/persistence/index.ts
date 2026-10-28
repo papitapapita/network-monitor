@@ -27,3 +27,5 @@ export * from './PrismaDiscoveredDeviceListQuery';
 export * from './PrismaDiscoveryPrefillQuery';
 export * from './PrismaDiscoverySettingsRepository';
 export * from './PrismaPortExpectedSpeedRepository';
+export * from './PrismaRouterSystemStateRepository';
+export * from './PrismaDeviceHardwareQuery';

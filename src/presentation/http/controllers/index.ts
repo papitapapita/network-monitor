@@ -46,3 +46,4 @@ export * from './PingToolController';
 export * from './DiscoveredDeviceController';
 export * from './DiscoverySettingsController';
 export * from './PortSpeedController';
+export * from './RouterSystemController';

@@ -35,6 +35,7 @@ import { createRadioSettingsRoutes } from './radio-settings.routes';
 import { createDeviceBackupRoutes } from './device-backup.routes';
 import { createPowerControlRoutes } from './power-control.routes';
 import { createPortSpeedRoutes } from './port-speed.routes';
+import { createRouterSystemRoutes } from './router-system.routes';
 import { createAuthRoutes } from './auth.routes';
 import { createAdminRoutes } from './admin.routes';
 import { createUserRoutes } from './user.routes';
@@ -457,6 +458,12 @@ export function setupRoutes(
   apiRouter.use(
     '/routers',
     createPortSpeedRoutes(container.portSpeedController)
+  );
+
+  // MikroTik system details: /api/routers/system
+  apiRouter.use(
+    '/routers',
+    createRouterSystemRoutes(container.routerSystemController)
   );
 
   // =====================================

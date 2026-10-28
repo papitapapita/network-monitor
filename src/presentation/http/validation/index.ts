@@ -40,3 +40,4 @@ export * from './ping-tool.schemas';
 export * from './discovered-device.schemas';
 export * from './discovery-settings.schemas';
 export * from './port-speed.schemas';
+export * from './router-system.schemas';

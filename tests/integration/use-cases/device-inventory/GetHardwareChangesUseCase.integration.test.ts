@@ -1,14 +1,59 @@
+// Source: src/application/device-inventory/use-cases/GetHardwareChangesUseCase.ts
+
 import { PrismaClient } from '../../../../src/generated/prisma/client';
-import { GetHardwareChangesUseCase } from 'application/wireless-monitoring/use-cases/GetHardwareChangesUseCase';
-import { HardwareChangeAssessor } from 'application/wireless-monitoring/services';
-import { PrismaWirelessSnapshotRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaWirelessSnapshotRepository';
-import { PrismaDeviceHardwareQuery } from 'infrastructure/wireless-monitoring/queries';
+import { GetHardwareChangesUseCase } from 'application/device-inventory/use-cases/GetHardwareChangesUseCase';
+import { HardwareChangeAssessor } from 'application/device-inventory/services';
+import { PrismaDeviceHardwareQuery } from 'infrastructure/persistence/PrismaDeviceHardwareQuery';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import {
   cleanDatabase,
   createTestPrisma,
   seedWirelessDeviceModel
 } from '../../helpers/db';
+import {
+  seedMikrotikModel,
+  seedRouter
+} from '../../helpers/portSpeeds';
+
+// A MikroTik in inventory with the serial on file, and what it last said
+// about itself (MON-161).
+async function seedReportingRouter(
+  prisma: PrismaClient,
+  opts: {
+    name: string;
+    serialOnFile: string | null;
+    reported: {
+      identity?: string | null;
+      serialNumber?: string | null;
+      model?: string | null;
+      macAddress?: string | null;
+    };
+    status?: 'ACTIVE' | 'INVENTORY';
+  }
+): Promise<string> {
+  const id = await seedRouter(prisma, {
+    name: opts.name,
+    deviceModelId: await seedMikrotikModel(prisma),
+    status: opts.status
+  });
+  await prisma.device.update({
+    where: { id },
+    data: { serialNumber: opts.serialOnFile }
+  });
+  const at = new Date('2026-10-28T15:00:00Z');
+  await prisma.routerSystemState.create({
+    data: {
+      deviceId: id,
+      identity: opts.reported.identity ?? opts.name,
+      serialNumber: opts.reported.serialNumber ?? null,
+      model: opts.reported.model ?? 'mikrotik-ROUTERBOARD',
+      macAddress: opts.reported.macAddress ?? null,
+      readAt: at,
+      attemptedAt: at
+    }
+  });
+  return id;
+}
 
 async function seedRadio(
   prisma: PrismaClient,
@@ -74,7 +119,6 @@ describe('GetHardwareChangesUseCase — integration', () => {
     const hardwareQuery = new PrismaDeviceHardwareQuery(prisma);
     const logger = new WinstonLogger();
     useCase = new GetHardwareChangesUseCase(
-      new PrismaWirelessSnapshotRepository(prisma),
       hardwareQuery,
       new HardwareChangeAssessor(hardwareQuery, logger),
       logger
@@ -127,6 +171,7 @@ describe('GetHardwareChangesUseCase — integration', () => {
       {
         deviceId: changed,
         name: 'AP Norte',
+        source: 'RADIO',
         collectedAt: '2026-10-27T12:00:00.000Z',
         suggestions: [
           {
@@ -311,6 +356,129 @@ describe('GetHardwareChangesUseCase — integration', () => {
       expect(result.value.devices.map((d) => d.name)).toEqual([
         'AP Sur'
       ]);
+    });
+  });
+
+  describe('MikroTiks [DEV-215]', () => {
+    it('lists a router reporting another serial next to the radios', async () => {
+      const radio = await seedRadio(prisma, deviceModelId, {
+        name: 'AP Norte',
+        macAddress: 'AA:BB:CC:DD:EE:01'
+      });
+      await seedReport(prisma, radio, {
+        macAddress: 'AA:BB:CC:DD:EE:99'
+      });
+      const core = await seedReportingRouter(prisma, {
+        name: 'Core',
+        serialOnFile: 'D4440E1A2B3C',
+        reported: { serialNumber: 'HG5094Z' }
+      });
+
+      const result = await useCase.execute();
+
+      expect(
+        result.value.devices.map((d) => [d.name, d.source])
+      ).toEqual([
+        ['AP Norte', 'RADIO'],
+        ['Core', 'ROUTER']
+      ]);
+      expect(result.value.devices[1]).toMatchObject({
+        deviceId: core,
+        collectedAt: '2026-10-28T15:00:00.000Z',
+        suggestions: [
+          {
+            field: 'serialNumber',
+            currentValue: 'D4440E1A2B3C',
+            suggestedValue: 'HG5094Z',
+            actions: ['REPLACE', 'UPDATE'],
+            swapWith: null
+          }
+        ]
+      });
+    });
+
+    it('[DEV-216] offers a swap when the serial is on another record', async () => {
+      await seedReportingRouter(prisma, {
+        name: 'Core',
+        serialOnFile: 'D4440E1A2B3C',
+        reported: { serialNumber: 'hg5094z' }
+      });
+      const other = await seedRouter(prisma, {
+        name: 'Switch Norte',
+        deviceModelId: await seedMikrotikModel(prisma, 'SWITCH')
+      });
+      await prisma.device.update({
+        where: { id: other },
+        data: { serialNumber: 'HG5094Z' }
+      });
+
+      const result = await useCase.execute();
+
+      expect(result.value.devices[0]!.suggestions[0]).toMatchObject({
+        field: 'serialNumber',
+        actions: ['SWAP'],
+        swapWith: { deviceId: other, name: 'Switch Norte' }
+      });
+    });
+
+    it('[DEV-216] lists a router that names itself differently', async () => {
+      await seedReportingRouter(prisma, {
+        name: 'Core',
+        serialOnFile: 'D4440E1A2B3C',
+        reported: {
+          identity: 'Core-Insetel',
+          serialNumber: 'D4440E1A2B3C'
+        }
+      });
+
+      const result = await useCase.execute();
+
+      expect(result.value.devices[0]!.suggestions).toEqual([
+        expect.objectContaining({
+          field: 'name',
+          currentValue: 'Core',
+          suggestedValue: 'Core-Insetel',
+          actions: ['UPDATE']
+        })
+      ]);
+    });
+
+    it('leaves out a router whose report matches, and one out of service', async () => {
+      await seedReportingRouter(prisma, {
+        name: 'Core',
+        serialOnFile: 'D4440E1A2B3C',
+        reported: { serialNumber: 'd4440e1a2b3c' }
+      });
+      await seedReportingRouter(prisma, {
+        name: 'En bodega',
+        serialOnFile: 'AAA',
+        reported: { serialNumber: 'BBB' },
+        status: 'INVENTORY'
+      });
+
+      const result = await useCase.execute();
+
+      expect(result.value.devices).toEqual([]);
+    });
+
+    it('[WLS-155] carries a model name confirmed by one router over to another', async () => {
+      await seedReportingRouter(prisma, {
+        name: 'Core',
+        serialOnFile: 'D4440E1A2B3C',
+        reported: {
+          serialNumber: 'D4440E1A2B3C',
+          model: 'RB4011iGS+'
+        }
+      });
+      await seedReportingRouter(prisma, {
+        name: 'Borde',
+        serialOnFile: null,
+        reported: { serialNumber: 'HG5094Z', model: 'RB4011iGS+' }
+      });
+
+      const result = await useCase.execute();
+
+      expect(result.value.devices).toEqual([]);
     });
   });
 });

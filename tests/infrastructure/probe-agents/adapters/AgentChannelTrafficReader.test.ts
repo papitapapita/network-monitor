@@ -11,7 +11,8 @@ describe('AgentChannelTrafficReader', () => {
     sweep: jest.fn(),
     setHostname: jest.fn(),
     discover: jest.fn(),
-    readPorts: jest.fn()
+    readPorts: jest.fn(),
+    printRouterOs: jest.fn()
   } satisfies jest.Mocked<IAgentProbeChannel>;
   const reader = new AgentChannelTrafficReader(channel);
   const router: RouterConnectionTarget = {

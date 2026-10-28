@@ -7,6 +7,7 @@ import type {
 } from 'application/wireless-monitoring/interfaces';
 import type { IConfigFetcherResolver } from 'application/device-backups/interfaces';
 import type {
+  IRouterOsPrinter,
   IRouterPortReader,
   IRouterTrafficReader
 } from 'application/device-monitoring/interfaces';
@@ -57,6 +58,11 @@ const NO_PORT_READER: IRouterPortReader = {
     Result.fail('Reading ports is not supported by this agent')
 };
 
+const NO_ROUTEROS_PRINTER: IRouterOsPrinter = {
+  print: async () =>
+    Result.fail('Reading routers is not supported by this agent')
+};
+
 // Addresses a discover request pings at once (AGT-121): a /24 answers in
 // about four rounds of the sweep's one-second wait.
 const DISCOVER_BATCH = 64;
@@ -67,7 +73,9 @@ const DISCOVER_BATCH = 64;
 // with the quick ping the backend's own sweep uses (AGT-119), renames a
 // radio with the backend's own hostname writers (AGT-120), and scans a
 // segment with that same quick ping and the PC's ARP table (AGT-121), and
-// reads a router's Ethernet ports with the backend's port reader (AGT-122).
+// reads a router's Ethernet ports with the backend's port reader (AGT-122),
+// and runs allowed read-only RouterOS commands with the backend's printer,
+// which refuses any other (AGT-123).
 // The credentials in a request live only as long as the request (AGT-102,
 // AGT-115), except a router login, which the traffic reader holds open
 // between reads (AGT-118): nothing here stores or logs them.
@@ -86,7 +94,8 @@ export class ProbeRunner {
     private readonly sweepPing: PingProbe = ping,
     private readonly hostnames: IRadioHostnameWriterResolver = NO_HOSTNAME_WRITERS,
     private readonly arp: ArpTable = NO_ARP_TABLE,
-    private readonly ports: IRouterPortReader = NO_PORT_READER
+    private readonly ports: IRouterPortReader = NO_PORT_READER,
+    private readonly routerOs: IRouterOsPrinter = NO_ROUTEROS_PRINTER
   ) {}
 
   async run(
@@ -241,6 +250,24 @@ export class ProbeRunner {
         at,
         identity: read.value.identity,
         ports: read.value.ports
+      };
+    }
+
+    if (request.kind === 'routeros-print') {
+      if (!Array.isArray(request.commands)) {
+        return failed(request, 'No commands to run');
+      }
+      const printed = await this.routerOs.print(
+        { host: request.ip, login: request.login, agentId: null },
+        request.commands
+      );
+      if (printed.isFailure) return failed(request, printed.error);
+      return {
+        type: 'probe.result',
+        requestId: request.requestId,
+        kind: 'routeros-print',
+        at,
+        answers: printed.value
       };
     }
 

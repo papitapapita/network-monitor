@@ -53,8 +53,8 @@ A rule enforced in two layers counts in both.
 | Domain                       | 11    |
 | Application                  | 19    |
 | Infrastructure (composition) | 13    |
-| Presentation                 | 20    |
-| Agent program                | 26    |
+| Presentation                 | 21    |
+| Agent program                | 27    |
 
 ---
 
@@ -1569,3 +1569,53 @@ no reason to keep the login open between reads.
 
 **Enforced at:** `src/agent/protocol/messages.ts` (`AGENT_CAPABILITIES`, `MAX_ETHERNET_PORTS`, `EthernetPortWire`), `src/agent/probes/ProbeRunner.ts`, `src/agent/main.ts`, `src/agent/version.ts`, `src/presentation/ws/agent/AgentSession.ts` (`canReadPorts`, `canAnswer`), `src/presentation/ws/agent/ConnectedAgents.ts` (`readPorts`), `src/presentation/ws/agent/agentMessageSchema.ts`
 **Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/agent/importBoundary.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/infrastructure/probe-agents/adapters/AgentChannelPortReader.test.ts`, `tests/integration/agent-ports.test.ts`
+
+### AGT-123 — An agent that names `routeros-print` runs allowed read-only RouterOS commands when asked
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program · Presentation
+**Since:** 2026-10-28
+
+From version `0.11.0` the hello names `routeros-print` beside the other
+capabilities. The backend sends a RouterOS print request only to an agent that
+named it. Any other agent gets `PROBE_UNSUPPORTED` ("The agent must be updated
+to read this from routers") without being asked, and is never sent the
+router's login.
+
+A RouterOS print request is a probe request of kind `routeros-print`: a request
+id, the router's address, its RouterOS API login (username, password, API
+port) and up to 8 commands, each a command path and its words. The agent logs
+in once, runs the commands in order and closes the login. It answers with one
+answer per command, in the same order: the rows the router printed, or that
+command's own error. Only a router that cannot be logged into fails the whole
+request.
+
+The agent runs only the commands on its own allow-list, all of them reads:
+`/system/identity/print`, `/system/resource/print`,
+`/system/routerboard/print`, `/system/health/print`, `/interface/print`,
+`/interface/ethernet/print`, `/interface/ethernet/monitor`,
+`/interface/bridge/host/print`, `/ip/arp/print`,
+`/ip/dhcp-server/lease/print`, `/ip/neighbor/print`,
+`/ip/neighbor/discovery-settings/print`, `/ip/service/print` and
+`/user/print`. A command may carry at most 8 words, and only these:
+`=.proplist=`, a `?` query, `=numbers=`, `=once=`, `=stats=`, `=detail=` and
+`=without-paging=`. A `monitor` must carry `=once=`. Any other command or word
+is answered with its error and never sent to the router. The server runs the
+same printer on site, so it refuses the same commands.
+
+An answer carries at most 5000 rows over all its commands. A command whose rows
+would pass that is answered with "Too many rows to answer". Values are cut to
+1024 characters, and a row holds at most 256 properties. The login lives only
+as long as the request (`AGT-115`) and is never saved or logged. The request
+counts as one of the 4 requests at once of `AGT-101`. The backend waits 25
+seconds. Offline, timeout and error end the request as in `AGT-103`. An answer
+over these limits, or with a different number of answers than commands, is
+refused.
+
+**Why:** Each new thing read from routers used to need its own probe kind and
+its own agent release. A relay of plain reads lets the backend parse new reads
+without touching the agent. The allow-list ships inside the agent, so a
+backend, even a compromised one, cannot make an agent change a router.
+
+**Enforced at:** `src/agent/protocol/messages.ts` (`ROUTEROS_PRINT_COMMANDS`, `refuseRouterOsCommand`, `MAX_ROUTEROS_PRINT_*`), `src/infrastructure/monitoring/routeros/RouterOsApiPrinter.ts`, `src/agent/probes/ProbeRunner.ts`, `src/agent/main.ts`, `src/agent/version.ts`, `src/presentation/ws/agent/AgentSession.ts` (`canPrintRouterOs`), `src/presentation/ws/agent/ConnectedAgents.ts` (`printRouterOs`), `src/presentation/ws/agent/agentMessageSchema.ts`, `src/infrastructure/probe-agents/adapters/AgentChannelRouterOsPrinter.ts`
+**Tests:** `tests/agent/protocol/routerOsPrint.test.ts`, `tests/infrastructure/monitoring/routeros/RouterOsApiPrinter.test.ts`, `tests/agent/probes/ProbeRunner.test.ts`, `tests/agent/importBoundary.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/infrastructure/probe-agents/adapters/AgentChannelRouterOsPrinter.test.ts`, `tests/integration/agent-routeros-print.test.ts`

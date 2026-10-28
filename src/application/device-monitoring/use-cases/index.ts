@@ -18,3 +18,6 @@ export * from './GetRouterPortSpeedsUseCase';
 export * from './SetPortExpectedSpeedUseCase';
 export * from './AcceptCurrentPortSpeedsUseCase';
 export * from './CheckPortSpeedsUseCase';
+export * from './ListRouterSystemsUseCase';
+export * from './GetRouterSystemUseCase';
+export * from './CheckRouterSystemsUseCase';

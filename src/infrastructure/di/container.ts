@@ -20,6 +20,7 @@ import {
   AgentChannelConfigFetcher,
   AgentChannelTrafficReader,
   AgentChannelPortReader,
+  AgentChannelRouterOsPrinter,
   AgentChannelPingProbe,
   AgentChannelSweepProbe,
   AgentChannelHostDiscovery,
@@ -146,6 +147,7 @@ import {
   PrismaInboxNotificationRepository,
   PrismaSpeedTestResultRepository,
   PrismaPortExpectedSpeedRepository,
+  PrismaRouterSystemStateRepository,
   PrismaDiscoveredDeviceRepository,
   PrismaDiscoverySettingsRepository,
   PrismaKnownDeviceLookup,
@@ -179,6 +181,7 @@ import {
   NetworkSweepController,
   SpeedTestController,
   PortSpeedController,
+  RouterSystemController,
   PingToolController,
   LinkDiagnosisController,
   AlertThresholdsController,
@@ -282,7 +285,7 @@ import { DeviceReachAdapter } from '../wireless-monitoring/adapters/DeviceReachA
 import { StationSightingsAdapter } from '../wireless-monitoring/adapters/StationSightingsAdapter';
 import { ContractedCapacityAdapter } from '../wireless-monitoring/adapters/ContractedCapacityAdapter';
 import { DeviceVendorAdapter } from '../wireless-monitoring/adapters/DeviceVendorAdapter';
-import { PrismaDeviceHardwareQuery } from '../wireless-monitoring/queries';
+import { PrismaDeviceHardwareQuery } from '../persistence/PrismaDeviceHardwareQuery';
 import {
   WirelessAlertEvaluator,
   LinkDiagnosisAnalyzer
@@ -308,7 +311,6 @@ import {
   GetWirelessClientsUseCase,
   GetApExpectedClientsUseCase,
   GetDeviceIdentitySuggestionsUseCase,
-  GetHardwareChangesUseCase,
   GetActiveWirelessAlertsUseCase,
   GetWirelessAlertHistoryUseCase,
   TriggerWirelessPollUseCase,
@@ -354,7 +356,9 @@ import {
   PollingOrchestrator,
   DiscoveryScanOrchestrator,
   PortSpeedCheckOrchestrator,
-  loadPortSpeedCheckIntervalMs
+  loadPortSpeedCheckIntervalMs,
+  RouterSystemCheckOrchestrator,
+  loadRouterSystemCheckIntervalMs
 } from '../monitoring/orchestrator';
 import {
   PrismaRouterTrafficTargetsQuery,
@@ -365,6 +369,8 @@ import {
   PrismaPortSpeedTargetsQuery,
   RouterOsPortReader
 } from '../monitoring/port-speeds';
+import { RouterOsApiPrinter } from '../monitoring/routeros';
+import { RouterOsSystemReader } from '../monitoring/router-system';
 import {
   RunNetworkSweepUseCase,
   RunSpeedTestUseCase,
@@ -375,9 +381,15 @@ import {
   GetRouterPortSpeedsUseCase,
   SetPortExpectedSpeedUseCase,
   AcceptCurrentPortSpeedsUseCase,
-  CheckPortSpeedsUseCase
+  CheckPortSpeedsUseCase,
+  ListRouterSystemsUseCase,
+  GetRouterSystemUseCase,
+  CheckRouterSystemsUseCase
 } from 'application/device-monitoring/use-cases';
-import { RouterPortInspector } from 'application/device-monitoring/services';
+import {
+  RouterPortInspector,
+  RouterSystemRecorder
+} from 'application/device-monitoring/services';
 import { PrismaNetworkSweepTargetsQuery } from '../monitoring/network-sweep';
 import { CloudflareSpeedTester } from '../monitoring/speed-test';
 import { PrismaPingToolAgentQuery } from '../monitoring/ping-tool';
@@ -457,7 +469,10 @@ import {
   ContractedServiceCancelledEvent
 } from 'domain/customers/events';
 import { ContractedServiceCancelledDeviceHandler } from 'application/device-inventory/event-handlers';
-import { RetireDeviceAfterCancellationUseCase } from 'application/device-inventory/use-cases';
+import {
+  GetHardwareChangesUseCase,
+  RetireDeviceAfterCancellationUseCase
+} from 'application/device-inventory/use-cases';
 import {
   DeviceCreatedEvent,
   DeviceStatusChangedEvent,
@@ -604,7 +619,7 @@ import {
   PurgeOldWirelessSnapshotsUseCase,
   PurgeOldWirelessAlertRecordsUseCase
 } from 'application/wireless-monitoring/use-cases';
-import { HardwareChangeAssessor } from 'application/wireless-monitoring/services';
+import { HardwareChangeAssessor } from 'application/device-inventory/services';
 import { DataRetentionOrchestrator } from '../retention/DataRetentionOrchestrator';
 import { TriggerDataRetentionUseCase } from 'application/shared/use-cases/TriggerDataRetentionUseCase';
 import { GetVendorSettingsUseCase } from 'application/shared/use-cases/GetVendorSettingsUseCase';
@@ -729,6 +744,7 @@ export class DependencyContainer {
   public discoverySettingsController: DiscoverySettingsController;
   public discoveryScanOrchestrator: DiscoveryScanOrchestrator;
   public portSpeedCheckOrchestrator: PortSpeedCheckOrchestrator;
+  public routerSystemCheckOrchestrator: RouterSystemCheckOrchestrator;
   // Shared by every source of sightings (DEV-200).
   public deviceSightingRecorder: DeviceSightingRecorder;
   private purgeStaleDiscoveredDevicesUseCase: PurgeStaleDiscoveredDevicesUseCase;
@@ -738,6 +754,7 @@ export class DependencyContainer {
   public networkSweepController: NetworkSweepController;
   public speedTestController: SpeedTestController;
   public portSpeedController: PortSpeedController;
+  public routerSystemController: RouterSystemController;
   public pingToolController: PingToolController;
   public linkDiagnosisController: LinkDiagnosisController;
   public alertThresholdsController: AlertThresholdsController;
@@ -1740,6 +1757,30 @@ export class DependencyContainer {
       ),
       this.logger
     );
+    // MON-160..MON-163: what each MikroTik says about itself, read with
+    // allowed RouterOS commands; off site through the router's agent
+    // (AGT-123).
+    const routerSystemRecorder = new RouterSystemRecorder(
+      new RouterOsSystemReader(
+        this.serverOnSite
+          ? new RouterOsApiPrinter(this.logger)
+          : new AgentChannelRouterOsPrinter(connectedAgents)
+      ),
+      new PrismaRouterSystemStateRepository(this.prisma)
+    );
+    this.routerSystemController = new RouterSystemController(
+      new ListRouterSystemsUseCase(
+        portSpeedTargets,
+        routerSystemRecorder,
+        this.logger
+      ),
+      new GetRouterSystemUseCase(
+        portSpeedTargets,
+        routerSystemRecorder,
+        this.logger
+      ),
+      this.logger
+    );
     const configurePollingUseCase = new ConfigureDevicePollingUseCase(
       this.pollingConfigRepository,
       suspendDeviceMonitoringUseCase,
@@ -2247,6 +2288,20 @@ export class DependencyContainer {
       { checkIntervalMs: loadPortSpeedCheckIntervalMs(process.env) },
       this.logger
     );
+    this.routerSystemCheckOrchestrator =
+      new RouterSystemCheckOrchestrator(
+        new CheckRouterSystemsUseCase(
+          portSpeedTargets,
+          routerSystemRecorder,
+          this.logger
+        ),
+        {
+          checkIntervalMs: loadRouterSystemCheckIntervalMs(
+            process.env
+          )
+        },
+        this.logger
+      );
 
     const outageTopologyQuery = new PrismaOutageTopologyQuery(
       this.prisma
@@ -2475,7 +2530,6 @@ export class DependencyContainer {
         this.logger
       );
     const getHardwareChangesUseCase = new GetHardwareChangesUseCase(
-      this.wirelessSnapshotRepository,
       deviceHardwareQuery,
       hardwareChangeAssessor,
       this.logger
@@ -3264,6 +3318,10 @@ export class DependencyContainer {
       {
         name: 'port-speed-check',
         ...bindJob(this.portSpeedCheckOrchestrator)
+      },
+      {
+        name: 'router-system-check',
+        ...bindJob(this.routerSystemCheckOrchestrator)
       }
     ];
     if (this.billingCycleOrchestrator) {

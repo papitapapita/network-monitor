@@ -6,6 +6,10 @@ import {
   MAX_BACKUP_CONFIG_BYTES,
   MAX_DISCOVER_HOSTS,
   MAX_ETHERNET_PORTS,
+  MAX_ROUTEROS_PRINT_COMMANDS,
+  MAX_ROUTEROS_PRINT_ROWS,
+  MAX_ROUTEROS_ROW_PROPERTIES,
+  MAX_ROUTEROS_VALUE_LENGTH,
   MAX_SWEEP_TARGETS,
   MAX_TRAFFIC_INTERFACES
 } from 'agent/protocol';
@@ -122,7 +126,23 @@ const pingReading = z.union([
   })
 ]);
 
-// Nine shapes under one type, so it is its own union inside the
+// AGT-123: a RouterOS row is property → value, as the API printed it.
+const routerOsRow = z
+  .record(
+    z.string().min(1).max(64),
+    z.string().max(MAX_ROUTEROS_VALUE_LENGTH)
+  )
+  .refine(
+    (row) => Object.keys(row).length <= MAX_ROUTEROS_ROW_PROPERTIES,
+    'Too many properties'
+  );
+
+const routerOsAnswer = z.union([
+  z.object({ rows: z.array(routerOsRow) }).strict(),
+  z.object({ error: z.string().max(500) }).strict()
+]);
+
+// Ten shapes under one type, so it is its own union inside the
 // discriminated one.
 const probeResult = z.union([
   z.object({
@@ -211,6 +231,23 @@ const probeResult = z.union([
         })
       )
       .max(MAX_ETHERNET_PORTS)
+  }),
+  z.object({
+    type: z.literal('probe.result'),
+    requestId,
+    kind: z.literal('routeros-print'),
+    at: epochMs,
+    answers: z
+      .array(routerOsAnswer)
+      .max(MAX_ROUTEROS_PRINT_COMMANDS)
+      .refine(
+        (answers) =>
+          answers.reduce(
+            (n, a) => n + ('rows' in a ? a.rows.length : 0),
+            0
+          ) <= MAX_ROUTEROS_PRINT_ROWS,
+        'Too many rows'
+      )
   }),
   z.object({
     type: z.literal('probe.result'),

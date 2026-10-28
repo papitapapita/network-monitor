@@ -47,3 +47,5 @@ export * from './TopologyDTO';
 export * from './UpstreamSuggestionDTOs';
 export * from './DiscoveredDeviceDTOs';
 export * from './DiscoverySettingsDTOs';
+export * from './HardwareSuggestionDTO';
+export * from './HardwareChangesResponseDTO';

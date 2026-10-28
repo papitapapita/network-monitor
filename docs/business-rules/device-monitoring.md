@@ -1245,3 +1245,93 @@ list reads every router and waits for the slowest one.
 
 **Enforced at:** `src/application/device-monitoring/use-cases/GetRouterPortSpeedsUseCase.ts`, `src/presentation/http/routes/port-speed.routes.ts`
 **Tests:** `tests/application/device-monitoring/use-cases/PortSpeedUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/GetRouterPortSpeedsUseCase.integration.test.ts`, `tests/integration/port-speed.routes.test.ts`
+
+### MON-160 — A MikroTik is read for its identity, hardware, versions and health
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+The same MikroTiks as the port check are read (MON-140), with the same reasons
+for not reading one (MON-145): no address, no saved login, or off site with no
+agent in reach. One login runs five reads through the RouterOS printer
+(AGT-123), then closes:
+
+| Field | From |
+|---|---|
+| `identity` | `/system/identity`: the name the router gives itself |
+| `model`, `serialNumber`, `currentFirmware`, `upgradeFirmware` | `/system/routerboard` |
+| `routerOsVersion` (without the channel), `boardName`, `uptimeSeconds`, `cpuLoadPercent`, free and total memory and disk in bytes | `/system/resource` |
+| `voltage`, `temperatureC` | `/system/health`: the `temperature` sensor, else `board-temperature1`, else `cpu-temperature` |
+| `macAddress` | the factory MAC of the port first named `ether1`, else of the first port |
+
+RouterOS 6 answers health as one row of fields and RouterOS 7 as one row per
+sensor. Both are read. A command the router refuses leaves its fields null: a
+CHR has no RouterBOARD, and many boards have no sensors. A value it cannot
+read leaves its field null too: a load over 100 %, memory not in plain bytes,
+an uptime in no known form. Text is cut to the column it is kept in. The read
+fails only when the router answers neither its identity nor its resources.
+Nothing on the router changes.
+
+**Why:** These are what the hardware-change check (DEV-215), and later the
+reboot, health and firmware checks, compare against. One login for all of
+them keeps the load on the router to one short session.
+
+**Enforced at:** `src/infrastructure/monitoring/router-system/RouterOsSystemReader.ts`, `src/application/device-monitoring/services/RouterSystemRecorder.ts`
+**Tests:** `tests/infrastructure/monitoring/router-system/RouterOsSystemReader.test.ts`, `tests/application/device-monitoring/use-cases/RouterSystemUseCases.test.ts`
+
+### MON-161 — Every MikroTik is read on a schedule, and its last good reading is kept
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+Every `ROUTER_SYSTEM_CHECK_INTERVAL_MINUTES` (1–1440, default 10; any other
+value stops the boot) every readable MikroTik is read at once (MON-160). Each
+router keeps one stored state: its last good reading and when it was taken,
+and its last attempt and that attempt's error. A read that fails records the
+error and the attempt time but keeps the last good reading. The next good read
+replaces the reading and clears the error. A router that cannot be read at all
+gets no stored state. The state goes with the device when it is deleted. Off
+site the agent the router sits behind reads it (AGT-123).
+
+**Why:** A router that stops answering still has hardware, and the hardware it
+last reported is what the hardware-change list needs to compare. The page can
+then show both what the router said and that it is not answering now.
+
+**Enforced at:** `src/domain/device-monitoring/aggregates/RouterSystemState.ts`, `src/application/device-monitoring/use-cases/CheckRouterSystemsUseCase.ts`, `src/application/device-monitoring/services/RouterSystemRecorder.ts`, `src/infrastructure/monitoring/orchestrator/RouterSystemCheckOrchestrator.ts`, `src/infrastructure/persistence/PrismaRouterSystemStateRepository.ts`
+**Tests:** `tests/domain/device-monitoring/aggregates/RouterSystemState.test.ts`, `tests/application/device-monitoring/use-cases/RouterSystemUseCases.test.ts`, `tests/infrastructure/monitoring/orchestrator/RouterSystemCheckOrchestrator.test.ts`, `tests/integration/use-cases/device-monitoring/CheckRouterSystemsUseCase.integration.test.ts`, `tests/integration/agent-routeros-print.test.ts`
+
+### MON-162 — The router system list shows what each MikroTik last said, without reading any
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+`GET /api/routers/system` lists every MikroTik of MON-140 by name with its
+stored state (MON-161): the last good reading (`system`), `readAt`, the last
+attempt (`attemptedAt`) and its `lastError`. A router that cannot be read
+carries `readable: false` and the reason. A router never read yet has `system`
+null. Nothing is read live. Anyone may look.
+
+**Why:** Reading every router on each page load would be slow and add a login
+per viewer to every router. The schedule keeps the readings at most one
+interval old.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/ListRouterSystemsUseCase.ts`, `src/presentation/http/routes/router-system.routes.ts`
+**Tests:** `tests/application/device-monitoring/use-cases/RouterSystemUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/ListRouterSystemsUseCase.integration.test.ts`, `tests/integration/router-system.routes.test.ts`
+
+### MON-163 — One MikroTik can be read now
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+`GET /api/routers/:id/system` reads one MikroTik of MON-140 now. It records
+the result as a scheduled read would (MON-161) and answers the router as the
+list shows it. A router that cannot be read, or does not answer, is still a
+`200` with its reason or error. A device that is not one of those routers is
+`404 Router not found`. Anyone may look.
+
+**Why:** After swapping or reconfiguring a router the operator wants to see it
+now, not at the next scheduled read. Keeping what was read costs nothing and
+keeps the list current.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/GetRouterSystemUseCase.ts`, `src/presentation/http/routes/router-system.routes.ts`
+**Tests:** `tests/application/device-monitoring/use-cases/RouterSystemUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/GetRouterSystemUseCase.integration.test.ts`, `tests/integration/router-system.routes.test.ts`

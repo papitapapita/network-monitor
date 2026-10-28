@@ -6,7 +6,6 @@ import {
   GetWirelessClientsUseCase,
   GetApExpectedClientsUseCase,
   GetDeviceIdentitySuggestionsUseCase,
-  GetHardwareChangesUseCase,
   GetActiveWirelessAlertsUseCase,
   GetWirelessAlertHistoryUseCase,
   TriggerWirelessPollUseCase,
@@ -18,6 +17,7 @@ import {
   ClearWirelessAlertUseCase,
   BulkClearWirelessAlertsUseCase
 } from 'application/wireless-monitoring/use-cases';
+import { GetHardwareChangesUseCase } from 'application/device-inventory/use-cases';
 import { OUT_OF_SERVER_REACH } from 'application/wireless-monitoring/interfaces';
 import { AGENT_READ_FAILURES } from 'application/wireless-monitoring/use-cases';
 

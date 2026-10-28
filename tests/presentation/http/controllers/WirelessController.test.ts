@@ -7,7 +7,7 @@ import { GetWirelessDeviceHistoryUseCase } from '../../../../src/application/wir
 import { GetWirelessClientsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessClientsUseCase';
 import { GetApExpectedClientsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetApExpectedClientsUseCase';
 import { GetDeviceIdentitySuggestionsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase';
-import { GetHardwareChangesUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetHardwareChangesUseCase';
+import { GetHardwareChangesUseCase } from '../../../../src/application/device-inventory/use-cases/GetHardwareChangesUseCase';
 import { GetActiveWirelessAlertsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetActiveWirelessAlertsUseCase';
 import { GetWirelessAlertHistoryUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessAlertHistoryUseCase';
 import { TriggerWirelessPollUseCase } from '../../../../src/application/wireless-monitoring/use-cases/TriggerWirelessPollUseCase';

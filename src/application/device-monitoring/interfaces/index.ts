@@ -11,3 +11,5 @@ export * from './IInternetSpeedTester';
 export * from './IPingToolAgentQuery';
 export * from './IRouterPortReader';
 export * from './IPortSpeedTargetsQuery';
+export * from './IRouterOsPrinter';
+export * from './IRouterSystemReader';

@@ -41,6 +41,7 @@ import { RouterOsQueueService } from 'infrastructure/service-enforcement/RouterO
 import { RouterOsTrafficReader } from 'infrastructure/monitoring/router-traffic/RouterOsTrafficReader';
 // Straight to the file: the folder's index also holds the Prisma query.
 import { RouterOsPortReader } from 'infrastructure/monitoring/port-speeds/RouterOsPortReader';
+import { RouterOsApiPrinter } from 'infrastructure/monitoring/routeros/RouterOsApiPrinter';
 import {
   AirOsConfigFetcher,
   ConfigFetcherRegistry,
@@ -158,7 +159,8 @@ async function main(): Promise<void> {
       ubiquiti: new AirOsHostnameWriter(new SshCommandClient())
     }),
     new ArpTableReader(),
-    new RouterOsPortReader(logger)
+    new RouterOsPortReader(logger),
+    new RouterOsApiPrinter(logger)
   );
   runtime = new AgentRuntime({
     credentials: new CredentialStore(

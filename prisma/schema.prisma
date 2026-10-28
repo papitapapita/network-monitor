@@ -271,6 +271,7 @@ model Device {
   configBackups                ConfigBackup[]
   backupState                  DeviceBackupState?
   portExpectedSpeeds           PortExpectedSpeed[]
+  routerSystemState            RouterSystemState?
 
   @@index([monitoringEnabled])
   @@index([deletedAt])
@@ -609,6 +610,35 @@ model PortExpectedSpeed {
 
   @@unique([deviceId, portName])
   @@map("port_expected_speeds")
+}
+
+/// What a MikroTik last said about itself (MON-161): identity, hardware,
+/// versions and health. A failed read keeps the last good reading.
+model RouterSystemState {
+  deviceId         String    @id @map("device_id") @db.Uuid
+  identity         String?   @db.VarChar(255)
+  model            String?   @db.VarChar(100)
+  serialNumber     String?   @map("serial_number") @db.VarChar(100)
+  macAddress       String?   @map("mac_address") @db.VarChar(17)
+  boardName        String?   @map("board_name") @db.VarChar(100)
+  routerOsVersion  String?   @map("router_os_version") @db.VarChar(50)
+  currentFirmware  String?   @map("current_firmware") @db.VarChar(50)
+  upgradeFirmware  String?   @map("upgrade_firmware") @db.VarChar(50)
+  uptimeSeconds    Int?      @map("uptime_seconds")
+  cpuLoadPercent   Int?      @map("cpu_load_percent") @db.SmallInt
+  freeMemoryBytes  BigInt?   @map("free_memory_bytes")
+  totalMemoryBytes BigInt?   @map("total_memory_bytes")
+  freeHddBytes     BigInt?   @map("free_hdd_bytes")
+  totalHddBytes    BigInt?   @map("total_hdd_bytes")
+  voltage          Float?    @db.Real
+  temperatureC     Float?    @map("temperature_c") @db.Real
+  readAt           DateTime? @map("read_at") @db.Timestamptz
+  lastError        String?   @map("last_error") @db.VarChar(500)
+  attemptedAt      DateTime  @map("attempted_at") @db.Timestamptz
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@map("router_system_states")
 }
 
 /// The install's notification settings, edited from the dashboard (NOT-200).

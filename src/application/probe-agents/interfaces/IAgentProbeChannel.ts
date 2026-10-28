@@ -10,6 +10,8 @@ import type {
 import type {
   InterfaceTrafficReading,
   RouterConnectionTarget,
+  RouterOsCommand,
+  RouterOsPrintAnswer,
   RouterPortConnection,
   RouterPortsReading
 } from 'application/device-monitoring/interfaces';
@@ -114,4 +116,12 @@ export interface IAgentProbeChannel {
     agentId: string,
     router: RouterPortConnection
   ): Promise<AgentProbeOutcome<RouterPortsReading>>;
+
+  // AGT-123: only an agent that names `routeros-print` is asked. One answer
+  // per command, in the same order.
+  printRouterOs(
+    agentId: string,
+    router: RouterPortConnection,
+    commands: RouterOsCommand[]
+  ): Promise<AgentProbeOutcome<RouterOsPrintAnswer[]>>;
 }

@@ -224,6 +224,16 @@ export class AgentSession {
     );
   }
 
+  // AGT-123: only an agent that said it runs RouterOS prints is ever sent a
+  // login for it.
+  get canPrintRouterOs(): boolean {
+    return (
+      this.greeted &&
+      !this.closed &&
+      this.capabilities.includes('routeros-print')
+    );
+  }
+
   canAnswer(kind: ProbeRequest['kind']): boolean {
     switch (kind) {
       case 'backup':
@@ -238,6 +248,8 @@ export class AgentSession {
         return this.canDiscover;
       case 'ports':
         return this.canReadPorts;
+      case 'routeros-print':
+        return this.canPrintRouterOs;
       default:
         return this.canProbe;
     }
