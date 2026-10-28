@@ -25,6 +25,13 @@ export interface CatalogModel {
   vendorId: string;
 }
 
+// A model name a radio reported while its MAC matched the one on file — the
+// same box, so that name and that catalog model are the same hardware.
+export interface ConfirmedModelName {
+  reportedModel: string;
+  deviceModelId: string;
+}
+
 // Read-only view of device-inventory's hardware records. Deleted devices are
 // never returned.
 export interface IDeviceHardwareQuery {
@@ -35,4 +42,6 @@ export interface IDeviceHardwareQuery {
   findPolledHardware(): Promise<Result<DeviceHardware[]>>;
   findDevicesByMac(macs: string[]): Promise<Result<DeviceByMac[]>>;
   findCatalogModels(): Promise<Result<CatalogModel[]>>;
+  // From each live device's latest snapshot.
+  findConfirmedModelNames(): Promise<Result<ConfirmedModelName[]>>;
 }

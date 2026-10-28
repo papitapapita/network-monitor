@@ -11,7 +11,8 @@ const VENDOR_ID = '550e8400-e29b-41d4-a716-446655440020';
 function makeFakePrismaClient() {
   return {
     device: { findFirst: jest.fn(), findMany: jest.fn() },
-    deviceModel: { findMany: jest.fn() }
+    deviceModel: { findMany: jest.fn() },
+    $queryRaw: jest.fn()
   };
 }
 
@@ -175,6 +176,27 @@ describe('[WLS-152] PrismaDeviceHardwareQuery', () => {
       const result = await query.findCatalogModels();
 
       expect(result.isFailure).toBe(true);
+    });
+  });
+
+  describe('findConfirmedModelNames', () => {
+    it('should return the rows the database reports', async () => {
+      const rows = [
+        { reportedModel: 'LBE-5AC-Gen2', deviceModelId: MODEL_ID }
+      ];
+      prisma.$queryRaw.mockResolvedValue(rows);
+
+      const result = await query.findConfirmedModelNames();
+
+      expect(result.value).toEqual(rows);
+    });
+
+    it('should turn a database error into a failure', async () => {
+      prisma.$queryRaw.mockRejectedValue(new Error('boom'));
+
+      const result = await query.findConfirmedModelNames();
+
+      expect(result.error).toContain('boom');
     });
   });
 });

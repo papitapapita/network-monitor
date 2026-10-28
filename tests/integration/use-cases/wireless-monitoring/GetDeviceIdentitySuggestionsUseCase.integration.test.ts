@@ -336,6 +336,31 @@ describe('GetDeviceIdentitySuggestionsUseCase — integration', () => {
     });
   });
 
+  describe('model names AirOS spells differently (WLS-155)', () => {
+    it('suggests nothing when another radio confirmed the name for this model', async () => {
+      const confirmer = await seedDevice(prisma, deviceModelId, {
+        name: 'AP Norte',
+        macAddress: 'AA:BB:CC:DD:EE:01'
+      });
+      await seedSnapshot(prisma, confirmer, {
+        deviceName: 'AP Norte',
+        macAddress: 'AA:BB:CC:DD:EE:01',
+        deviceModel: 'LBE-5AC-Test'
+      });
+      const deviceId = await seedDevice(prisma, deviceModelId, {
+        name: 'AP Sur'
+      });
+      await seedSnapshot(prisma, deviceId, {
+        deviceName: 'AP Sur',
+        deviceModel: 'LBE-5AC-Test'
+      });
+
+      const result = await useCase.execute({ deviceId });
+
+      expect(result.value.suggestions).toHaveLength(0);
+    });
+  });
+
   describe('swapped units (WLS-153)', () => {
     it('suggests a swap when the reported MAC is on another inventory record', async () => {
       const other = await seedDevice(prisma, deviceModelId, {

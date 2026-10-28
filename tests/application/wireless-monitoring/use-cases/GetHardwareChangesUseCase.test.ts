@@ -86,6 +86,9 @@ function makeHardwareQuery(): jest.Mocked<IDeviceHardwareQuery> {
     findHardware: jest.fn(),
     findPolledHardware: jest.fn().mockResolvedValue(Result.ok([])),
     findDevicesByMac: jest.fn().mockResolvedValue(Result.ok([])),
+    findConfirmedModelNames: jest
+      .fn()
+      .mockResolvedValue(Result.ok([])),
     findCatalogModels: jest.fn().mockResolvedValue(
       Result.ok([
         {
@@ -166,11 +169,8 @@ describe('[WLS-154] GetHardwareChangesUseCase', () => {
   it('should list a radio reporting a different model, with its suggestions', async () => {
     polling([
       [
-        makeHardware(),
-        {
-          macAddress: 'AA:BB:CC:DD:EE:01',
-          deviceModel: 'PowerBeam 5AC ISO'
-        }
+        makeHardware({ macAddress: null }),
+        { deviceModel: 'PowerBeam 5AC ISO' }
       ]
     ]);
 
@@ -293,6 +293,41 @@ describe('[WLS-154] GetHardwareChangesUseCase', () => {
       'AA:BB:CC:DD:EE:99'
     ]);
     expect(hardwareQuery.findCatalogModels).toHaveBeenCalledTimes(1);
+  });
+
+  it('[WLS-155] should read the confirmed model names once for the whole fleet', async () => {
+    polling([
+      [makeHardware({ macAddress: null }), { deviceModel: 'X' }],
+      [
+        makeHardware({ deviceId: OTHER_UUID, macAddress: null }),
+        { deviceModel: 'Y' }
+      ]
+    ]);
+
+    await useCase.execute();
+
+    expect(
+      hardwareQuery.findConfirmedModelNames
+    ).toHaveBeenCalledTimes(1);
+  });
+
+  it('[WLS-155] should leave out a radio reporting another model name with the MAC on file', async () => {
+    polling([
+      [
+        makeHardware(),
+        {
+          macAddress: 'AA:BB:CC:DD:EE:01',
+          deviceModel: 'LBE-5AC-Gen2'
+        }
+      ]
+    ]);
+
+    const result = await useCase.execute();
+
+    expect(result.value.devices).toHaveLength(0);
+    expect(
+      hardwareQuery.findConfirmedModelNames
+    ).not.toHaveBeenCalled();
   });
 
   it('should not read the catalog when no model differs', async () => {

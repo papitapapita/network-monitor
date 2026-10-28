@@ -35,4 +35,23 @@ describe('[WLS-152] matchReportedModel', () => {
       matchReportedModel('LiteBeam 5AC Gen2', catalog, 'ubnt')
     ).toBeNull();
   });
+
+  it('[WLS-155] should fall back to the single model confirmed for the name', () => {
+    expect(
+      matchReportedModel('LBE-5AC-Gen2', catalog, 'ubnt', ['c'])?.id
+    ).toBe('c');
+  });
+
+  it('[WLS-155] should prefer a name match over a confirmed model', () => {
+    expect(
+      matchReportedModel('Rocket 5AC Lite', catalog, 'ubnt', ['a'])
+        ?.id
+    ).toBe('c');
+  });
+
+  it('[WLS-155] should return null when the name was confirmed for several models', () => {
+    expect(
+      matchReportedModel('LBE-5AC-Gen2', catalog, 'ubnt', ['a', 'c'])
+    ).toBeNull();
+  });
 });

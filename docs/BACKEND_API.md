@@ -4038,7 +4038,10 @@ limit?: number // 1–1000
 > suggestion appears when the model the radio reports differs from the one on
 > file (case, spaces and hyphens ignored). `suggestedValue` is the matching
 > catalog model's id, or `null` when the catalog has none — then offer to add
-> `suggestedLabel` to the catalog first. Each suggestion's `actions` says how to
+> `suggestedLabel` to the catalog first. Names AirOS spells differently from
+> the catalog (`LBE-5AC-Gen2` vs "LiteBeam 5AC Gen2") are not reported: a radio
+> that reports the MAC on file is the same box, and the name it reports is then
+> trusted for that model on every other radio too (WLS-155). Each suggestion's `actions` says how to
 > accept it; show the first as the main button and any others as secondary:
 >
 > | Action | Call |

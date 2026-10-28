@@ -2087,7 +2087,9 @@ but letters and digits before comparing, so "PowerBeam 5AC-ISO" equals
 `suggestedValue` is the id of the catalog model whose name matches the reported
 one the same way (one from the device's current vendor first, then any), or
 `null` when the catalog has no such model. `suggestedLabel` is that catalog
-name, or the name the radio reported when there is none.
+name, or the name the radio reported when there is none. A name AirOS spells
+differently from the catalog is not a model change
+([WLS-155](#wls-155--a-model-name-reported-by-the-box-on-file-is-the-catalog-models-airos-name)).
 
 Every suggestion carries `actions`, the ways to accept it, best first:
 
@@ -2167,6 +2169,38 @@ still offer it.
 **Enforced at:** `src/application/wireless-monitoring/use-cases/GetHardwareChangesUseCase.ts`, `src/infrastructure/wireless-monitoring/queries/PrismaDeviceHardwareQuery.ts` (`findPolledHardware`)
 **Reached from:** `GET /api/wireless/hardware-changes`
 **Tests:** `tests/application/wireless-monitoring/use-cases/GetHardwareChangesUseCase.test.ts`, `tests/infrastructure/wireless-monitoring/queries/PrismaDeviceHardwareQuery.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetHardwareChangesUseCase.integration.test.ts`, `tests/integration/wireless.routes.test.ts`
+
+### WLS-155 — A model name reported by the box on file is the catalog model's AirOS name
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-10-27
+
+When a radio reports the MAC on file (compared as hex digits only) and a model
+name other than the inventory model's, there is no `deviceModel` suggestion:
+the box is the one on file. Each such pairing, read from every live device's
+latest snapshot, also confirms that reported name for that catalog model. A
+device with no MAC on file, or reporting another MAC, gets no `deviceModel`
+suggestion when the name it reports was confirmed for its own inventory model.
+The same comparison as WLS-152 applies to names (case, spaces and punctuation
+ignored). When a reported name matches no catalog model by name but was
+confirmed for exactly one, that model becomes the suggestion's `suggestedValue`.
+If the confirmations cannot be read, the check carries on without them and logs
+a warning.
+
+**Why:** AirOS reports its own model names, which do not always match what was
+typed into the catalog (a part number such as `LBE-5AC-Gen2` against
+"LiteBeam 5AC Gen2"). Without this, every radio of such a model would show up as
+a swapped box. A matching MAC proves the hardware did not change, so the naming
+difference is learned from the fleet instead of being configured per model.
+Only each device's latest snapshot counts, so a box that was later swapped stops
+confirming its old name. The cost: a device registered with the right MAC but
+the wrong model is taken as a naming difference, and that pairing is then
+trusted for other devices with no MAC on file.
+
+**Enforced at:** `src/application/wireless-monitoring/services/HardwareChangeAssessor.ts` (`differences`, `withoutConfirmedName`), `src/application/wireless-monitoring/services/matchReportedModel.ts`, `src/infrastructure/wireless-monitoring/queries/PrismaDeviceHardwareQuery.ts` (`findConfirmedModelNames`)
+**Reached from:** `GET /api/devices/:id/wireless/identity/suggestions`, `GET /api/wireless/hardware-changes`
+**Tests:** `tests/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.test.ts`, `tests/application/wireless-monitoring/use-cases/GetHardwareChangesUseCase.test.ts`, `tests/application/wireless-monitoring/services/matchReportedModel.test.ts`, `tests/infrastructure/wireless-monitoring/queries/PrismaDeviceHardwareQuery.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetHardwareChangesUseCase.integration.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetDeviceIdentitySuggestionsUseCase.integration.test.ts`
 
 ### WLS-142 — A history window must start before it ends
 

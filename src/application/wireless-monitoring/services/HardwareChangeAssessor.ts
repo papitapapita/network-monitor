@@ -6,6 +6,9 @@ import {
   DeviceHardware,
   IDeviceHardwareQuery
 } from '../interfaces';
+
+// Normalized reported name → catalog model ids confirmed for it.
+type ConfirmedNames = Map<string, string[]>;
 import {
   DeviceIdentitySuggestionAction,
   DeviceIdentitySuggestionDTO,
@@ -35,8 +38,8 @@ interface Differences {
 }
 
 // Compares what radios report about their own hardware with inventory and
-// says how each difference should be resolved (WLS-152, WLS-153). Takes a
-// batch so the fleet view costs two lookups, not two per radio.
+// says how each difference should be resolved (WLS-152, WLS-153, WLS-155).
+// Takes a batch so the fleet view costs a few lookups, not a few per radio.
 export class HardwareChangeAssessor {
   constructor(
     private readonly hardwareQuery: IDeviceHardwareQuery,
@@ -46,7 +49,11 @@ export class HardwareChangeAssessor {
   public async assess(
     reports: ReportedHardware[]
   ): Promise<Result<Map<string, DeviceIdentitySuggestionDTO[]>>> {
-    const differences = reports.map((r) => this.differences(r));
+    const naive = reports.map((r) => this.differences(r));
+    const confirmed = await this.loadConfirmedNamesIfNeeded(naive);
+    const differences = naive.map((d) =>
+      this.withoutConfirmedName(d, confirmed)
+    );
 
     const swapsResult = await this.findSwapCandidates(differences);
     const catalogResult = await this.loadCatalogIfNeeded(differences);
@@ -77,7 +84,8 @@ export class HardwareChangeAssessor {
         const match = matchReportedModel(
           d.polledModel,
           catalogResult.value,
-          d.hardware.vendorId
+          d.hardware.vendorId,
+          confirmed.get(normalizeModelName(d.polledModel))
         );
         suggestions.push({
           field: 'deviceModel',
@@ -108,6 +116,9 @@ export class HardwareChangeAssessor {
       ? normalizeMac(report.macAddress)
       : null;
     const reportedModel = report.deviceModel?.trim() || null;
+    // The MAC on file reported back means the same box, so a different model
+    // name can only be AirOS and the catalog spelling it differently.
+    const sameBox = currentMac !== null && reportedMac === currentMac;
 
     return {
       hardware,
@@ -118,11 +129,51 @@ export class HardwareChangeAssessor {
           : null,
       polledModel:
         reportedModel &&
+        !sameBox &&
         normalizeModelName(reportedModel) !==
           normalizeModelName(hardware.modelName)
           ? reportedModel
           : null
     };
+  }
+
+  private withoutConfirmedName(
+    d: Differences,
+    confirmed: ConfirmedNames
+  ): Differences {
+    if (!d.polledModel) return d;
+    const ids =
+      confirmed.get(normalizeModelName(d.polledModel)) ?? [];
+    return ids.includes(d.hardware.deviceModelId)
+      ? { ...d, polledModel: null }
+      : d;
+  }
+
+  // Without the confirmations the check still works, it just reports naming
+  // differences as model changes — not worth failing the response over.
+  private async loadConfirmedNamesIfNeeded(
+    differences: Differences[]
+  ): Promise<ConfirmedNames> {
+    const confirmed: ConfirmedNames = new Map();
+    if (differences.every((d) => d.polledModel === null)) {
+      return confirmed;
+    }
+
+    const result = await this.hardwareQuery.findConfirmedModelNames();
+    if (result.isFailure) {
+      this.logger.warn('Confirmed model names unavailable', {
+        error: result.error
+      });
+      return confirmed;
+    }
+    for (const row of result.value) {
+      const key = normalizeModelName(row.reportedModel);
+      confirmed.set(key, [
+        ...(confirmed.get(key) ?? []),
+        row.deviceModelId
+      ]);
+    }
+    return confirmed;
   }
 
   // A unit in service that reports a different MAC is most likely a swapped

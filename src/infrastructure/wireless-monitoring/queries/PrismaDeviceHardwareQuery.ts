@@ -3,6 +3,7 @@ import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
 import {
   CatalogModel,
+  ConfirmedModelName,
   DeviceByMac,
   DeviceHardware,
   IDeviceHardwareQuery
@@ -104,6 +105,35 @@ export class PrismaDeviceHardwareQuery
     } catch (error) {
       return Result.fail<CatalogModel[]>(
         `Database error listing catalog models: ${(error as Error).message}`
+      );
+    }
+  }
+
+  public async findConfirmedModelNames(): Promise<
+    Result<ConfirmedModelName[]>
+  > {
+    try {
+      // MACs are compared as bare hex digits: AirOS and inventory format
+      // them differently.
+      const rows = await this.prisma.$queryRaw<ConfirmedModelName[]>`
+        SELECT DISTINCT
+          s.device_model AS "reportedModel",
+          d.device_model_id::text AS "deviceModelId"
+        FROM (
+          SELECT DISTINCT ON (device_id) device_id, mac_address, device_model
+          FROM wireless_snapshots
+          ORDER BY device_id, collected_at DESC
+        ) s
+        JOIN devices d ON d.id = s.device_id
+        WHERE d.deleted_at IS NULL
+          AND s.device_model IS NOT NULL
+          AND upper(regexp_replace(s.mac_address, '[^0-9A-Fa-f]', '', 'g')) =
+              upper(regexp_replace(d.mac_address, '[^0-9A-Fa-f]', '', 'g'))
+      `;
+      return Result.ok(rows);
+    } catch (error) {
+      return Result.fail<ConfirmedModelName[]>(
+        `Database error finding confirmed model names: ${(error as Error).message}`
       );
     }
   }

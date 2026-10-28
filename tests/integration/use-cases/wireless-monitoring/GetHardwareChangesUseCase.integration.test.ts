@@ -246,4 +246,71 @@ describe('GetHardwareChangesUseCase — integration', () => {
 
     expect(result.value.devices).toHaveLength(0);
   });
+
+  describe('model names AirOS spells differently (WLS-155)', () => {
+    it('does not list a radio that reports the MAC on file under another model name', async () => {
+      const radio = await seedRadio(prisma, deviceModelId, {
+        name: 'AP Norte',
+        macAddress: 'AA:BB:CC:DD:EE:01'
+      });
+      await seedReport(prisma, radio, {
+        macAddress: 'aa-bb-cc-dd-ee-01',
+        deviceModel: 'LBE-5AC-Test'
+      });
+
+      const result = await useCase.execute();
+
+      expect(result.value.devices).toHaveLength(0);
+    });
+
+    it('carries that name over to radios with no MAC on file', async () => {
+      const confirmer = await seedRadio(prisma, deviceModelId, {
+        name: 'AP Norte',
+        macAddress: 'AA:BB:CC:DD:EE:01'
+      });
+      const noMac = await seedRadio(prisma, deviceModelId, {
+        name: 'AP Sur'
+      });
+      await seedReport(prisma, confirmer, {
+        macAddress: 'AA:BB:CC:DD:EE:01',
+        deviceModel: 'LBE-5AC-Test'
+      });
+      await seedReport(prisma, noMac, {
+        macAddress: 'AA:BB:CC:DD:EE:02',
+        deviceModel: 'lbe 5ac test'
+      });
+
+      const result = await useCase.execute();
+
+      expect(result.value.devices).toHaveLength(0);
+    });
+
+    it('only trusts the latest report of the confirming radio', async () => {
+      const confirmer = await seedRadio(prisma, deviceModelId, {
+        name: 'AP Norte',
+        macAddress: 'AA:BB:CC:DD:EE:01'
+      });
+      const noMac = await seedRadio(prisma, deviceModelId, {
+        name: 'AP Sur'
+      });
+      await seedReport(prisma, confirmer, {
+        macAddress: 'AA:BB:CC:DD:EE:01',
+        deviceModel: 'LBE-5AC-Test',
+        collectedAt: new Date('2026-10-20T12:00:00Z')
+      });
+      await seedReport(prisma, confirmer, {
+        macAddress: 'AA:BB:CC:DD:EE:01',
+        deviceModel: 'LiteBeam 5AC'
+      });
+      await seedReport(prisma, noMac, {
+        deviceModel: 'LBE-5AC-Test'
+      });
+
+      const result = await useCase.execute();
+
+      expect(result.value.devices.map((d) => d.name)).toEqual([
+        'AP Sur'
+      ]);
+    });
+  });
 });

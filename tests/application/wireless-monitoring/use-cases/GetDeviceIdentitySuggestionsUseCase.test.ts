@@ -130,6 +130,9 @@ function makeHardwareQuery(): jest.Mocked<IDeviceHardwareQuery> {
       .mockResolvedValue(Result.ok(makeHardware())),
     findPolledHardware: jest.fn(),
     findDevicesByMac: jest.fn().mockResolvedValue(Result.ok([])),
+    findConfirmedModelNames: jest
+      .fn()
+      .mockResolvedValue(Result.ok([])),
     findCatalogModels: jest.fn().mockResolvedValue(
       Result.ok([
         {
@@ -586,12 +589,16 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
       return suggestions.find((s) => s.field === 'deviceModel');
     }
 
-    function reporting(deviceModel: string | null): void {
+    // No MAC in the report, so the same-box rule (WLS-155) stays out of it.
+    function reporting(
+      deviceModel: string | null,
+      macAddress: string | null = null
+    ): void {
       snapshotRepo.findLatestByDevice.mockResolvedValue(
         Result.ok(
           makeSnapshot({
             deviceName: 'AP Roof1',
-            macAddress: 'AA:BB:CC:DD:EE:01',
+            macAddress,
             deviceModel
           })
         )
@@ -665,6 +672,91 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
           swapWith: null
         }
       );
+    });
+
+    it('[WLS-155] should not suggest when the radio reports the MAC on file', async () => {
+      reporting('LBE-5AC-Gen2', 'aa-bb-cc-dd-ee-01');
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(result.value.suggestions).toHaveLength(0);
+    });
+
+    it('[WLS-155] should not suggest when another radio confirmed the name for this model', async () => {
+      reporting('LBE-5AC-Gen2');
+      hardwareQuery.findConfirmedModelNames.mockResolvedValue(
+        Result.ok([
+          {
+            reportedModel: 'lbe 5ac gen2',
+            deviceModelId: ROCKET_MODEL_UUID
+          }
+        ])
+      );
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(
+        modelSuggestion(result.value.suggestions)
+      ).toBeUndefined();
+    });
+
+    it('[WLS-155] should suggest the confirmed catalog model when the name matches none', async () => {
+      reporting('PBE-5AC-ISO');
+      hardwareQuery.findConfirmedModelNames.mockResolvedValue(
+        Result.ok([
+          {
+            reportedModel: 'PBE-5AC-ISO',
+            deviceModelId: POWERBEAM_MODEL_UUID
+          }
+        ])
+      );
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(modelSuggestion(result.value.suggestions)).toMatchObject(
+        {
+          suggestedValue: POWERBEAM_MODEL_UUID,
+          suggestedLabel: 'Powerbeam-5AC ISO',
+          actions: ['REPLACE']
+        }
+      );
+    });
+
+    it('[WLS-155] should leave the catalog id empty when the name was confirmed for several models', async () => {
+      reporting('PBE-5AC-ISO');
+      hardwareQuery.findConfirmedModelNames.mockResolvedValue(
+        Result.ok([
+          {
+            reportedModel: 'PBE-5AC-ISO',
+            deviceModelId: POWERBEAM_MODEL_UUID
+          },
+          {
+            reportedModel: 'PBE-5AC-ISO',
+            deviceModelId: OTHER_VENDOR_POWERBEAM_UUID
+          }
+        ])
+      );
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(modelSuggestion(result.value.suggestions)).toMatchObject(
+        {
+          suggestedValue: null,
+          suggestedLabel: 'PBE-5AC-ISO'
+        }
+      );
+    });
+
+    it('[WLS-155] should still suggest, not fail, when the confirmations cannot be read', async () => {
+      reporting('LBE-5AC-Gen2');
+      hardwareQuery.findConfirmedModelNames.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await useCase.execute({ deviceId: DEVICE_UUID });
+
+      expect(result.isSuccess).toBe(true);
+      expect(modelSuggestion(result.value.suggestions)).toBeDefined();
     });
 
     it('should fail when the catalog cannot be read', async () => {
