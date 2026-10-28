@@ -60,6 +60,9 @@ describe('parseAgentMessage', () => {
     expect(hello(['discover', 'probe'])).toMatchObject({
       capabilities: ['probe', 'discover']
     });
+    expect(hello(['ports', 'probe'])).toMatchObject({
+      capabilities: ['probe', 'ports']
+    });
     expect(hello()).toMatchObject({ capabilities: [] });
     expect(hello('probe')).toBeNull();
   });
@@ -203,6 +206,56 @@ describe('parseAgentMessage', () => {
           ip: `10.0.${i >> 8}.${i & 255}`,
           mac: null,
           latencyMs: 1
+        }))
+      })
+    ).toBeNull();
+  });
+
+  it('[AGT-122] accepts a ports answer, with rates and duplex unknown or known', () => {
+    const answer = {
+      type: 'probe.result',
+      requestId: 'p-1',
+      kind: 'ports',
+      at: 1,
+      identity: 'Core-Norte',
+      ports: [
+        {
+          name: 'ether1',
+          comment: 'Uplink',
+          linked: true,
+          rateMbps: 1000,
+          fullDuplex: true
+        },
+        {
+          name: 'sfp-sfpplus1',
+          comment: null,
+          linked: false,
+          rateMbps: null,
+          fullDuplex: null
+        }
+      ]
+    };
+
+    expect(ok(answer)).toEqual(answer);
+    expect(ok({ ...answer, identity: null })).toMatchObject({
+      identity: null
+    });
+  });
+
+  it('[AGT-122] rejects a ports answer with more ports than the protocol allows', () => {
+    expect(
+      ok({
+        type: 'probe.result',
+        requestId: 'p-1',
+        kind: 'ports',
+        at: 1,
+        identity: null,
+        ports: Array.from({ length: 129 }, (_, i) => ({
+          name: `ether${i}`,
+          comment: null,
+          linked: false,
+          rateMbps: null,
+          fullDuplex: null
         }))
       })
     ).toBeNull();

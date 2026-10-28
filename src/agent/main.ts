@@ -39,6 +39,8 @@ import {
 import { EnforceRunner } from './enforce/EnforceRunner';
 import { RouterOsQueueService } from 'infrastructure/service-enforcement/RouterOsQueueService';
 import { RouterOsTrafficReader } from 'infrastructure/monitoring/router-traffic/RouterOsTrafficReader';
+// Straight to the file: the folder's index also holds the Prisma query.
+import { RouterOsPortReader } from 'infrastructure/monitoring/port-speeds/RouterOsPortReader';
 import {
   AirOsConfigFetcher,
   ConfigFetcherRegistry,
@@ -155,7 +157,8 @@ async function main(): Promise<void> {
     new RadioHostnameWriterRegistry({
       ubiquiti: new AirOsHostnameWriter(new SshCommandClient())
     }),
-    new ArpTableReader()
+    new ArpTableReader(),
+    new RouterOsPortReader(logger)
   );
   runtime = new AgentRuntime({
     credentials: new CredentialStore(

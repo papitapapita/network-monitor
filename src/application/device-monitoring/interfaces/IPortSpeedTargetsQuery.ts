@@ -2,7 +2,7 @@ import { Result } from 'domain/shared/core';
 import { RouterApiLogin } from './IRouterTrafficTargetsQuery';
 
 // Who reads the router (MON-145). On site this server does; off site, the
-// agent the router sits behind, which cannot read ports yet.
+// agent the router sits behind.
 export type PortSpeedReach =
   | { by: 'server' }
   | { by: 'agent'; agentId: string }

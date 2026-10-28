@@ -142,7 +142,8 @@ describe('ListRouterPortSpeedsUseCase — integration', () => {
           username: 'monitor',
           password: 's3cret',
           apiPort: 8729
-        }
+        },
+        agentId: null
       }
     ]);
   });
@@ -244,25 +245,36 @@ describe('ListRouterPortSpeedsUseCase — integration', () => {
     expect(reader.reads).toEqual([]);
   });
 
-  it('[MON-145] should not read any router when the server is off site', async () => {
+  it('[MON-145] should read off site only a router behind an agent, through that agent', async () => {
     const agent = await seedAgent(prisma, { status: 'ACTIVE' });
     await seedRouter(prisma, {
       name: 'Behind agent',
       deviceModelId: routerboardId,
+      ip: '10.0.0.1',
       agentId: agent.id
     });
     await seedRouter(prisma, {
       name: 'Unreached',
-      deviceModelId: routerboardId
+      deviceModelId: routerboardId,
+      ip: '10.0.0.2'
     });
+    reader.serve('10.0.0.1', []);
 
     const result = await list(false);
 
-    expect(result.value.routers.map((r) => r.reason)).toEqual([
-      'Behind an on-site agent: reading ports through an agent is not supported yet',
-      'This server is off site and no agent reaches the router'
+    expect(
+      result.value.routers.map((r) => [r.name, r.readable, r.reason])
+    ).toEqual([
+      ['Behind agent', true, null],
+      [
+        'Unreached',
+        false,
+        'This server is off site and no agent reaches the router'
+      ]
     ]);
-    expect(reader.reads).toEqual([]);
+    expect(reader.reads.map((r) => [r.host, r.agentId])).toEqual([
+      ['10.0.0.1', agent.id]
+    ]);
   });
 
   it('[MON-145] should read a router behind an agent itself when on site', async () => {
@@ -278,7 +290,7 @@ describe('ListRouterPortSpeedsUseCase — integration', () => {
     const result = await list();
 
     expect(result.value.routers[0]!.readable).toBe(true);
-    expect(reader.reads).toHaveLength(1);
+    expect(reader.reads.map((r) => r.agentId)).toEqual([null]);
   });
 
   it('should answer an empty list when there are no MikroTiks', async () => {

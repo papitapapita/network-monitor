@@ -1086,7 +1086,7 @@ only corrects the exceptions.
 **Message:** `The router did not answer: <error>`
 **Tests:** `tests/application/device-monitoring/use-cases/PortSpeedUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/AcceptCurrentPortSpeedsUseCase.integration.test.ts`
 
-### MON-145 — Only a router this server reaches, with an address and a login, is read
+### MON-145 — Only a router this server or its agent reaches, with an address and a login, is read
 
 **Type:** Policy · **Status:** Active
 **Since:** 2026-10-28
@@ -1094,17 +1094,23 @@ only corrects the exceptions.
 A router with no IP address, or no saved username and password, is listed
 with `readable: false` and the reason, and is not tried. When the server is
 on site it reads every router itself, including one behind an agent. Off
-site (`SERVER_ON_SITE=false`) it reads none: a router behind an agent is
-listed as not supported through an agent yet, and any other as not reached.
-"Accept current" on a router that cannot be read answers `409`.
+site (`SERVER_ON_SITE=false`) a router behind an agent is read through that
+agent (`AGT-122`), for the list, "accept current" and the scheduled check
+alike; any other is listed as not reached. An agent that is offline or too
+old to read ports gives the router an `error` (it was tried), not a
+`reason`, and the scheduled check skips it (`MON-147`). "Accept current" on
+a router that cannot be read answers `409`.
 
 **Why:** Off site the server cannot reach the ISP's private addresses
-(`MON-023`). Reading ports through the agent can be added the way live
-traffic was (`MON-065`), when an off-site customer needs it.
+(`MON-023`); the agent on the ISP's network can, as for live traffic
+(`MON-065`).
 
-**Enforced at:** `src/application/device-monitoring/services/resolvePortSpeedTarget.ts`, `src/infrastructure/monitoring/port-speeds/PrismaPortSpeedTargetsQuery.ts`
-**Message:** `The router has no IP address`, `The router has no username and password saved`, `Behind an on-site agent: reading ports through an agent is not supported yet`, `This server is off site and no agent reaches the router`, `The router cannot be read: <reason>`
-**Tests:** `tests/application/device-monitoring/services/resolvePortSpeedTarget.test.ts`, `tests/integration/use-cases/device-monitoring/ListRouterPortSpeedsUseCase.integration.test.ts`
+**Revised:** 2026-10-28 — off site, routers behind an agent are read through
+it; before, they were listed as not supported yet.
+
+**Enforced at:** `src/application/device-monitoring/services/resolvePortSpeedTarget.ts`, `src/infrastructure/monitoring/port-speeds/PrismaPortSpeedTargetsQuery.ts`, `src/infrastructure/probe-agents/adapters/AgentChannelPortReader.ts`, `src/infrastructure/di/container.ts`
+**Message:** `The router has no IP address`, `The router has no username and password saved`, `This server is off site and no agent reaches the router`, `The agent must be updated to read port speeds`, `The router cannot be read: <reason>`
+**Tests:** `tests/application/device-monitoring/services/resolvePortSpeedTarget.test.ts`, `tests/infrastructure/probe-agents/adapters/AgentChannelPortReader.test.ts`, `tests/integration/use-cases/device-monitoring/ListRouterPortSpeedsUseCase.integration.test.ts`, `tests/integration/agent-ports.test.ts`
 
 ### MON-146 — Administrators and operators set expected speeds; anyone may look
 

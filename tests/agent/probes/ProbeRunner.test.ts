@@ -11,10 +11,12 @@ import type {
   BackupConfigWire,
   BackupDeviceKindWire,
   BackupLoginWire,
+  EthernetPortWire,
   InterfaceTrafficWire,
   ProbeCredentialsWire,
   ProbeRequestMessage,
   RadioLoginWire,
+  TrafficLoginWire,
   WirelessReadingWire
 } from '../../../src/agent/protocol';
 import type {
@@ -37,8 +39,11 @@ import type {
 import { WirelessCollectorRegistry } from '../../../src/infrastructure/wireless-monitoring/collectors';
 import { RadioHostnameWriterRegistry } from '../../../src/infrastructure/wireless-monitoring/radio-settings';
 import type {
+  EthernetPortReading,
   InterfaceTrafficReading,
-  IRouterTrafficReader
+  IRouterPortReader,
+  IRouterTrafficReader,
+  RouterApiLogin
 } from '../../../src/application/device-monitoring/interfaces';
 import { silentLogger } from '../helpers';
 import { makeWirelessCollectionResult } from '../../fixtures/wirelessCollection';
@@ -79,6 +84,9 @@ const trafficMatches: Same<
   InterfaceTrafficReading,
   InterfaceTrafficWire
 > = true;
+const portMatches: Same<EthernetPortReading, EthernetPortWire> = true;
+const routerLoginMatches: Same<RouterApiLogin, TrafficLoginWire> =
+  true;
 const formatsMatch: Same<
   `${BackupFormat}`,
   BackupConfigWire['format']
@@ -229,8 +237,21 @@ describe('ProbeRunner', () => {
       configMatches,
       formatsMatch,
       trafficMatches,
-      radioLoginMatches
-    ]).toEqual([true, true, true, true, true, true, true, true]);
+      radioLoginMatches,
+      portMatches,
+      routerLoginMatches
+    ]).toEqual([
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]);
     expect(MAX_BACKUP_CONFIG_BYTES).toBe(MAX_CONFIG_BYTES);
   });
 
@@ -862,6 +883,109 @@ describe('ProbeRunner', () => {
 
       expect(result).toMatchObject({ requestId: 'd-1' });
       expect('error' in result).toBe(true);
+    });
+  });
+  describe('ports', () => {
+    let ports: jest.Mocked<IRouterPortReader>;
+
+    const portsRequest = (): ProbeRequestMessage => ({
+      type: 'probe',
+      requestId: 'p-1',
+      kind: 'ports',
+      ip: '10.0.0.1',
+      login: {
+        username: 'api',
+        password: 'router-secreto',
+        apiPort: 8729
+      }
+    });
+
+    const ETHER2: EthernetPortReading = {
+      name: 'ether2',
+      comment: 'Torre Norte',
+      linked: true,
+      rateMbps: 100,
+      fullDuplex: false
+    };
+
+    const withPorts = (reader?: IRouterPortReader) =>
+      new ProbeRunner(
+        ping,
+        new WirelessCollectorRegistry({}),
+        new ConfigFetcherRegistry([]),
+        traffic,
+        logger,
+        { maxConcurrent: 4, maxQueued: 100 },
+        ping,
+        new RadioHostnameWriterRegistry({}),
+        undefined,
+        reader
+      );
+
+    beforeEach(() => {
+      ports = {
+        read: jest
+          .fn()
+          .mockResolvedValue(
+            Result.ok({ identity: 'Core-Norte', ports: [ETHER2] })
+          )
+      };
+      runner = withPorts(ports);
+    });
+
+    it('[AGT-122] reads the router ports on the API port it was given', async () => {
+      const result = await runner.run(portsRequest());
+
+      expect(ports.read).toHaveBeenCalledWith({
+        host: '10.0.0.1',
+        login: {
+          username: 'api',
+          password: 'router-secreto',
+          apiPort: 8729
+        },
+        agentId: null
+      });
+      expect(result).toEqual({
+        type: 'probe.result',
+        requestId: 'p-1',
+        kind: 'ports',
+        at: expect.any(Number),
+        identity: 'Core-Norte',
+        ports: [ETHER2]
+      });
+    });
+
+    it('[AGT-122] answers an error when the router cannot be read', async () => {
+      ports.read.mockResolvedValue(
+        Result.fail(
+          'RouterOS API error: invalid user name or password'
+        )
+      );
+
+      expect(await runner.run(portsRequest())).toEqual({
+        type: 'probe.result',
+        requestId: 'p-1',
+        error: 'RouterOS API error: invalid user name or password'
+      });
+    });
+
+    it('[AGT-122] answers an error when built without a port reader', async () => {
+      expect(await withPorts().run(portsRequest())).toEqual({
+        type: 'probe.result',
+        requestId: 'p-1',
+        error: 'Reading ports is not supported by this agent'
+      });
+    });
+
+    it('[AGT-122] never logs the router login it was given', async () => {
+      await runner.run(portsRequest());
+
+      const logged = JSON.stringify(
+        Object.values(logger)
+          .filter((fn) => jest.isMockFunction(fn))
+          .flatMap((fn) => (fn as jest.Mock).mock.calls)
+      );
+      expect(logged).not.toContain('router-secreto');
     });
   });
 });

@@ -4,6 +4,9 @@ import { RouterApiLogin } from './IRouterTrafficTargetsQuery';
 export interface RouterPortConnection {
   host: string;
   login: RouterApiLogin;
+  // The agent the router sits behind, if any; off site it is read through
+  // that agent (MON-145).
+  agentId: string | null;
 }
 
 export interface EthernetPortReading {

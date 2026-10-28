@@ -53,8 +53,8 @@ A rule enforced in two layers counts in both.
 | Domain                       | 11    |
 | Application                  | 19    |
 | Infrastructure (composition) | 13    |
-| Presentation                 | 19    |
-| Agent program                | 25    |
+| Presentation                 | 20    |
+| Agent program                | 26    |
 
 ---
 
@@ -1535,3 +1535,37 @@ hundred times.
 
 **Enforced at:** `src/agent/protocol/messages.ts` (`AGENT_CAPABILITIES`, `MAX_DISCOVER_HOSTS`, `DiscoveredHostWire`), `src/agent/probes/ProbeRunner.ts`, `src/agent/main.ts`, `src/agent/version.ts`, `src/infrastructure/monitoring/network-scanner/ArpTableReader.ts`, `src/presentation/ws/agent/AgentSession.ts` (`canDiscover`, `canAnswer`), `src/presentation/ws/agent/ConnectedAgents.ts` (`discover`), `src/presentation/ws/agent/agentMessageSchema.ts`
 **Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/infrastructure/monitoring/network-scanner/ArpTableReader.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/infrastructure/probe-agents/adapters/AgentChannelHostDiscovery.test.ts`, `tests/integration/agent-discover.test.ts`
+
+### AGT-122 — An agent that names `ports` reads a router's Ethernet ports when asked
+
+**Type:** Policy · **Status:** Active
+**Layer:** Agent program · Presentation
+**Since:** 2026-10-28
+
+From version `0.10.0` the hello names `ports` beside `probe`, `enforce`,
+`backup`, `traffic`, `sweep`, `hostname` and `discover`. The backend sends a
+ports request only to an agent that named it. Any other agent gets
+`PROBE_UNSUPPORTED` ("The agent must be updated to read port speeds") without
+being asked, and is never sent the router's login.
+
+A ports request is a probe request of kind `ports`: a request id, the router's
+address and its RouterOS API login (username, password, API port). The agent
+reads it with the reader the server uses on site (`MON-141`): one login, the
+router's identity, its enabled Ethernet ports and what each negotiated, then
+the login is closed. It answers with the identity and each port's name,
+comment, link, rate in Mbps and duplex (rate and duplex null when the router
+did not say). A router that refuses or does not answer is answered with an
+error. The login lives only as long as the request, like a backup login
+(`AGT-115`), and is never saved or logged. The request counts as one of the 4
+requests at once of `AGT-101`.
+
+The backend waits 20 seconds for the answer. Offline, timeout and error end
+the request as in `AGT-103`. An answer with more than 128 ports is a protocol
+error, like any malformed answer.
+
+**Why:** Off site, only the agent can reach the router (`MON-145`). The read is
+a few commands every 10 minutes at most, so unlike traffic (`AGT-118`) there is
+no reason to keep the login open between reads.
+
+**Enforced at:** `src/agent/protocol/messages.ts` (`AGENT_CAPABILITIES`, `MAX_ETHERNET_PORTS`, `EthernetPortWire`), `src/agent/probes/ProbeRunner.ts`, `src/agent/main.ts`, `src/agent/version.ts`, `src/presentation/ws/agent/AgentSession.ts` (`canReadPorts`, `canAnswer`), `src/presentation/ws/agent/ConnectedAgents.ts` (`readPorts`), `src/presentation/ws/agent/agentMessageSchema.ts`
+**Tests:** `tests/agent/probes/ProbeRunner.test.ts`, `tests/agent/importBoundary.test.ts`, `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/infrastructure/probe-agents/adapters/AgentChannelPortReader.test.ts`, `tests/integration/agent-ports.test.ts`

@@ -201,7 +201,8 @@ describe('RouterPortInspector', () => {
     ]);
     expect(reader.read).toHaveBeenCalledWith({
       host: '10.0.0.1',
-      login: LOGIN
+      login: LOGIN,
+      agentId: null
     });
   });
 

@@ -19,6 +19,7 @@ import {
 import {
   AgentChannelConfigFetcher,
   AgentChannelTrafficReader,
+  AgentChannelPortReader,
   AgentChannelPingProbe,
   AgentChannelSweepProbe,
   AgentChannelHostDiscovery,
@@ -1700,7 +1701,7 @@ export class DependencyContainer {
       this.logger
     );
     // MON-140..MON-146: each MikroTik port's negotiated speed against the
-    // speed it should link at.
+    // speed it should link at; off site read through the router's agent.
     const portSpeedTargets = new PrismaPortSpeedTargetsQuery(
       this.prisma,
       this.serverOnSite
@@ -1709,7 +1710,9 @@ export class DependencyContainer {
       this.prisma
     );
     const routerPortInspector = new RouterPortInspector(
-      new RouterOsPortReader(this.logger),
+      this.serverOnSite
+        ? new RouterOsPortReader(this.logger)
+        : new AgentChannelPortReader(connectedAgents),
       portExpectedSpeeds
     );
     this.portSpeedController = new PortSpeedController(

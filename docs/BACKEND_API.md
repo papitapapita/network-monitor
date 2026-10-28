@@ -1870,7 +1870,7 @@ interface PoeSwitchDTO {
   firmware: 'ROUTEROS' | 'SWOS';
   firmwareVersion: string | null; // "6.49.10 (long-term)", "2.13"
   readable: boolean; // false: not tried, see reason
-  reason: string | null; // why it was not tried (no IP, no login, off site)
+  reason: string | null; // why it was not tried (no IP, no login, off site with no agent)
   error: string | null; // tried and failed; ports is then empty
   ports: PoePortDTO[]; // PoE-out ports only, no PoE-in or SFP
 }
@@ -1953,8 +1953,11 @@ demand here, and on a schedule that alerts (see **Alerts** below).
 `ROUTER` / `SWITCH` **or** category `GATEWAY` / `AGGREGATION_SWITCH`. SwOS
 switches are left out. Each is read live over the RouterOS API with its
 saved HTTP username/password on `apiPort`, all at once, 10 s timeout each.
-Off site (`SERVER_ON_SITE=false`) none is read yet; each is listed with the
-reason (MON-145).
+Off site (`SERVER_ON_SITE=false`) a router behind an agent is read through
+that agent (agent 0.10.0 or later, up to 20 s); one behind an older agent
+shows `error: "The agent must be updated to read port speeds"`, one behind
+an offline agent `error: "The agent is not connected"`, and one behind no
+agent is listed with the reason (MON-145).
 
 The **expected speed** of a port is set by an operator (MON-142). A port
 without one is listed but never judged.
@@ -2062,7 +2065,7 @@ expected speed, replacing what it had. Ports with no link keep theirs
 RouterPortSpeedsDTO; // the router, judged against its new speeds
 ```
 
-`409` `The router cannot be read: <reason>` (no IP, no login, off site).
+`409` `The router cannot be read: <reason>` (no IP, no login, off site with no agent).
 `502` `The router did not answer: <error>`, and nothing is changed.
 
 ---

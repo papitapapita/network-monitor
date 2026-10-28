@@ -12,7 +12,8 @@ type Answer = Row[] | ((params: string[]) => Row[]);
 
 const CONNECTION: RouterPortConnection = {
   host: '10.0.0.1',
-  login: { username: 'admin', password: 'secret', apiPort: 8728 }
+  login: { username: 'admin', password: 'secret', apiPort: 8728 },
+  agentId: null
 };
 
 function makeSession(answers: Record<string, Answer>) {

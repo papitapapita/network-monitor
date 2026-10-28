@@ -23,7 +23,7 @@ different document for a different audience.
 | Tickets             | [tickets.md](tickets.md)                         | `TKT-001` … `TKT-115` |
 | Shared Kernel       | [shared.md](shared.md)                           | `SHR-001` … `SHR-104` |
 | Installation        | [installation.md](installation.md)               | `INS-001` … `INS-043` |
-| Probe Agents        | [probe-agents.md](probe-agents.md)               | `AGT-001` … `AGT-119` |
+| Probe Agents        | [probe-agents.md](probe-agents.md)               | `AGT-001` … `AGT-122` |
 | Device Backups      | [device-backups.md](device-backups.md)           | `BKP-001` … `BKP-072` |
 | Power Control       | [power-control.md](power-control.md)             | `PWR-001` … `PWR-050` |
 

@@ -214,6 +214,16 @@ export class AgentSession {
     );
   }
 
+  // AGT-122: only an agent that said it reads ports is ever sent a login
+  // for it.
+  get canReadPorts(): boolean {
+    return (
+      this.greeted &&
+      !this.closed &&
+      this.capabilities.includes('ports')
+    );
+  }
+
   canAnswer(kind: ProbeRequest['kind']): boolean {
     switch (kind) {
       case 'backup':
@@ -226,6 +236,8 @@ export class AgentSession {
         return this.canRenameRadios;
       case 'discover':
         return this.canDiscover;
+      case 'ports':
+        return this.canReadPorts;
       default:
         return this.canProbe;
     }

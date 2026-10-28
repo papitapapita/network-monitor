@@ -6,7 +6,11 @@ import type {
   WirelessCollectionResult
 } from 'application/wireless-monitoring/interfaces';
 import type { IConfigFetcherResolver } from 'application/device-backups/interfaces';
-import type { IRouterTrafficReader } from 'application/device-monitoring/interfaces';
+import type {
+  IRouterPortReader,
+  IRouterTrafficReader
+} from 'application/device-monitoring/interfaces';
+import { Result } from 'domain/shared/core';
 import { expandCidr } from 'infrastructure/monitoring/network-scanner/utils/expandCidr';
 import {
   DiscoveredHostWire,
@@ -48,6 +52,11 @@ const NO_HOSTNAME_WRITERS: IRadioHostnameWriterResolver = {
 
 const NO_ARP_TABLE: ArpTable = { read: async () => new Map() };
 
+const NO_PORT_READER: IRouterPortReader = {
+  read: async () =>
+    Result.fail('Reading ports is not supported by this agent')
+};
+
 // Addresses a discover request pings at once (AGT-121): a /24 answers in
 // about four rounds of the sweep's one-second wait.
 const DISCOVER_BATCH = 64;
@@ -57,8 +66,9 @@ const DISCOVER_BATCH = 64;
 // (AGT-117) the backend runs in process, and sweeps a batch of addresses
 // with the quick ping the backend's own sweep uses (AGT-119), renames a
 // radio with the backend's own hostname writers (AGT-120), and scans a
-// segment with that same quick ping and the PC's ARP table (AGT-121). The
-// credentials in a request live only as long as the request (AGT-102,
+// segment with that same quick ping and the PC's ARP table (AGT-121), and
+// reads a router's Ethernet ports with the backend's port reader (AGT-122).
+// The credentials in a request live only as long as the request (AGT-102,
 // AGT-115), except a router login, which the traffic reader holds open
 // between reads (AGT-118): nothing here stores or logs them.
 export class ProbeRunner {
@@ -75,7 +85,8 @@ export class ProbeRunner {
     // MON-082: a short reply wait and no pause between attempts.
     private readonly sweepPing: PingProbe = ping,
     private readonly hostnames: IRadioHostnameWriterResolver = NO_HOSTNAME_WRITERS,
-    private readonly arp: ArpTable = NO_ARP_TABLE
+    private readonly arp: ArpTable = NO_ARP_TABLE,
+    private readonly ports: IRouterPortReader = NO_PORT_READER
   ) {}
 
   async run(
@@ -213,6 +224,23 @@ export class ProbeRunner {
         kind: 'traffic',
         at,
         interfaces: read.value
+      };
+    }
+
+    if (request.kind === 'ports') {
+      const read = await this.ports.read({
+        host: request.ip,
+        login: request.login,
+        agentId: null
+      });
+      if (read.isFailure) return failed(request, read.error);
+      return {
+        type: 'probe.result',
+        requestId: request.requestId,
+        kind: 'ports',
+        at,
+        identity: read.value.identity,
+        ports: read.value.ports
       };
     }
 

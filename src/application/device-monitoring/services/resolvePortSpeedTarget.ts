@@ -8,7 +8,7 @@ export type PortSpeedTarget =
   | { readable: false; reason: string };
 
 // MON-145: only a router with an address and a saved login that this server
-// reaches itself is read; any other is still listed, with the reason.
+// or its agent reaches is read; any other is still listed, with the reason.
 export function resolvePortSpeedTarget(
   candidate: PortSpeedRouterCandidate
 ): PortSpeedTarget {
@@ -24,13 +24,6 @@ export function resolvePortSpeedTarget(
       reason: 'The router has no username and password saved'
     };
   }
-  if (candidate.reach.by === 'agent') {
-    return {
-      readable: false,
-      reason:
-        'Behind an on-site agent: reading ports through an agent is not supported yet'
-    };
-  }
   if (candidate.reach.by === 'none') {
     return {
       readable: false,
@@ -40,6 +33,13 @@ export function resolvePortSpeedTarget(
   }
   return {
     readable: true,
-    connection: { host: candidate.ipAddress, login: candidate.login }
+    connection: {
+      host: candidate.ipAddress,
+      login: candidate.login,
+      agentId:
+        candidate.reach.by === 'agent'
+          ? candidate.reach.agentId
+          : null
+    }
   };
 }

@@ -26,7 +26,7 @@ describe('resolvePortSpeedTarget', () => {
   it('[MON-145] should read a router this server reaches with a saved login', () => {
     expect(resolvePortSpeedTarget(makeCandidate())).toEqual({
       readable: true,
-      connection: { host: '10.0.0.1', login: LOGIN }
+      connection: { host: '10.0.0.1', login: LOGIN, agentId: null }
     });
   });
 
@@ -48,16 +48,15 @@ describe('resolvePortSpeedTarget', () => {
     });
   });
 
-  it('[MON-145] should not read a router behind an agent yet', () => {
-    const target = resolvePortSpeedTarget(
-      makeCandidate({ reach: { by: 'agent', agentId: 'a1' } })
-    );
-
-    expect(target.readable).toBe(false);
-    expect(target).toHaveProperty(
-      'reason',
-      expect.stringMatching(/through an agent is not supported yet/)
-    );
+  it('[MON-145] should read a router behind an agent through that agent', () => {
+    expect(
+      resolvePortSpeedTarget(
+        makeCandidate({ reach: { by: 'agent', agentId: 'a1' } })
+      )
+    ).toEqual({
+      readable: true,
+      connection: { host: '10.0.0.1', login: LOGIN, agentId: 'a1' }
+    });
   });
 
   it('[MON-145] should not read a router an off-site server cannot reach', () => {

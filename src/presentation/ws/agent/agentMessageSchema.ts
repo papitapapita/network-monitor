@@ -5,6 +5,7 @@ import {
   AgentMessage,
   MAX_BACKUP_CONFIG_BYTES,
   MAX_DISCOVER_HOSTS,
+  MAX_ETHERNET_PORTS,
   MAX_SWEEP_TARGETS,
   MAX_TRAFFIC_INTERFACES
 } from 'agent/protocol';
@@ -121,7 +122,7 @@ const pingReading = z.union([
   })
 ]);
 
-// Eight shapes under one type, so it is its own union inside the
+// Nine shapes under one type, so it is its own union inside the
 // discriminated one.
 const probeResult = z.union([
   z.object({
@@ -192,6 +193,24 @@ const probeResult = z.union([
         })
       )
       .max(MAX_DISCOVER_HOSTS)
+  }),
+  z.object({
+    type: z.literal('probe.result'),
+    requestId,
+    kind: z.literal('ports'),
+    at: epochMs,
+    identity: z.string().max(255).nullable(),
+    ports: z
+      .array(
+        z.object({
+          name: z.string().min(1).max(255),
+          comment: z.string().max(1024).nullable(),
+          linked: z.boolean(),
+          rateMbps: z.number().positive().nullable(),
+          fullDuplex: z.boolean().nullable()
+        })
+      )
+      .max(MAX_ETHERNET_PORTS)
   }),
   z.object({
     type: z.literal('probe.result'),

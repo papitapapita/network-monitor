@@ -35,9 +35,10 @@ export const CloseCode = {
 // an enforce request only to one that named `enforce` (AGT-110), a backup
 // request only to one that named `backup` (AGT-113), a traffic request only
 // to one that named `traffic` (AGT-116), a sweep request only to one
-// that named `sweep` (AGT-119), and a discover request only to one that
-// named `discover` (AGT-121), so an older agent never receives a request it
-// does not understand.
+// that named `sweep` (AGT-119), a discover request only to one that named
+// `discover` (AGT-121), and a ports request only to one that named `ports`
+// (AGT-122), so an older agent never receives a request it does not
+// understand.
 export type AgentCapability =
   | 'probe'
   | 'enforce'
@@ -45,7 +46,8 @@ export type AgentCapability =
   | 'traffic'
   | 'sweep'
   | 'hostname'
-  | 'discover';
+  | 'discover'
+  | 'ports';
 
 export const AGENT_CAPABILITIES: readonly AgentCapability[] = [
   'probe',
@@ -54,7 +56,8 @@ export const AGENT_CAPABILITIES: readonly AgentCapability[] = [
   'traffic',
   'sweep',
   'hostname',
-  'discover'
+  'discover',
+  'ports'
 ];
 
 // ── Agent → backend ───────────────────────────────────────────────────────
@@ -232,6 +235,20 @@ export interface DiscoveredHostWire {
   latencyMs: number | null;
 }
 
+// The most Ethernet ports a ports answer may carry: a 48-port switch with
+// its uplinks fits several times over.
+export const MAX_ETHERNET_PORTS = 128;
+
+// One enabled Ethernet port and what it negotiated (AGT-122). `rateMbps` and
+// `fullDuplex` are null when the router did not say.
+export interface EthernetPortWire {
+  name: string;
+  comment: string | null;
+  linked: boolean;
+  rateMbps: number | null;
+  fullDuplex: boolean | null;
+}
+
 // The answer to one probe request (AGT-101). `at` is the agent-clock time
 // the measurement started; `error` means it could not be made at all.
 export type ProbeResultMessage =
@@ -283,6 +300,15 @@ export type ProbeResultMessage =
       kind: 'discover';
       at: number;
       hosts: DiscoveredHostWire[];
+    }
+  | {
+      type: 'probe.result';
+      requestId: string;
+      kind: 'ports';
+      at: number;
+      // the router's own name (`/system identity`)
+      identity: string | null;
+      ports: EthernetPortWire[];
     }
   | { type: 'probe.result'; requestId: string; error: string };
 
@@ -375,7 +401,8 @@ export interface BackupLoginWire {
 }
 
 // The router's RouterOS API login for a traffic request, held by the agent
-// only while it reads the router (AGT-118).
+// only while it reads the router (AGT-118), and for a ports request, held
+// only until it answers (AGT-122).
 export interface TrafficLoginWire {
   username: string;
   password: string;
@@ -405,7 +432,8 @@ export type BackupDeviceKindWire =
 // `sweep` pings a batch of addresses at once with a short wait (AGT-119); a
 // `hostname` changes the name a radio gives itself (AGT-120); a `discover`
 // pings every address of a segment and reads the MACs of those that
-// answered (AGT-121).
+// answered (AGT-121); a `ports` reads what each of a router's Ethernet ports
+// negotiated (AGT-122).
 export type ProbeRequestMessage =
   | {
       type: 'probe';
@@ -460,6 +488,13 @@ export type ProbeRequestMessage =
       requestId: string;
       kind: 'discover';
       cidr: string;
+    }
+  | {
+      type: 'probe';
+      requestId: string;
+      kind: 'ports';
+      ip: string;
+      login: TrafficLoginWire;
     };
 
 // The enforcement router's address and API login, sent with each enforce

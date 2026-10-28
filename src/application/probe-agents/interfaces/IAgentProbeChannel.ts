@@ -9,7 +9,9 @@ import type {
 } from 'application/device-backups/interfaces';
 import type {
   InterfaceTrafficReading,
-  RouterConnectionTarget
+  RouterConnectionTarget,
+  RouterPortConnection,
+  RouterPortsReading
 } from 'application/device-monitoring/interfaces';
 import { AgentPingOutcome } from './IAgentPingResultSink';
 
@@ -106,4 +108,10 @@ export interface IAgentProbeChannel {
     agentId: string,
     cidr: string
   ): Promise<AgentProbeOutcome<AgentDiscoveredHost[]>>;
+
+  // AGT-122: only an agent that names `ports` is asked.
+  readPorts(
+    agentId: string,
+    router: RouterPortConnection
+  ): Promise<AgentProbeOutcome<RouterPortsReading>>;
 }
