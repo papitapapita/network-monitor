@@ -148,6 +148,8 @@ import {
   PrismaSpeedTestResultRepository,
   PrismaPortExpectedSpeedRepository,
   PrismaRouterSystemStateRepository,
+  PrismaRouterHealthThresholdsRepository,
+  PrismaReportedOutageQuery,
   PrismaDiscoveredDeviceRepository,
   PrismaDiscoverySettingsRepository,
   PrismaKnownDeviceLookup,
@@ -384,11 +386,14 @@ import {
   CheckPortSpeedsUseCase,
   ListRouterSystemsUseCase,
   GetRouterSystemUseCase,
-  CheckRouterSystemsUseCase
+  CheckRouterSystemsUseCase,
+  GetRouterHealthThresholdsUseCase,
+  UpdateRouterHealthThresholdsUseCase
 } from 'application/device-monitoring/use-cases';
 import {
   RouterPortInspector,
-  RouterSystemRecorder
+  RouterSystemRecorder,
+  RouterSystemNotifier
 } from 'application/device-monitoring/services';
 import { PrismaNetworkSweepTargetsQuery } from '../monitoring/network-sweep';
 import { CloudflareSpeedTester } from '../monitoring/speed-test';
@@ -1768,19 +1773,8 @@ export class DependencyContainer {
       ),
       new PrismaRouterSystemStateRepository(this.prisma)
     );
-    this.routerSystemController = new RouterSystemController(
-      new ListRouterSystemsUseCase(
-        portSpeedTargets,
-        routerSystemRecorder,
-        this.logger
-      ),
-      new GetRouterSystemUseCase(
-        portSpeedTargets,
-        routerSystemRecorder,
-        this.logger
-      ),
-      this.logger
-    );
+    const routerHealthThresholds =
+      new PrismaRouterHealthThresholdsRepository(this.prisma);
     const configurePollingUseCase = new ConfigureDevicePollingUseCase(
       this.pollingConfigRepository,
       suspendDeviceMonitoringUseCase,
@@ -2288,11 +2282,40 @@ export class DependencyContainer {
       { checkIntervalMs: loadPortSpeedCheckIntervalMs(process.env) },
       this.logger
     );
+    const routerSystemNotifier = new RouterSystemNotifier(
+      alertPublisher,
+      new PrismaReportedOutageQuery(this.prisma),
+      this.logger
+    );
+    this.routerSystemController = new RouterSystemController(
+      new ListRouterSystemsUseCase(
+        portSpeedTargets,
+        routerSystemRecorder,
+        this.logger
+      ),
+      new GetRouterSystemUseCase(
+        portSpeedTargets,
+        routerSystemRecorder,
+        routerSystemNotifier,
+        this.logger
+      ),
+      new GetRouterHealthThresholdsUseCase(
+        routerHealthThresholds,
+        this.logger
+      ),
+      new UpdateRouterHealthThresholdsUseCase(
+        routerHealthThresholds,
+        this.logger
+      ),
+      this.logger
+    );
     this.routerSystemCheckOrchestrator =
       new RouterSystemCheckOrchestrator(
         new CheckRouterSystemsUseCase(
           portSpeedTargets,
           routerSystemRecorder,
+          routerHealthThresholds,
+          routerSystemNotifier,
           this.logger
         ),
         {

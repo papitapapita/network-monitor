@@ -3,7 +3,11 @@ import { DeviceId } from 'domain/shared/ids';
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import { IPortSpeedTargetsQuery } from '../interfaces';
-import { RouterSystemRecorder, toRouterSystemDTO } from '../services';
+import {
+  RouterSystemNotifier,
+  RouterSystemRecorder,
+  toRouterSystemDTO
+} from '../services';
 import {
   GetRouterSystemRequestDTO,
   RouterSystemResponseDTO
@@ -11,7 +15,8 @@ import {
 import { PORT_SPEED_ROUTER_NOT_FOUND } from './SetPortExpectedSpeedUseCase';
 
 // MON-163: one router read now. What it says is kept like a scheduled
-// reading, so the list shows it too.
+// reading, so the list shows it too, and a reboot it reveals is told as the
+// scheduled check would (MON-171); health is left to the schedule.
 export class GetRouterSystemUseCase extends UseCase<
   GetRouterSystemRequestDTO,
   RouterSystemResponseDTO
@@ -19,6 +24,7 @@ export class GetRouterSystemUseCase extends UseCase<
   constructor(
     private readonly targets: IPortSpeedTargetsQuery,
     private readonly recorder: RouterSystemRecorder,
+    private readonly notifier: RouterSystemNotifier,
     logger: ILogger,
     private readonly clock: () => Date = () => new Date()
   ) {
@@ -46,6 +52,13 @@ export class GetRouterSystemUseCase extends UseCase<
     if (recorded.isFailure) return Result.fail(recorded.error);
 
     const [only] = recorded.value;
+    if (only!.rebootedAt !== null) {
+      await this.notifier.notifyReboot(
+        only!.candidate,
+        only!.rebootedAt,
+        only!.state!.attemptedAt
+      );
+    }
     return this.ok({
       router: toRouterSystemDTO(only!.candidate, only!.state)
     });

@@ -17,6 +17,21 @@ import { RouterSystemController } from '../../src/presentation/http/controllers/
 
 const LIST_PATH = '/api/routers/system';
 const routerPath = (id: string) => `/api/routers/${id}/system`;
+const THRESHOLDS_PATH = '/api/routers/health-thresholds';
+const THRESHOLDS = {
+  cpuPercent: 85,
+  minFreeMemoryPercent: 15,
+  minFreeDiskPercent: 8,
+  maxTemperatureC: 70,
+  minVoltage: 22.5
+};
+const DEFAULTS = {
+  cpuPercent: 90,
+  minFreeMemoryPercent: 10,
+  minFreeDiskPercent: 5,
+  maxTemperatureC: 75,
+  minVoltage: null
+};
 
 describe('Router system routes', () => {
   let app: Application;
@@ -32,6 +47,8 @@ describe('Router system routes', () => {
       c.routerSystemController = new RouterSystemController(
         stack.list,
         stack.get,
+        stack.getThresholds,
+        stack.updateThresholds,
         c.getLogger()
       );
     }));
@@ -158,6 +175,91 @@ describe('Router system routes', () => {
         success: false,
         error: 'Router not found'
       });
+    });
+  });
+
+  describe('GET /api/routers/health-thresholds', () => {
+    it('[MON-172] should answer 200 with the defaults to a viewer when none were saved', async () => {
+      const res = await request(app)
+        .get(THRESHOLDS_PATH)
+        .set('Authorization', `Bearer ${viewerToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: { thresholds: DEFAULTS, defaults: DEFAULTS }
+      });
+    });
+
+    it('should answer 401 without a token', async () => {
+      const res = await request(app).get(THRESHOLDS_PATH);
+
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('PUT /api/routers/health-thresholds', () => {
+    let adminToken: string;
+
+    beforeEach(async () => {
+      adminToken = await seedAndGetToken(app, prisma, 'ADMIN');
+    });
+
+    const put = (token: string, body: unknown) =>
+      request(app)
+        .put(THRESHOLDS_PATH)
+        .set('Authorization', `Bearer ${token}`)
+        .send(body as object);
+
+    it('[MON-172] should answer 200 and keep the thresholds an administrator saves', async () => {
+      const res = await put(adminToken, THRESHOLDS);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({
+        thresholds: {
+          ...THRESHOLDS,
+          minVoltage: expect.closeTo(22.5, 3)
+        },
+        defaults: DEFAULTS
+      });
+      const read = await request(app)
+        .get(THRESHOLDS_PATH)
+        .set('Authorization', `Bearer ${viewerToken}`);
+      expect(read.body.data.thresholds.cpuPercent).toBe(85);
+    });
+
+    it('[MON-172] should answer 400 for a limit out of range', async () => {
+      const res = await put(adminToken, {
+        ...THRESHOLDS,
+        maxTemperatureC: 150
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toBe(
+        'maxTemperatureC must be a whole number from 40 to 110'
+      );
+    });
+
+    it('should answer 400 for a body missing a limit', async () => {
+      const { minVoltage: _omitted, ...partial } = THRESHOLDS;
+
+      const res = await put(adminToken, partial);
+
+      expect(res.status).toBe(400);
+    });
+
+    it('should answer 403 to a viewer', async () => {
+      const res = await put(viewerToken, THRESHOLDS);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('should answer 401 without a token', async () => {
+      const res = await request(app)
+        .put(THRESHOLDS_PATH)
+        .send(THRESHOLDS);
+
+      expect(res.status).toBe(401);
     });
   });
 });

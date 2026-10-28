@@ -1,15 +1,23 @@
 import { PrismaClient } from '../../../src/generated/prisma/client';
 import { PrismaPortSpeedTargetsQuery } from '../../../src/infrastructure/monitoring/port-speeds/PrismaPortSpeedTargetsQuery';
 import { PrismaRouterSystemStateRepository } from '../../../src/infrastructure/persistence/PrismaRouterSystemStateRepository';
+import { PrismaRouterHealthThresholdsRepository } from '../../../src/infrastructure/persistence/PrismaRouterHealthThresholdsRepository';
+import { PrismaReportedOutageQuery } from '../../../src/infrastructure/persistence/PrismaReportedOutageQuery';
 import { RouterOsSystemReader } from '../../../src/infrastructure/monitoring/router-system/RouterOsSystemReader';
-import { RouterSystemRecorder } from '../../../src/application/device-monitoring/services';
+import {
+  RouterSystemNotifier,
+  RouterSystemRecorder
+} from '../../../src/application/device-monitoring/services';
 import {
   CheckRouterSystemsUseCase,
+  GetRouterHealthThresholdsUseCase,
   GetRouterSystemUseCase,
-  ListRouterSystemsUseCase
+  ListRouterSystemsUseCase,
+  UpdateRouterHealthThresholdsUseCase
 } from '../../../src/application/device-monitoring/use-cases';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
 import { FakeRouterOsPrinter } from './FakeRouterOsPrinter';
+import { FakeAlertPublisher } from './FakeAlertPublisher';
 
 // The stored state row of one router, or null.
 export async function systemStateOf(
@@ -22,7 +30,11 @@ export async function systemStateOf(
 export function buildRouterSystems(
   prisma: PrismaClient,
   printer: FakeRouterOsPrinter,
-  opts: { serverOnSite?: boolean; now?: Date } = {}
+  opts: {
+    serverOnSite?: boolean;
+    now?: Date;
+    publisher?: FakeAlertPublisher;
+  } = {}
 ) {
   const logger = new WinstonLogger();
   const targets = new PrismaPortSpeedTargetsQuery(
@@ -34,15 +46,40 @@ export function buildRouterSystems(
     new PrismaRouterSystemStateRepository(prisma)
   );
   const now = opts.now ?? new Date('2026-10-28T15:00:00Z');
+  const publisher = opts.publisher ?? new FakeAlertPublisher();
+  const thresholds = new PrismaRouterHealthThresholdsRepository(
+    prisma
+  );
+  const notifier = new RouterSystemNotifier(
+    publisher,
+    new PrismaReportedOutageQuery(prisma),
+    logger
+  );
   return {
     list: new ListRouterSystemsUseCase(targets, recorder, logger),
     get: new GetRouterSystemUseCase(
       targets,
       recorder,
+      notifier,
       logger,
       () => now
     ),
-    check: new CheckRouterSystemsUseCase(targets, recorder, logger),
+    check: new CheckRouterSystemsUseCase(
+      targets,
+      recorder,
+      thresholds,
+      notifier,
+      logger
+    ),
+    getThresholds: new GetRouterHealthThresholdsUseCase(
+      thresholds,
+      logger
+    ),
+    updateThresholds: new UpdateRouterHealthThresholdsUseCase(
+      thresholds,
+      logger
+    ),
+    publisher,
     now
   };
 }

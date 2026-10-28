@@ -1,20 +1,30 @@
 // Source: src/application/device-monitoring/use-cases/ListRouterSystemsUseCase.ts,
 // GetRouterSystemUseCase.ts, CheckRouterSystemsUseCase.ts,
+// GetRouterHealthThresholdsUseCase.ts, UpdateRouterHealthThresholdsUseCase.ts,
 // services/RouterSystemRecorder.ts
 
 import { ListRouterSystemsUseCase } from '../../../../src/application/device-monitoring/use-cases/ListRouterSystemsUseCase';
 import { GetRouterSystemUseCase } from '../../../../src/application/device-monitoring/use-cases/GetRouterSystemUseCase';
 import { CheckRouterSystemsUseCase } from '../../../../src/application/device-monitoring/use-cases/CheckRouterSystemsUseCase';
+import { GetRouterHealthThresholdsUseCase } from '../../../../src/application/device-monitoring/use-cases/GetRouterHealthThresholdsUseCase';
+import { UpdateRouterHealthThresholdsUseCase } from '../../../../src/application/device-monitoring/use-cases/UpdateRouterHealthThresholdsUseCase';
 import { PORT_SPEED_ROUTER_NOT_FOUND } from '../../../../src/application/device-monitoring/use-cases/SetPortExpectedSpeedUseCase';
 import { RouterSystemRecorder } from '../../../../src/application/device-monitoring/services/RouterSystemRecorder';
+import { RouterSystemNotifier } from '../../../../src/application/device-monitoring/services/RouterSystemNotifier';
 import {
   IPortSpeedTargetsQuery,
+  IReportedOutageQuery,
   IRouterSystemReader,
   PortSpeedRouterCandidate,
   RouterSystemReading
 } from '../../../../src/application/device-monitoring/interfaces';
-import { IRouterSystemStateRepository } from '../../../../src/domain/device-monitoring/repository';
+import {
+  IRouterHealthThresholdsRepository,
+  IRouterSystemStateRepository
+} from '../../../../src/domain/device-monitoring/repository';
 import { RouterSystemState } from '../../../../src/domain/device-monitoring/aggregates';
+import { RouterHealthThresholds } from '../../../../src/domain/device-monitoring/value-objects';
+import { IAlertPublisher } from '../../../../src/application/shared/interfaces';
 import { DeviceId } from '../../../../src/domain/shared/ids';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
@@ -101,8 +111,45 @@ function setup(
     saveAll: jest.fn().mockResolvedValue(Result.ok())
   };
   const recorder = new RouterSystemRecorder(reader, repository);
-  return { targets, reader, repository, recorder };
+  const publisher: jest.Mocked<IAlertPublisher> = {
+    publish: jest.fn().mockResolvedValue(Result.ok())
+  };
+  const outages: jest.Mocked<IReportedOutageQuery> = {
+    wasReportedDown: jest.fn().mockResolvedValue(Result.ok(false))
+  };
+  const thresholds: jest.Mocked<IRouterHealthThresholdsRepository> = {
+    get: jest
+      .fn()
+      .mockResolvedValue(
+        Result.ok(RouterHealthThresholds.defaults())
+      ),
+    save: jest.fn().mockResolvedValue(Result.ok())
+  };
+  const notifier = new RouterSystemNotifier(
+    publisher,
+    outages,
+    makeLogger()
+  );
+  return {
+    targets,
+    reader,
+    repository,
+    recorder,
+    publisher,
+    outages,
+    thresholds,
+    notifier
+  };
 }
+
+const check = (s: ReturnType<typeof setup>) =>
+  new CheckRouterSystemsUseCase(
+    s.targets,
+    s.recorder,
+    s.thresholds,
+    s.notifier,
+    makeLogger()
+  );
 
 describe('RouterSystemRecorder', () => {
   it('[MON-161] should read a router and keep what it said', async () => {
@@ -165,6 +212,42 @@ describe('RouterSystemRecorder', () => {
     );
   });
 
+  it('[MON-170] should say when a router was found to have restarted', async () => {
+    const { recorder, reader } = setup(
+      [makeCandidate()],
+      [makeState(ROUTER_ID, makeReading({ uptimeSeconds: 86400 }))]
+    );
+    reader.read.mockResolvedValue(
+      Result.ok(makeReading({ uptimeSeconds: 120 }))
+    );
+
+    const result = await recorder.record([makeCandidate()], NOW);
+
+    expect(result.value[0]!.rebootedAt).toEqual(
+      new Date(NOW.getTime() - 120_000)
+    );
+  });
+
+  it('[MON-173] should judge health only when given thresholds', async () => {
+    const { recorder, reader } = setup();
+    reader.read.mockResolvedValue(
+      Result.ok(makeReading({ temperatureC: 80 }))
+    );
+
+    const unjudged = await recorder.record([makeCandidate()], NOW);
+    const judged = await recorder.record(
+      [makeCandidate()],
+      NOW,
+      RouterHealthThresholds.defaults()
+    );
+
+    expect(unjudged.value[0]!.health).toBeNull();
+    expect(judged.value[0]!.health).toEqual({
+      raised: ['TEMPERATURE'],
+      recovered: []
+    });
+  });
+
   it('should fail when the states cannot be saved', async () => {
     const { recorder, repository } = setup();
     repository.saveAll.mockResolvedValue(Result.fail('db down'));
@@ -176,7 +259,7 @@ describe('RouterSystemRecorder', () => {
 });
 
 describe('ListRouterSystemsUseCase', () => {
-  it('[MON-162] should list every router with its last reading, without reading any', async () => {
+  it('[MON-162] [MON-175] should list every router with its last reading, without reading any', async () => {
     const other = makeCandidate({
       deviceId: OTHER_ID,
       deviceName: 'Switch Norte',
@@ -205,7 +288,11 @@ describe('ListRouterSystemsUseCase', () => {
         system: makeReading(),
         readAt: EARLIER.toISOString(),
         attemptedAt: EARLIER.toISOString(),
-        lastError: null
+        lastError: null,
+        bootedAt: new Date(
+          EARLIER.getTime() - 86400 * 1000
+        ).toISOString(),
+        healthIssues: []
       },
       {
         deviceId: OTHER_ID,
@@ -216,7 +303,9 @@ describe('ListRouterSystemsUseCase', () => {
         system: null,
         readAt: null,
         attemptedAt: null,
-        lastError: null
+        lastError: null,
+        bootedAt: null,
+        healthIssues: []
       }
     ]);
   });
@@ -240,6 +329,7 @@ describe('GetRouterSystemUseCase', () => {
     new GetRouterSystemUseCase(
       s.targets,
       s.recorder,
+      s.notifier,
       makeLogger(),
       () => NOW
     );
@@ -271,6 +361,36 @@ describe('GetRouterSystemUseCase', () => {
       system: null,
       lastError: 'RouterOS API error: timeout'
     });
+  });
+
+  it('[MON-171] should tell of a reboot this read reveals', async () => {
+    const s = setup(
+      [makeCandidate()],
+      [makeState(ROUTER_ID, makeReading())]
+    );
+    s.reader.read.mockResolvedValue(
+      Result.ok(makeReading({ uptimeSeconds: 60 }))
+    );
+
+    await make(s).execute({ deviceId: ROUTER_ID });
+
+    expect(s.publisher.publish).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'router_rebooted' })
+    );
+  });
+
+  it('[MON-163] should not judge health on a read on demand', async () => {
+    const s = setup();
+    s.reader.read.mockResolvedValue(
+      Result.ok(makeReading({ temperatureC: 90 }))
+    );
+
+    await make(s).execute({ deviceId: ROUTER_ID });
+
+    expect(s.publisher.publish).not.toHaveBeenCalled();
+    expect(
+      s.repository.saveAll.mock.calls[0]![0][0]!.healthIssues
+    ).toEqual([]);
   });
 
   it('[MON-163] should refuse a device that is not one of the routers', async () => {
@@ -308,13 +428,12 @@ describe('CheckRouterSystemsUseCase', () => {
         : Result.ok(makeReading())
     );
 
-    const result = await new CheckRouterSystemsUseCase(
-      s.targets,
-      s.recorder,
-      makeLogger()
-    ).execute({ now: NOW });
+    const result = await check(s).execute({ now: NOW });
 
     expect(result.value).toEqual({
+      rebooted: 0,
+      healthRaised: 0,
+      healthRecovered: 0,
       routersRead: 1,
       skipped: [
         {
@@ -337,17 +456,171 @@ describe('CheckRouterSystemsUseCase', () => {
   it('[MON-161] should do nothing when there are no routers', async () => {
     const s = setup([]);
 
-    const result = await new CheckRouterSystemsUseCase(
-      s.targets,
-      s.recorder,
-      makeLogger()
-    ).execute({ now: NOW });
+    const result = await check(s).execute({ now: NOW });
 
     expect(result.value).toEqual({
       routersRead: 0,
       skipped: [],
-      failed: []
+      failed: [],
+      rebooted: 0,
+      healthRaised: 0,
+      healthRecovered: 0
     });
     expect(s.repository.listForDevices).not.toHaveBeenCalled();
+  });
+
+  it('[MON-171] should tell of a reboot the ping check did not report', async () => {
+    const s = setup(
+      [makeCandidate()],
+      [makeState(ROUTER_ID, makeReading())]
+    );
+    s.reader.read.mockResolvedValue(
+      Result.ok(makeReading({ uptimeSeconds: 300 }))
+    );
+
+    const result = await check(s).execute({ now: NOW });
+
+    const rebootedAt = new Date(NOW.getTime() - 300_000);
+    expect(result.value.rebooted).toBe(1);
+    expect(s.outages.wasReportedDown).toHaveBeenCalledWith(
+      ROUTER_ID,
+      new Date(rebootedAt.getTime() - 10 * 60_000),
+      NOW
+    );
+    expect(s.publisher.publish).toHaveBeenCalledWith({
+      deviceId: ROUTER_ID,
+      severity: 'WARNING',
+      source: 'Estado de routers',
+      summary: 'El router "RB4011 Core" se reinició',
+      detail: 'El ping no alcanzó a detectarlo caído.',
+      occurredAt: rebootedAt,
+      resolved: false,
+      type: 'router_rebooted'
+    });
+  });
+
+  it('[MON-171] should stay silent about a reboot the ping check reported', async () => {
+    const s = setup(
+      [makeCandidate()],
+      [makeState(ROUTER_ID, makeReading())]
+    );
+    s.reader.read.mockResolvedValue(
+      Result.ok(makeReading({ uptimeSeconds: 300 }))
+    );
+    s.outages.wasReportedDown.mockResolvedValue(Result.ok(true));
+
+    const result = await check(s).execute({ now: NOW });
+
+    expect(result.value.rebooted).toBe(1);
+    expect(s.publisher.publish).not.toHaveBeenCalled();
+  });
+
+  it('[MON-171] should still tell of the reboot when the down alerts cannot be read', async () => {
+    const s = setup(
+      [makeCandidate()],
+      [makeState(ROUTER_ID, makeReading())]
+    );
+    s.reader.read.mockResolvedValue(
+      Result.ok(makeReading({ uptimeSeconds: 300 }))
+    );
+    s.outages.wasReportedDown.mockResolvedValue(
+      Result.fail('db down')
+    );
+
+    await check(s).execute({ now: NOW });
+
+    expect(s.publisher.publish).toHaveBeenCalledTimes(1);
+  });
+
+  it('[MON-174] should raise one health notice per router and check', async () => {
+    const s = setup();
+    s.reader.read.mockResolvedValue(
+      Result.ok(makeReading({ temperatureC: 80, freeHddBytes: 10 }))
+    );
+
+    const result = await check(s).execute({ now: NOW });
+
+    expect(result.value.healthRaised).toBe(2);
+    expect(s.publisher.publish).toHaveBeenCalledTimes(1);
+    expect(s.publisher.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'router_health',
+        resolved: false,
+        summary: '2 problemas de salud en "RB4011 Core"'
+      })
+    );
+  });
+
+  it('[MON-172] should judge against the saved thresholds', async () => {
+    const s = setup();
+    s.thresholds.get.mockResolvedValue(
+      Result.ok(
+        RouterHealthThresholds.create({
+          ...RouterHealthThresholds.defaults().values,
+          maxTemperatureC: 40
+        }).value
+      )
+    );
+
+    const result = await check(s).execute({ now: NOW });
+
+    expect(result.value.healthRaised).toBe(1);
+  });
+
+  it('should fail when the thresholds cannot be read', async () => {
+    const s = setup();
+    s.thresholds.get.mockResolvedValue(Result.fail('db down'));
+
+    const result = await check(s).execute({ now: NOW });
+
+    expect(result.error).toBe('db down');
+    expect(s.reader.read).not.toHaveBeenCalled();
+  });
+});
+
+describe('Router health thresholds use cases', () => {
+  const DEFAULTS = RouterHealthThresholds.defaults().values;
+
+  it('[MON-172] should answer the saved thresholds beside the defaults', async () => {
+    const s = setup();
+
+    const result = await new GetRouterHealthThresholdsUseCase(
+      s.thresholds,
+      makeLogger()
+    ).execute();
+
+    expect(result.value).toEqual({
+      thresholds: DEFAULTS,
+      defaults: DEFAULTS
+    });
+  });
+
+  it('[MON-172] should save valid thresholds', async () => {
+    const s = setup();
+    const wanted = { ...DEFAULTS, minVoltage: 22 };
+
+    const result = await new UpdateRouterHealthThresholdsUseCase(
+      s.thresholds,
+      makeLogger()
+    ).execute(wanted);
+
+    expect(result.value.thresholds).toEqual(wanted);
+    expect(s.thresholds.save.mock.calls[0]![0].values).toEqual(
+      wanted
+    );
+  });
+
+  it('[MON-172] should refuse a threshold out of range and save nothing', async () => {
+    const s = setup();
+
+    const result = await new UpdateRouterHealthThresholdsUseCase(
+      s.thresholds,
+      makeLogger()
+    ).execute({ ...DEFAULTS, cpuPercent: 100 });
+
+    expect(result.error).toBe(
+      'cpuPercent must be a whole number from 50 to 99'
+    );
+    expect(s.thresholds.save).not.toHaveBeenCalled();
   });
 });

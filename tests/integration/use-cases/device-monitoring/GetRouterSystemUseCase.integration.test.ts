@@ -23,6 +23,7 @@ import {
   buildRouterSystems,
   systemStateOf
 } from '../../helpers/routerSystems';
+import { FakeAlertPublisher } from '../../helpers/FakeAlertPublisher';
 
 describe('GetRouterSystemUseCase — integration', () => {
   let container: DependencyContainer;
@@ -90,6 +91,41 @@ describe('GetRouterSystemUseCase — integration', () => {
     expect(result.value.router).toMatchObject({
       system: null,
       lastError: 'RouterOS API error: timeout'
+    });
+  });
+
+  it('[MON-171] [MON-175] should tell of a reboot this read reveals, and judge no health', async () => {
+    const publisher = new FakeAlertPublisher();
+    const read = (now: Date) =>
+      buildRouterSystems(prisma, printer, {
+        publisher,
+        now
+      }).get.execute({
+        deviceId: coreId
+      });
+    printer.serve('10.0.0.1', rb4011());
+    await read(new Date('2026-10-28T15:00:00Z'));
+    const rebooted = rb4011();
+    rebooted['/system/resource/print'] = [
+      {
+        ...rebooted['/system/resource/print']![0],
+        uptime: '1m',
+        'cpu-load': '99'
+      }
+    ];
+    printer.serve('10.0.0.1', rebooted);
+
+    const result = await read(new Date('2026-10-28T15:10:00Z'));
+
+    expect(result.value.router.bootedAt).toBe(
+      '2026-10-28T15:09:00.000Z'
+    );
+    expect(publisher.sent).toEqual([
+      expect.objectContaining({ type: 'router_rebooted' })
+    ]);
+    expect(await systemStateOf(prisma, coreId)).toMatchObject({
+      highCpuChecks: 0,
+      healthIssues: []
     });
   });
 

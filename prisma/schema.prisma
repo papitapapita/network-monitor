@@ -635,10 +635,28 @@ model RouterSystemState {
   readAt           DateTime? @map("read_at") @db.Timestamptz
   lastError        String?   @map("last_error") @db.VarChar(500)
   attemptedAt      DateTime  @map("attempted_at") @db.Timestamptz
+  /// MON-173: checks in a row with the CPU above its limit, and the health
+  /// problems an alert is open for (CPU, MEMORY, DISK, TEMPERATURE, VOLTAGE).
+  highCpuChecks    Int       @default(0) @map("high_cpu_checks") @db.SmallInt
+  healthIssues     String[]  @default([]) @map("health_issues") @db.VarChar(20)
 
   device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@map("router_system_states")
+}
+
+/// The limits MikroTik health is judged against (MON-172). One row at most
+/// (id is always 1); no row means the defaults apply.
+model RouterHealthThresholds {
+  id                   Int      @id @default(1) @db.SmallInt
+  cpuPercent           Int      @map("cpu_percent") @db.SmallInt
+  minFreeMemoryPercent Int      @map("min_free_memory_percent") @db.SmallInt
+  minFreeDiskPercent   Int      @map("min_free_disk_percent") @db.SmallInt
+  maxTemperatureC      Int      @map("max_temperature_c") @db.SmallInt
+  minVoltage           Float?   @map("min_voltage") @db.Real
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("router_health_thresholds")
 }
 
 /// The install's notification settings, edited from the dashboard (NOT-200).

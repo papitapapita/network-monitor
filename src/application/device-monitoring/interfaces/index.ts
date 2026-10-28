@@ -13,3 +13,4 @@ export * from './IRouterPortReader';
 export * from './IPortSpeedTargetsQuery';
 export * from './IRouterOsPrinter';
 export * from './IRouterSystemReader';
+export * from './IReportedOutageQuery';

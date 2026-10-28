@@ -1,6 +1,10 @@
 import { DeviceId } from 'domain/shared/ids';
 import { RouterSystemState } from 'domain/device-monitoring/aggregates';
-import { RouterSystemReadingProps } from 'domain/device-monitoring/props';
+import {
+  ROUTER_HEALTH_ISSUES,
+  RouterHealthIssue,
+  RouterSystemReadingProps
+} from 'domain/device-monitoring/props';
 
 type PrismaRouterSystemStateRecord = {
   deviceId: string;
@@ -23,6 +27,8 @@ type PrismaRouterSystemStateRecord = {
   readAt: Date | null;
   lastError: string | null;
   attemptedAt: Date;
+  highCpuChecks: number;
+  healthIssues: string[];
 };
 
 export class RouterSystemStateMapper {
@@ -61,7 +67,9 @@ export class RouterSystemStateMapper {
             },
       readAt: raw.readAt,
       lastError: raw.lastError,
-      attemptedAt: raw.attemptedAt
+      attemptedAt: raw.attemptedAt,
+      highCpuChecks: raw.highCpuChecks,
+      healthIssues: raw.healthIssues.filter(isHealthIssue)
     });
   }
 
@@ -89,7 +97,9 @@ export class RouterSystemStateMapper {
       temperatureC: r?.temperatureC ?? null,
       readAt: state.readAt,
       lastError: state.lastError,
-      attemptedAt: state.attemptedAt
+      attemptedAt: state.attemptedAt,
+      highCpuChecks: state.highCpuChecks,
+      healthIssues: state.healthIssues
     };
   }
 }
@@ -102,4 +112,8 @@ function toBigInt(value: number | null | undefined): bigint | null {
   return value === null || value === undefined
     ? null
     : BigInt(Math.round(value));
+}
+
+function isHealthIssue(value: string): value is RouterHealthIssue {
+  return (ROUTER_HEALTH_ISSUES as readonly string[]).includes(value);
 }

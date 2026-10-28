@@ -2129,7 +2129,7 @@ for the whole install with `port_speed_low` in `PUT /api/notification-mutes`.
 
 ---
 
-## Router System `/api/routers/system`, `/api/routers/:id/system`
+## Router System `/api/routers/system`, `/api/routers/:id/system`, `/api/routers/health-thresholds`
 
 **Since:** 2026-10-28
 
@@ -2169,7 +2169,11 @@ interface RouterSystem {
   readAt: string | null; // ISO 8601, when `system` was read
   attemptedAt: string | null; // ISO 8601, the last attempt
   lastError: string | null; // the last attempt's error, null when it worked
+  bootedAt: string | null; // ISO 8601, when the router last started (MON-175)
+  healthIssues: RouterHealthIssue[]; // problems an alert is open for (MON-173)
 }
+
+type RouterHealthIssue = 'CPU' | 'MEMORY' | 'DISK' | 'TEMPERATURE' | 'VOLTAGE';
 ```
 
 Every field of `system` is null when the router did not say: a CHR has no
@@ -2209,6 +2213,71 @@ device that is not one of the MikroTiks.
 > button per row calls `GET /api/routers/:id/system` and replaces the row.
 > Firmware: when `currentFirmware !== upgradeFirmware`, show "Firmware
 > pendiente".
+>
+> Added 2026-10-28 (MON-175): show `bootedAt` as "Encendido desde <fecha>"
+> beside the uptime, and for each entry of `healthIssues` a red badge on the
+> matching value (CPU, memoria, disco, temperatura, voltaje).
+
+### Reboot and health notices
+
+The scheduled read also sends notices through the usual channels (Telegram,
+phones, inbox; quiet hours and muted types apply). They are not in
+`GET /api/alerts`.
+
+- `router_rebooted` (MON-170, MON-171): the router restarted and the ping
+  check did not report it as down. `El router "Core" se reinició`. A read on
+  demand can send it too.
+- `router_health` (MON-173, MON-174): CPU above its limit on 2 checks in a
+  row, free memory or disk under its limit, temperature above, voltage under.
+  One notice per router and check, with a recovery (`resolved: true`) when the
+  problem clears.
+
+Both can be muted like any alert type (`router_rebooted`, `router_health`).
+
+### `GET /api/routers/health-thresholds` — The limits health is judged against
+
+**Status:** 200 | 401
+
+Every role (MON-172).
+
+```ts
+interface RouterHealthThresholds {
+  cpuPercent: number; // whole, 50–99; default 90
+  minFreeMemoryPercent: number; // whole, 1–50; default 10
+  minFreeDiskPercent: number; // whole, 1–50; default 5
+  maxTemperatureC: number; // whole, 40–110; default 75
+  minVoltage: number | null; // 5–60, or null for no voltage alert (default)
+}
+
+// Response
+{
+  success: true,
+  data: {
+    thresholds: RouterHealthThresholds; // in use
+    defaults: RouterHealthThresholds;
+  }
+}
+```
+
+### `PUT /api/routers/health-thresholds` — Change them
+
+**Status:** 200 | 400 | 401 | 403
+
+`manage-settings` (administrators). The whole set, every field required;
+used from the next check on. Answers as `GET`. A value out of range is `400`
+with e.g. `maxTemperatureC must be a whole number from 40 to 110`.
+
+```ts
+// Request body
+RouterHealthThresholds;
+```
+
+> **Frontend:** a "Salud de routers" card in Settings, administrators only:
+> CPU máxima (%), memoria libre mínima (%), disco libre mínimo (%),
+> temperatura máxima (°C), and a voltage field with an "Alertar por voltaje"
+> switch (off sends `minVoltage: null`). Explain under it that the voltage
+> depends on each board's power supply (12, 24 or 48 V). "Restaurar valores
+> por defecto" fills the form from `defaults`.
 
 ---
 
@@ -3280,7 +3349,8 @@ so one entry silences both its WARNING and CRITICAL severities.
 
 Besides the device and wireless metrics, the backup notification
 `backup_failing` is muted the same way (see Device Backups, BKP-061), and
-so is the port speed notification `port_speed_low` (MON-148).
+so is the port speed notification `port_speed_low` (MON-148), and the
+MikroTik notices `router_rebooted` and `router_health` (MON-171, MON-174).
 `config_changed` no longer exists (BKP-060, removed 2026-10-26).
 
 ### `GET /api/notification-mutes` — List Muted Alert Types
@@ -3576,7 +3646,7 @@ Errors from a request the user just made (a save that failed, a timeout) are
 
 ```ts
 type InboxCategory =
-  | 'device' // device_unreachable, port_speed_low, device_discovered (deviceId null — open /api/network/discovered)
+  | 'device' // device_unreachable, port_speed_low, router_rebooted, router_health, device_discovered (deviceId null — open /api/network/discovered)
   | 'wireless' // wireless:<metric>:<severity>
   | 'agent' // agent_offline, agent_clock, …
   | 'backup' // backup_failing

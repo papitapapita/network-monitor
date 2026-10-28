@@ -33,7 +33,18 @@ export interface RouterSystemDTO {
   // the last attempt, and its error when it failed
   attemptedAt: string | null;
   lastError: string | null;
+  // MON-175: when the router last started, from the last good reading
+  bootedAt: string | null;
+  // MON-175: the health problems an alert is open for
+  healthIssues: RouterHealthIssueDTO[];
 }
+
+export type RouterHealthIssueDTO =
+  | 'CPU'
+  | 'MEMORY'
+  | 'DISK'
+  | 'TEMPERATURE'
+  | 'VOLTAGE';
 
 export interface RouterSystemsResponseDTO {
   routers: RouterSystemDTO[];
@@ -63,4 +74,25 @@ export interface CheckRouterSystemsResultDTO {
   skipped: RouterSystemCheckSkipDTO[];
   // routers that were tried and did not answer
   failed: RouterSystemCheckSkipDTO[];
+  // MON-170, MON-174: what the check found and raised
+  rebooted: number;
+  healthRaised: number;
+  healthRecovered: number;
+}
+
+export interface RouterHealthThresholdsDTO {
+  cpuPercent: number;
+  minFreeMemoryPercent: number;
+  minFreeDiskPercent: number;
+  maxTemperatureC: number;
+  // null: no voltage alert
+  minVoltage: number | null;
+}
+
+export type UpdateRouterHealthThresholdsRequestDTO =
+  RouterHealthThresholdsDTO;
+
+export interface RouterHealthThresholdsResponseDTO {
+  thresholds: RouterHealthThresholdsDTO;
+  defaults: RouterHealthThresholdsDTO;
 }

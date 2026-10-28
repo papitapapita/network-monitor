@@ -1327,11 +1327,168 @@ interval old.
 the result as a scheduled read would (MON-161) and answers the router as the
 list shows it. A router that cannot be read, or does not answer, is still a
 `200` with its reason or error. A device that is not one of those routers is
-`404 Router not found`. Anyone may look.
+`404 Router not found`. Anyone may look. A reboot the read reveals is told as
+the scheduled check would (MON-171); health is not judged, so a read on
+demand neither counts toward the CPU streak nor opens or closes a health
+alert (MON-173).
 
 **Why:** After swapping or reconfiguring a router the operator wants to see it
 now, not at the next scheduled read. Keeping what was read costs nothing and
-keeps the list current.
+keeps the list current. Health is left to the schedule so that pressing the
+button twice cannot stand for two checks in a row.
+
+**Revised:** 2026-10-28 — tells of reboots, leaves health alone.
 
 **Enforced at:** `src/application/device-monitoring/use-cases/GetRouterSystemUseCase.ts`, `src/presentation/http/routes/router-system.routes.ts`
 **Tests:** `tests/application/device-monitoring/use-cases/RouterSystemUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/GetRouterSystemUseCase.integration.test.ts`, `tests/integration/router-system.routes.test.ts`
+
+### MON-170 — A MikroTik whose boot time moved forward has rebooted
+
+**Type:** Invariant · **Status:** Active
+**Since:** 2026-10-28
+
+Each good reading gives the router's boot time: when it was read minus its
+uptime. Every good reading, scheduled or on demand, compares that boot time
+with the one of the previous good reading. More than 60 seconds later means
+the router restarted, at the new boot time. Failed reads in between do not
+matter: the comparison is with the last good reading. The first reading, or a
+reading without uptime on either side, finds nothing. Several restarts between
+two readings count as one, the last.
+
+**Why:** Comparing boot times rather than uptimes also catches a router that
+rebooted while it could not be read and has since been up longer than it was
+before. The 60 seconds absorb the drift between the server's clock and the
+router's.
+
+**Enforced at:** `src/domain/device-monitoring/aggregates/RouterSystemState.ts`, `src/application/device-monitoring/services/RouterSystemRecorder.ts`
+**Tests:** `tests/domain/device-monitoring/aggregates/RouterSystemState.test.ts`, `tests/application/device-monitoring/use-cases/RouterSystemUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/CheckRouterSystemsUseCase.integration.test.ts`
+
+### MON-171 — A reboot the ping check did not report sends one `router_rebooted` notice
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+A reboot (MON-170) sends `El router "<name>" se reinició`, detail `El ping no
+alcanzó a detectarlo caído.`, at the boot time. It is sent only when no down
+notice already told of it. A down alert (`device_unreachable`) of the same
+router covers the reboot when it overlaps the span from 10 minutes before the
+boot to the reading, and it was sent, or it was rolled into an upstream
+outage's notice that was sent. A down alert that was recorded but never sent
+(shorter than the notification delay) does not count. If the down alerts
+cannot be read, the notice is sent anyway.
+
+Type `router_rebooted`, severity WARNING, source `Estado de routers`, through
+the shared publisher: quiet hours, muted types, an expired subscription,
+Telegram, phones and the inbox all apply. There is no recovery. Notices only;
+they do not appear in `GET /api/alerts`.
+
+**Why:** A reboot the ping check caught was already announced as an outage and
+its recovery. One that was too short for it is otherwise invisible: a power
+blip, a watchdog, a crash. A repeat is better than a miss when the check
+cannot be made.
+
+**Enforced at:** `src/application/device-monitoring/services/RouterSystemNotifier.ts`, `src/infrastructure/persistence/PrismaReportedOutageQuery.ts`, `src/application/device-monitoring/use-cases/CheckRouterSystemsUseCase.ts`, `src/application/device-monitoring/use-cases/GetRouterSystemUseCase.ts`
+**Tests:** `tests/application/device-monitoring/services/RouterSystemNotifier.test.ts`, `tests/application/device-monitoring/use-cases/RouterSystemUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/CheckRouterSystemsUseCase.integration.test.ts`, `tests/integration/use-cases/device-monitoring/GetRouterSystemUseCase.integration.test.ts`
+
+### MON-172 — MikroTik health is judged against one set of limits for the install
+
+**Type:** Validation · **Status:** Active
+**Since:** 2026-10-28
+
+| Limit                  | Default | Allowed                    |
+| ---------------------- | ------- | -------------------------- |
+| `cpuPercent`           | 90      | whole, 50–99               |
+| `minFreeMemoryPercent` | 10      | whole, 1–50                |
+| `minFreeDiskPercent`   | 5       | whole, 1–50                |
+| `maxTemperatureC`      | 75      | whole, 40–110              |
+| `minVoltage`           | null    | null, or a number 5–60     |
+
+No saved set means the defaults. `GET /api/routers/health-thresholds` shows
+the set and the defaults to anyone; `PUT` replaces the whole set and needs
+`manage-settings` (administrators). A value out of range is `400` with
+`<name> must be a whole number from <min> to <max>` or `minVoltage must be
+null or a number from 5 to 60`, and nothing is saved. The next check uses the
+new set, with no restart.
+
+**Why:** Boards run on 12, 24 or 48 V, so no voltage default fits all of
+them: the voltage alert stays off until the operator sets a minimum. The
+other defaults are the user's choice (2026-10-28).
+
+**Enforced at:** `src/domain/device-monitoring/value-objects/RouterHealthThresholds.ts`, `src/application/device-monitoring/use-cases/GetRouterHealthThresholdsUseCase.ts`, `src/application/device-monitoring/use-cases/UpdateRouterHealthThresholdsUseCase.ts`, `src/infrastructure/persistence/PrismaRouterHealthThresholdsRepository.ts`, `src/presentation/http/routes/router-system.routes.ts`
+**Message:** `cpuPercent must be a whole number from 50 to 99`, `minFreeMemoryPercent must be a whole number from 1 to 50`, `minFreeDiskPercent must be a whole number from 1 to 50`, `maxTemperatureC must be a whole number from 40 to 110`, `minVoltage must be null or a number from 5 to 60`
+**Tests:** `tests/domain/device-monitoring/value-objects/RouterHealthThresholds.test.ts`, `tests/application/device-monitoring/use-cases/RouterSystemUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/GetRouterHealthThresholdsUseCase.integration.test.ts`, `tests/integration/use-cases/device-monitoring/UpdateRouterHealthThresholdsUseCase.integration.test.ts`, `tests/integration/router-system.routes.test.ts`
+
+### MON-173 — Each scheduled check judges a MikroTik's CPU, memory, disk, temperature and voltage
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+The scheduled check (MON-161) judges the reading it just took against the
+limits of MON-172. Each problem opens once and stays open until it clears:
+
+| Problem       | Opens when                                          | Clears when                  |
+| ------------- | --------------------------------------------------- | ---------------------------- |
+| `CPU`         | CPU above `cpuPercent` on 2 checks in a row         | CPU at or under `cpuPercent` |
+| `MEMORY`      | free memory under `minFreeMemoryPercent` % of total | 2 points above the limit     |
+| `DISK`        | free disk under `minFreeDiskPercent` % of total     | 2 points above the limit     |
+| `TEMPERATURE` | above `maxTemperatureC`                             | 3 °C under the limit         |
+| `VOLTAGE`     | under `minVoltage`                                  | 0.5 V above the limit        |
+
+Between the limit and its clear margin an open problem stays open and a closed
+one stays closed. A value the router does not report changes nothing. A failed
+read judges nothing: open problems stay open and the CPU streak starts over.
+Removing `minVoltage` closes an open voltage problem silently. The streak and
+the open problems are stored with the router's state, so they survive a
+restart.
+
+**Why:** One busy minute is normal, so the CPU needs two checks in a row, as
+slow ports do (MON-147). Memory, disk and temperature move slowly, so one
+check is enough. The clear margins keep a value hovering at a limit from
+sending a notice every 10 minutes.
+
+**Enforced at:** `src/domain/device-monitoring/aggregates/RouterSystemState.ts`, `src/application/device-monitoring/services/RouterSystemRecorder.ts`, `src/infrastructure/mappers/RouterSystemStateMapper.ts`
+**Tests:** `tests/domain/device-monitoring/aggregates/RouterSystemState.test.ts`, `tests/application/device-monitoring/use-cases/RouterSystemUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/CheckRouterSystemsUseCase.integration.test.ts`
+
+### MON-174 — Health problems are one `router_health` notice per router and check
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+The problems a check opens on one router send one notice, and the problems
+it clears send one recovery:
+
+- One problem: `Temperatura de 81 °C en "Core" (más de 75 °C)`, no detail.
+- Several: `3 problemas de salud en "Core"`, one line each in the detail, e.g.
+  `• CPU al 97 % (más de 90 %)`.
+- One recovery: `Se normalizó la temperatura en "Core" (60 °C)`.
+- Several recoveries: `Se normalizaron 2 problemas de salud en "Core"`, with
+  `• La CPU: 20 %` lines.
+
+Numbers use a decimal comma. Type `router_health` (a recovery has the same
+type, `resolved: true`), severity WARNING, source `Estado de routers`, through
+the shared publisher as in MON-171. Muting `router_health` silences both. A
+notice that is withheld (quiet hours, muted, subscription) or fails is not
+sent again: the problem stays open.
+
+**Why:** Several problems at once usually have one cause (a hot cabinet, a
+stuck process), so one message per router reads better than one per problem.
+
+**Enforced at:** `src/application/device-monitoring/services/RouterSystemNotifier.ts`, `src/application/device-monitoring/use-cases/CheckRouterSystemsUseCase.ts`
+**Tests:** `tests/application/device-monitoring/services/RouterSystemNotifier.test.ts`, `tests/application/device-monitoring/use-cases/RouterSystemUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/CheckRouterSystemsUseCase.integration.test.ts`
+
+### MON-175 — The router system list shows when each MikroTik started and its open health problems
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+Each router of `GET /api/routers/system` and `GET /api/routers/:id/system`
+carries `bootedAt`, the boot time of its last good reading (null without one
+or without uptime), and `healthIssues`, the problems open for it (MON-173), in
+the order CPU, MEMORY, DISK, TEMPERATURE, VOLTAGE. A read on demand does not
+change `healthIssues`.
+
+**Why:** The page can show "encendido desde" and mark the routers with an open
+problem without a separate request.
+
+**Enforced at:** `src/application/device-monitoring/services/RouterSystemRecorder.ts`, `src/application/device-monitoring/dtos/RouterSystemDTO.ts`
+**Tests:** `tests/application/device-monitoring/use-cases/RouterSystemUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/GetRouterSystemUseCase.integration.test.ts`

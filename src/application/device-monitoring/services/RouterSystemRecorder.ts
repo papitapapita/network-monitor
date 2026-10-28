@@ -1,6 +1,10 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
-import { RouterSystemState } from 'domain/device-monitoring/aggregates';
+import {
+  RouterHealthChange,
+  RouterSystemState
+} from 'domain/device-monitoring/aggregates';
+import { RouterHealthThresholds } from 'domain/device-monitoring/value-objects';
 import { IRouterSystemStateRepository } from 'domain/device-monitoring/repository';
 import {
   IRouterSystemReader,
@@ -14,10 +18,16 @@ export interface RecordedRouter {
   // null: the router cannot be read, `reason` says why
   state: RouterSystemState | null;
   reason: string | null;
+  // MON-170: when the router restarted, if this read found it had
+  rebootedAt: Date | null;
+  // MON-173: null when health was not judged
+  health: RouterHealthChange | null;
 }
 
 // MON-161: reads every readable router at once and keeps what each said; a
 // router that does not answer keeps its last good reading beside the error.
+// Every read looks for a reboot (MON-170); health is judged only when
+// thresholds are given, by the scheduled check (MON-173).
 export class RouterSystemRecorder {
   constructor(
     private readonly reader: IRouterSystemReader,
@@ -26,7 +36,8 @@ export class RouterSystemRecorder {
 
   async record(
     candidates: PortSpeedRouterCandidate[],
-    now: Date
+    now: Date,
+    healthThresholds: RouterHealthThresholds | null = null
   ): Promise<Result<RecordedRouter[]>> {
     const known = await this.statesOf(candidates);
     if (known.isFailure) return Result.fail(known.error);
@@ -36,7 +47,13 @@ export class RouterSystemRecorder {
         const target = resolvePortSpeedTarget(candidate);
         const state = known.value.get(candidate.deviceId) ?? null;
         if (!target.readable) {
-          return { candidate, state, reason: target.reason };
+          return {
+            candidate,
+            state,
+            reason: target.reason,
+            rebootedAt: null,
+            health: null
+          };
         }
         const next =
           state ??
@@ -45,9 +62,23 @@ export class RouterSystemRecorder {
             now
           );
         const reading = await this.reader.read(target.connection);
-        if (reading.isSuccess) next.recordReading(reading.value, now);
-        else next.recordFailure(reading.error, now);
-        return { candidate, state: next, reason: null };
+        let rebootedAt: Date | null = null;
+        if (reading.isSuccess) {
+          rebootedAt = next.recordReading(
+            reading.value,
+            now
+          ).rebootedAt;
+        } else next.recordFailure(reading.error, now);
+        const health = healthThresholds
+          ? next.recordHealthCheck(healthThresholds)
+          : null;
+        return {
+          candidate,
+          state: next,
+          reason: null,
+          rebootedAt,
+          health
+        };
       })
     );
 
@@ -88,6 +119,8 @@ export function toRouterSystemDTO(
     system: state?.reading ? { ...state.reading } : null,
     readAt: state?.readAt?.toISOString() ?? null,
     attemptedAt: state?.attemptedAt.toISOString() ?? null,
-    lastError: state?.lastError ?? null
+    lastError: state?.lastError ?? null,
+    bootedAt: state?.bootedAt?.toISOString() ?? null,
+    healthIssues: state?.healthIssues ?? []
   };
 }

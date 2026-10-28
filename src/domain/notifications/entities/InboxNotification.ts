@@ -8,7 +8,9 @@ const MAX_TYPE_LENGTH = 100;
 const DEVICE_TYPES = new Set([
   'device_unreachable',
   'device_discovered',
-  'port_speed_low'
+  'port_speed_low',
+  'router_rebooted',
+  'router_health'
 ]);
 
 const SECURITY_TYPES = new Set([

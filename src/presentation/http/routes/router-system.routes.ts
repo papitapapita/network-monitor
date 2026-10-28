@@ -5,7 +5,10 @@ import {
   createRateLimiter,
   validateRequest
 } from '../middleware';
-import { getRouterSystemSchema } from '../validation';
+import {
+  getRouterSystemSchema,
+  updateRouterHealthThresholdsSchema
+} from '../validation';
 
 /**
  * MikroTik system details — mounted at /api/routers
@@ -14,6 +17,8 @@ import { getRouterSystemSchema } from '../validation';
  *                                itself (identity, hardware, versions,
  *                                health)
  * GET /api/routers/:id/system  — one MikroTik read now
+ * GET /api/routers/health-thresholds — the limits health is judged against
+ * PUT /api/routers/health-thresholds — change them (administrator)
  */
 export function createRouterSystemRoutes(
   controller: RouterSystemController
@@ -32,6 +37,19 @@ export function createRouterSystemRoutes(
     createRateLimiter('read'),
     validateRequest(getRouterSystemSchema),
     controller.get
+  );
+  router.get(
+    '/health-thresholds',
+    authorize('read'),
+    createRateLimiter('read'),
+    controller.getHealthThresholds
+  );
+  router.put(
+    '/health-thresholds',
+    authorize('manage-settings'),
+    createRateLimiter('write'),
+    validateRequest(updateRouterHealthThresholdsSchema),
+    controller.updateHealthThresholds
   );
 
   return router;

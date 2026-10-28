@@ -7,3 +7,4 @@ export * from './SpeedTestResultProps';
 export * from './PortSpeedProps';
 export * from './PortExpectedSpeedProps';
 export * from './RouterSystemStateProps';
+export * from './RouterHealthThresholdsProps';

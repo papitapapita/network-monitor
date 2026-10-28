@@ -21,6 +21,16 @@ export interface RouterSystemReadingProps {
   temperatureC: number | null;
 }
 
+// MON-173: what can be wrong with a router's health.
+export const ROUTER_HEALTH_ISSUES = [
+  'CPU',
+  'MEMORY',
+  'DISK',
+  'TEMPERATURE',
+  'VOLTAGE'
+] as const;
+export type RouterHealthIssue = (typeof ROUTER_HEALTH_ISSUES)[number];
+
 export interface RouterSystemStateProps {
   readonly deviceId: DeviceId;
   // the last reading that came through, kept when a later read fails
@@ -28,4 +38,8 @@ export interface RouterSystemStateProps {
   readAt: Date | null;
   lastError: string | null;
   attemptedAt: Date;
+  // MON-173: scheduled checks in a row with the CPU above its limit, and the
+  // problems an alert is open for
+  highCpuChecks: number;
+  healthIssues: RouterHealthIssue[];
 }

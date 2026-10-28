@@ -1,44 +1,51 @@
 import { Request, Response } from 'express';
+import { Result } from 'domain/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import {
+  GetRouterHealthThresholdsUseCase,
   GetRouterSystemUseCase,
   ListRouterSystemsUseCase,
-  PORT_SPEED_ROUTER_NOT_FOUND
+  PORT_SPEED_ROUTER_NOT_FOUND,
+  UpdateRouterHealthThresholdsUseCase
 } from 'application/device-monitoring/use-cases';
 
 export class RouterSystemController {
   constructor(
     private readonly listRouterSystemsUseCase: ListRouterSystemsUseCase,
     private readonly getRouterSystemUseCase: GetRouterSystemUseCase,
+    private readonly getHealthThresholdsUseCase: GetRouterHealthThresholdsUseCase,
+    private readonly updateHealthThresholdsUseCase: UpdateRouterHealthThresholdsUseCase,
     private readonly logger: ILogger
   ) {}
 
-  public list = async (
+  public list = (_req: Request, res: Response): Promise<void> =>
+    this.run(res, () => this.listRouterSystemsUseCase.execute());
+
+  public get = (req: Request, res: Response): Promise<void> =>
+    this.run(res, () =>
+      this.getRouterSystemUseCase.execute({ deviceId: req.params.id })
+    );
+
+  public getHealthThresholds = (
     _req: Request,
     res: Response
-  ): Promise<void> => {
-    try {
-      const result = await this.listRouterSystemsUseCase.execute();
-      if (result.isFailure) {
-        res
-          .status(this.getErrorStatusCode(result.error!))
-          .json({ success: false, error: result.error });
-        return;
-      }
-      res
-        .status(200)
-        .set('Cache-Control', 'no-store')
-        .json({ success: true, data: result.value });
-    } catch (error) {
-      this.handleUnexpectedError(error, res);
-    }
-  };
+  ): Promise<void> =>
+    this.run(res, () => this.getHealthThresholdsUseCase.execute());
 
-  public get = async (req: Request, res: Response): Promise<void> => {
+  public updateHealthThresholds = (
+    req: Request,
+    res: Response
+  ): Promise<void> =>
+    this.run(res, () =>
+      this.updateHealthThresholdsUseCase.execute(req.body)
+    );
+
+  private async run<T>(
+    res: Response,
+    action: () => Promise<Result<T>>
+  ): Promise<void> {
     try {
-      const result = await this.getRouterSystemUseCase.execute({
-        deviceId: req.params.id
-      });
+      const result = await action();
       if (result.isFailure) {
         res
           .status(this.getErrorStatusCode(result.error!))
@@ -52,10 +59,15 @@ export class RouterSystemController {
     } catch (error) {
       this.handleUnexpectedError(error, res);
     }
-  };
+  }
 
   private getErrorStatusCode(message: string): number {
-    if (message.startsWith('Invalid')) return 400;
+    if (
+      message.startsWith('Invalid') ||
+      message.includes(' must be ')
+    ) {
+      return 400;
+    }
     if (message === PORT_SPEED_ROUTER_NOT_FOUND) return 404;
     return 500;
   }

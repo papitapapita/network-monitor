@@ -21,3 +21,5 @@ export * from './CheckPortSpeedsUseCase';
 export * from './ListRouterSystemsUseCase';
 export * from './GetRouterSystemUseCase';
 export * from './CheckRouterSystemsUseCase';
+export * from './GetRouterHealthThresholdsUseCase';
+export * from './UpdateRouterHealthThresholdsUseCase';
