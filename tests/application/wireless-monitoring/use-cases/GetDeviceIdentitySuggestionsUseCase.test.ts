@@ -5,9 +5,10 @@ import { IWirelessSnapshotRepository } from '../../../../src/domain/wireless-mon
 import { IWirelessDeviceConfigRepository } from '../../../../src/domain/wireless-monitoring/repository/IWirelessDeviceConfigRepository';
 import {
   DeviceHardware,
-  IDeviceHardwareLookup,
+  IDeviceHardwareQuery,
   IDeviceRepository
 } from '../../../../src/application/wireless-monitoring/interfaces';
+import { HardwareChangeAssessor } from '../../../../src/application/wireless-monitoring/services';
 import { ILogger } from '../../../../src/application/shared/interfaces/ILogger';
 import { Result } from '../../../../src/domain/shared/core/Result';
 import {
@@ -98,7 +99,7 @@ function makeStationConfig(): WirelessDeviceConfig {
 
 function makeDeviceRepo(): jest.Mocked<IDeviceRepository> {
   return {
-    findIdByMacAddress: jest.fn().mockResolvedValue(Result.ok(null)),
+    findIdByMacAddress: jest.fn(),
     findIdByIpAddress: jest.fn().mockResolvedValue(Result.ok(null)),
     findBasicInfoById: jest.fn(),
     findWirelessIneligibilityReason: jest.fn(),
@@ -111,6 +112,9 @@ function makeHardware(
   overrides: Partial<DeviceHardware> = {}
 ): DeviceHardware {
   return {
+    deviceId: DEVICE_UUID,
+    name: 'AP Roof1',
+    macAddress: 'AA:BB:CC:DD:EE:01',
     inInventory: false,
     deviceModelId: ROCKET_MODEL_UUID,
     modelName: 'Rocket 5AC Lite',
@@ -119,11 +123,13 @@ function makeHardware(
   };
 }
 
-function makeHardwareLookup(): jest.Mocked<IDeviceHardwareLookup> {
+function makeHardwareQuery(): jest.Mocked<IDeviceHardwareQuery> {
   return {
     findHardware: jest
       .fn()
       .mockResolvedValue(Result.ok(makeHardware())),
+    findPolledHardware: jest.fn(),
+    findDevicesByMac: jest.fn().mockResolvedValue(Result.ok([])),
     findCatalogModels: jest.fn().mockResolvedValue(
       Result.ok([
         {
@@ -216,7 +222,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
   let snapshotRepo: jest.Mocked<IWirelessSnapshotRepository>;
   let configRepo: jest.Mocked<IWirelessDeviceConfigRepository>;
   let deviceRepo: jest.Mocked<IDeviceRepository>;
-  let hardwareLookup: jest.Mocked<IDeviceHardwareLookup>;
+  let hardwareQuery: jest.Mocked<IDeviceHardwareQuery>;
   let logger: jest.Mocked<ILogger>;
   let useCase: GetDeviceIdentitySuggestionsUseCase;
 
@@ -224,19 +230,17 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
     snapshotRepo = makeSnapshotRepo();
     configRepo = makeConfigRepo();
     deviceRepo = makeDeviceRepo();
-    hardwareLookup = makeHardwareLookup();
+    hardwareQuery = makeHardwareQuery();
     logger = makeLogger();
     useCase = new GetDeviceIdentitySuggestionsUseCase(
       snapshotRepo,
       configRepo,
       deviceRepo,
-      hardwareLookup,
+      hardwareQuery,
+      new HardwareChangeAssessor(hardwareQuery, logger),
       logger
     );
 
-    deviceRepo.findBasicInfoById.mockResolvedValue(
-      Result.ok({ name: 'AP Roof1', macAddress: 'AA:BB:CC:DD:EE:01' })
-    );
     snapshotRepo.findLatestByDevice.mockResolvedValue(
       Result.ok(
         makeSnapshot({
@@ -273,7 +277,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
     });
 
     it('should fail when the device does not exist', async () => {
-      deviceRepo.findBasicInfoById.mockResolvedValue(Result.ok(null));
+      hardwareQuery.findHardware.mockResolvedValue(Result.ok(null));
 
       const result = await useCase.execute({
         deviceId: DEVICE_UUID
@@ -431,8 +435,8 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
     });
 
     it('should suggest the polled MAC when inventory has none on file', async () => {
-      deviceRepo.findBasicInfoById.mockResolvedValue(
-        Result.ok({ name: 'AP Roof1', macAddress: null })
+      hardwareQuery.findHardware.mockResolvedValue(
+        Result.ok(makeHardware({ macAddress: null }))
       );
 
       const result = await useCase.execute({
@@ -487,7 +491,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
     });
 
     it('should offer only an update when the device is still in INVENTORY', async () => {
-      hardwareLookup.findHardware.mockResolvedValue(
+      hardwareQuery.findHardware.mockResolvedValue(
         Result.ok(makeHardware({ inInventory: true }))
       );
 
@@ -521,18 +525,14 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
           })
         )
       );
-      deviceRepo.findIdByMacAddress.mockResolvedValue(
-        Result.ok(DeviceId.parse(AP_UUID).value)
-      );
-      deviceRepo.findBasicInfoById.mockImplementation(async (id) =>
-        Result.ok(
-          id.toString() === AP_UUID
-            ? {
-                name: 'AP Torre Norte',
-                macAddress: 'AA:BB:CC:DD:EE:99'
-              }
-            : { name: 'AP Roof1', macAddress: 'AA:BB:CC:DD:EE:01' }
-        )
+      hardwareQuery.findDevicesByMac.mockResolvedValue(
+        Result.ok([
+          {
+            deviceId: AP_UUID,
+            name: 'AP Torre Norte',
+            macAddress: 'AA:BB:CC:DD:EE:99'
+          }
+        ])
       );
     });
 
@@ -551,7 +551,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
     });
 
     it('should fall back to replacement when the MAC lookup fails', async () => {
-      deviceRepo.findIdByMacAddress.mockResolvedValue(
+      hardwareQuery.findDevicesByMac.mockResolvedValue(
         Result.fail('db down')
       );
 
@@ -566,9 +566,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
     });
 
     it('should not offer a swap when no other unit owns the MAC', async () => {
-      deviceRepo.findIdByMacAddress.mockResolvedValue(
-        Result.ok(null)
-      );
+      hardwareQuery.findDevicesByMac.mockResolvedValue(Result.ok([]));
 
       const result = await useCase.execute({ deviceId: DEVICE_UUID });
 
@@ -608,7 +606,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
       expect(
         modelSuggestion(result.value.suggestions)
       ).toBeUndefined();
-      expect(hardwareLookup.findCatalogModels).not.toHaveBeenCalled();
+      expect(hardwareQuery.findCatalogModels).not.toHaveBeenCalled();
     });
 
     it('should not suggest when the poll never reported a model', async () => {
@@ -655,7 +653,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
 
     it('should offer an in-place update while the device is in INVENTORY', async () => {
       reporting('PowerBeam 5AC ISO');
-      hardwareLookup.findHardware.mockResolvedValue(
+      hardwareQuery.findHardware.mockResolvedValue(
         Result.ok(makeHardware({ inInventory: true }))
       );
 
@@ -671,7 +669,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
 
     it('should fail when the catalog cannot be read', async () => {
       reporting('PowerBeam 5AC ISO');
-      hardwareLookup.findCatalogModels.mockResolvedValue(
+      hardwareQuery.findCatalogModels.mockResolvedValue(
         Result.fail('db down')
       );
 
@@ -681,7 +679,7 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
     });
 
     it('should fail when the device hardware cannot be read', async () => {
-      hardwareLookup.findHardware.mockResolvedValue(
+      hardwareQuery.findHardware.mockResolvedValue(
         Result.fail('db down')
       );
 
@@ -694,12 +692,6 @@ describe('GetDeviceIdentitySuggestionsUseCase', () => {
   // ===========================================================================
   describe('executeImpl — combined mismatch', () => {
     it('should report both fields when both differ', async () => {
-      deviceRepo.findBasicInfoById.mockResolvedValue(
-        Result.ok({
-          name: 'AP Roof1',
-          macAddress: 'AA:BB:CC:DD:EE:01'
-        })
-      );
       snapshotRepo.findLatestByDevice.mockResolvedValue(
         Result.ok(
           makeSnapshot({

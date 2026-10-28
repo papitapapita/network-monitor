@@ -270,7 +270,7 @@ import { WirelessDeviceRepositoryAdapter } from '../wireless-monitoring/adapters
 import { DeviceReachAdapter } from '../wireless-monitoring/adapters/DeviceReachAdapter';
 import { ContractedCapacityAdapter } from '../wireless-monitoring/adapters/ContractedCapacityAdapter';
 import { DeviceVendorAdapter } from '../wireless-monitoring/adapters/DeviceVendorAdapter';
-import { DeviceHardwareAdapter } from '../wireless-monitoring/adapters/DeviceHardwareAdapter';
+import { PrismaDeviceHardwareQuery } from '../wireless-monitoring/queries';
 import {
   WirelessAlertEvaluator,
   LinkDiagnosisAnalyzer
@@ -295,6 +295,7 @@ import {
   GetWirelessClientsUseCase,
   GetApExpectedClientsUseCase,
   GetDeviceIdentitySuggestionsUseCase,
+  GetHardwareChangesUseCase,
   GetActiveWirelessAlertsUseCase,
   GetWirelessAlertHistoryUseCase,
   TriggerWirelessPollUseCase,
@@ -564,6 +565,7 @@ import {
   PurgeOldWirelessSnapshotsUseCase,
   PurgeOldWirelessAlertRecordsUseCase
 } from 'application/wireless-monitoring/use-cases';
+import { HardwareChangeAssessor } from 'application/wireless-monitoring/services';
 import { DataRetentionOrchestrator } from '../retention/DataRetentionOrchestrator';
 import { TriggerDataRetentionUseCase } from 'application/shared/use-cases/TriggerDataRetentionUseCase';
 import { GetVendorSettingsUseCase } from 'application/shared/use-cases/GetVendorSettingsUseCase';
@@ -2283,17 +2285,28 @@ export class DependencyContainer {
         wirelessDeviceRepo,
         this.logger
       );
+    const deviceHardwareQuery = new PrismaDeviceHardwareQuery(
+      this.prisma
+    );
+    const hardwareChangeAssessor = new HardwareChangeAssessor(
+      deviceHardwareQuery,
+      this.logger
+    );
     const getDeviceIdentitySuggestionsUseCase =
       new GetDeviceIdentitySuggestionsUseCase(
         this.wirelessSnapshotRepository,
         this.wirelessDeviceConfigRepository,
         wirelessDeviceRepo,
-        new DeviceHardwareAdapter(
-          this.deviceRepository,
-          this.deviceModelRepository
-        ),
+        deviceHardwareQuery,
+        hardwareChangeAssessor,
         this.logger
       );
+    const getHardwareChangesUseCase = new GetHardwareChangesUseCase(
+      this.wirelessSnapshotRepository,
+      deviceHardwareQuery,
+      hardwareChangeAssessor,
+      this.logger
+    );
     const getActiveWirelessAlertsUseCase =
       new GetActiveWirelessAlertsUseCase(
         this.wirelessAlertRecordRepository,
@@ -2354,6 +2367,7 @@ export class DependencyContainer {
       getWirelessClientsUseCase,
       getApExpectedClientsUseCase,
       getDeviceIdentitySuggestionsUseCase,
+      getHardwareChangesUseCase,
       getActiveWirelessAlertsUseCase,
       getWirelessAlertHistoryUseCase,
       triggerWirelessPollUseCase,

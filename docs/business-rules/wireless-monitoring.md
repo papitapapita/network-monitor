@@ -2113,9 +2113,9 @@ model cannot be a typo of the MAC, so the in-service model suggestion offers
 only `REPLACE`. Model names are compared loosely because AirOS and the catalog
 spell the same hardware with different case, spacing and hyphens.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.ts` (`suggestModel`, `macActions`), `src/application/wireless-monitoring/services/matchReportedModel.ts`
-**Reached from:** `GET /api/devices/:id/wireless/identity/suggestions`
-**Tests:** `tests/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.test.ts`, `tests/application/wireless-monitoring/services/matchReportedModel.test.ts`, `tests/infrastructure/wireless-monitoring/adapters/DeviceHardwareAdapter.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetDeviceIdentitySuggestionsUseCase.integration.test.ts`
+**Enforced at:** `src/application/wireless-monitoring/services/HardwareChangeAssessor.ts` (`assess`, `macActions`), `src/application/wireless-monitoring/services/matchReportedModel.ts`
+**Reached from:** `GET /api/devices/:id/wireless/identity/suggestions`, `GET /api/wireless/hardware-changes`
+**Tests:** `tests/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.test.ts`, `tests/application/wireless-monitoring/services/matchReportedModel.test.ts`, `tests/infrastructure/wireless-monitoring/queries/PrismaDeviceHardwareQuery.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetDeviceIdentitySuggestionsUseCase.integration.test.ts`
 
 ### WLS-153 — A reported MAC that belongs to another device suggests swapping the two
 
@@ -2137,9 +2137,36 @@ records together. Replace would create a new record with a MAC that is already
 taken and be refused, and updating the MAC alone would trip the same
 uniqueness check.
 
-**Enforced at:** `src/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.ts` (`findSwapCandidate`)
-**Reached from:** `GET /api/devices/:id/wireless/identity/suggestions`
-**Tests:** `tests/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetDeviceIdentitySuggestionsUseCase.integration.test.ts`
+**Enforced at:** `src/application/wireless-monitoring/services/HardwareChangeAssessor.ts` (`findSwapCandidates`)
+**Reached from:** `GET /api/devices/:id/wireless/identity/suggestions`, `GET /api/wireless/hardware-changes`
+**Tests:** `tests/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase.test.ts`, `tests/application/wireless-monitoring/use-cases/GetHardwareChangesUseCase.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetDeviceIdentitySuggestionsUseCase.integration.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetHardwareChangesUseCase.integration.test.ts`
+
+### WLS-154 — The hardware-changes list shows every polled radio whose hardware no longer matches inventory
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application (not in domain)
+**Since:** 2026-10-27
+
+`GET /api/wireless/hardware-changes` checks every device that is not deleted
+and has wireless polling turned on, using the latest snapshot of each. A device
+is listed when its radio reports a model other than the one on file, or a MAC
+other than the one on file. A MAC reported where none is on file does not list a
+device by itself. A listed device carries its `macAddress` and `deviceModel`
+suggestions, with the same values and actions as the per-device suggestions
+(WLS-152, WLS-153). Devices never polled are left out. The list is sorted by
+device name and is never paged. Nothing is written.
+
+**Why:** Nobody opens every device to look for a swapped box, so a change that
+is only visible per device goes unnoticed and the history keeps landing on the
+wrong record. Retiring a device turns its wireless polling off, which keeps a
+replaced unit's last reading (often the new box) from staying on the list. A MAC
+that was simply never typed in is bookkeeping, not a hardware change, and would
+crowd the list on a fleet entered without MACs. The per-device suggestions
+still offer it.
+
+**Enforced at:** `src/application/wireless-monitoring/use-cases/GetHardwareChangesUseCase.ts`, `src/infrastructure/wireless-monitoring/queries/PrismaDeviceHardwareQuery.ts` (`findPolledHardware`)
+**Reached from:** `GET /api/wireless/hardware-changes`
+**Tests:** `tests/application/wireless-monitoring/use-cases/GetHardwareChangesUseCase.test.ts`, `tests/infrastructure/wireless-monitoring/queries/PrismaDeviceHardwareQuery.test.ts`, `tests/integration/use-cases/wireless-monitoring/GetHardwareChangesUseCase.integration.test.ts`, `tests/integration/wireless.routes.test.ts`
 
 ### WLS-142 — A history window must start before it ends
 

@@ -4733,6 +4733,42 @@ es.addEventListener('end', (e) => {
 
 ---
 
+### `GET /api/wireless/hardware-changes` — Hardware Changes (Global)
+
+**Status:** 200 | 401
+
+Since 2026-10-27. Requires the `read` permission (every role).
+
+```ts
+// Response — no envelope
+{
+  devices: Array<{
+    deviceId: string;
+    name: string; // from device-inventory
+    collectedAt: string; // ISO 8601, the poll the comparison used
+    // Same shape as the per-device identity suggestions, but only
+    // 'macAddress' and 'deviceModel' entries.
+    suggestions: DeviceIdentitySuggestion[];
+  }>; // sorted by name, not paged
+}
+```
+
+> Every radio being polled (wireless config enabled, device not deleted) whose
+> last poll reports a different model, or a different MAC than the one on file
+> (WLS-154). A MAC reported where none is on file does not list a device by
+> itself. Its suggestions follow the same rules as
+> `GET /api/devices/:id/wireless/identity/suggestions` (WLS-152, WLS-153), so
+> the `actions` table there applies as-is.
+>
+> **Frontend:** a "Hardware changes" screen, one card per device: the name, what
+> changed (`currentLabel`/`currentValue` → `suggestedLabel`/`suggestedValue`)
+> and one button for the first action of the device's suggestions. `SWAP`
+> devices come in pairs, each pointing at the other; accepting either fixes
+> both, so refetch after any action. An empty `devices` array means nothing to
+> fix. Show a count on the menu entry if it helps; the list is cheap to fetch.
+
+---
+
 ### `GET /api/wireless/alerts` — All Active Alerts (Global)
 
 **Status:** 200 | 400

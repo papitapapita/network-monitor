@@ -6,6 +6,7 @@ import {
   GetWirelessClientsUseCase,
   GetApExpectedClientsUseCase,
   GetDeviceIdentitySuggestionsUseCase,
+  GetHardwareChangesUseCase,
   GetActiveWirelessAlertsUseCase,
   GetWirelessAlertHistoryUseCase,
   TriggerWirelessPollUseCase,
@@ -27,6 +28,7 @@ export class WirelessController {
     private readonly getWirelessClientsUseCase: GetWirelessClientsUseCase,
     private readonly getApExpectedClientsUseCase: GetApExpectedClientsUseCase,
     private readonly getDeviceIdentitySuggestionsUseCase: GetDeviceIdentitySuggestionsUseCase,
+    private readonly getHardwareChangesUseCase: GetHardwareChangesUseCase,
     private readonly getActiveWirelessAlertsUseCase: GetActiveWirelessAlertsUseCase,
     private readonly getWirelessAlertHistoryUseCase: GetWirelessAlertHistoryUseCase,
     private readonly triggerWirelessPollUseCase: TriggerWirelessPollUseCase,
@@ -139,6 +141,25 @@ export class WirelessController {
         await this.getDeviceIdentitySuggestionsUseCase.execute({
           deviceId: req.params.id
         });
+
+      if (result.isFailure) {
+        const statusCode = this.getErrorStatusCode(result.error!);
+        res.status(statusCode).json({ error: result.error });
+        return;
+      }
+
+      res.status(200).json(result.value);
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public getHardwareChanges = async (
+    _req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.getHardwareChangesUseCase.execute();
 
       if (result.isFailure) {
         const statusCode = this.getErrorStatusCode(result.error!);

@@ -788,6 +788,62 @@ describe('[WLS-143] [WLS-144] [WLS-145] Wireless Routes — /api/devices/:id/wir
   });
 
   // ─────────────────────────────────────────────────────────────
+  // GET /api/wireless/hardware-changes  (global — all polled radios)
+  // ─────────────────────────────────────────────────────────────
+
+  describe('GET /api/wireless/hardware-changes', () => {
+    it('401 — rejects a request with no Authorization header', async () => {
+      const res = await request(app).get(
+        '/api/wireless/hardware-changes'
+      );
+
+      expect(res.status).toBe(401);
+    });
+
+    it('200 — returns an empty list when every radio matches inventory', async () => {
+      const res = await request(app)
+        .get('/api/wireless/hardware-changes')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ devices: [] });
+    });
+
+    it('200 — lists a radio that reports a different model', async () => {
+      await prisma.wirelessSnapshot.create({
+        data: {
+          deviceId,
+          deviceType: 'STATION',
+          collectionMethod: 'http_api',
+          collectedAt: new Date(Date.now() + 1000),
+          deviceModel: 'Unlisted Radio 5AC'
+        }
+      });
+
+      const res = await request(app)
+        .get('/api/wireless/hardware-changes')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.devices).toHaveLength(1);
+      expect(res.body.devices[0]).toMatchObject({
+        deviceId,
+        name: 'Wireless Test Device',
+        suggestions: [
+          {
+            field: 'deviceModel',
+            currentLabel: 'RB4011iGS+',
+            suggestedValue: null,
+            suggestedLabel: 'Unlisted Radio 5AC',
+            actions: ['REPLACE'],
+            swapWith: null
+          }
+        ]
+      });
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
   // GET /api/wireless/alerts  (global — all devices)
   // ─────────────────────────────────────────────────────────────
 

@@ -4,8 +4,8 @@ import { PrismaWirelessSnapshotRepository } from 'infrastructure/wireless-monito
 import { PrismaWirelessDeviceConfigRepository } from 'infrastructure/wireless-monitoring/repositories/PrismaWirelessDeviceConfigRepository';
 import { WirelessDeviceRepositoryAdapter } from 'infrastructure/wireless-monitoring/adapters/WirelessDeviceRepositoryAdapter';
 import { PrismaDeviceRepository } from 'infrastructure/persistence/PrismaDeviceRepository';
-import { PrismaDeviceModelRepository } from 'infrastructure/persistence/PrismaDeviceModelRepository';
-import { DeviceHardwareAdapter } from 'infrastructure/wireless-monitoring/adapters/DeviceHardwareAdapter';
+import { PrismaDeviceHardwareQuery } from 'infrastructure/wireless-monitoring/queries';
+import { HardwareChangeAssessor } from 'application/wireless-monitoring/services';
 import { DeviceEligibilityService } from 'domain/device-inventory/services';
 import { UpstreamAssignment } from 'application/device-inventory/services';
 import { WinstonLogger } from 'infrastructure/logging/WinstonLogger';
@@ -117,15 +117,15 @@ describe('GetDeviceIdentitySuggestionsUseCase — integration', () => {
       new DeviceEligibilityService(),
       new UpstreamAssignment(new PrismaDeviceRepository(prisma))
     );
+    const hardwareQuery = new PrismaDeviceHardwareQuery(prisma);
+    const logger = new WinstonLogger();
     useCase = new GetDeviceIdentitySuggestionsUseCase(
       new PrismaWirelessSnapshotRepository(prisma),
       new PrismaWirelessDeviceConfigRepository(prisma),
       deviceRepo,
-      new DeviceHardwareAdapter(
-        new PrismaDeviceRepository(prisma),
-        new PrismaDeviceModelRepository(prisma)
-      ),
-      new WinstonLogger()
+      hardwareQuery,
+      new HardwareChangeAssessor(hardwareQuery, logger),
+      logger
     );
   });
 

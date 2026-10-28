@@ -31,3 +31,4 @@ export * from './RevealWirelessKeyRequestDTO';
 export * from './RevealedWirelessKeyDTO';
 export * from './RenameRadioRequestDTO';
 export * from './RenameRadioResponseDTO';
+export * from './HardwareChangesResponseDTO';

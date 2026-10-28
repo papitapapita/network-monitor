@@ -7,6 +7,7 @@ import { GetWirelessDeviceHistoryUseCase } from '../../../../src/application/wir
 import { GetWirelessClientsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessClientsUseCase';
 import { GetApExpectedClientsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetApExpectedClientsUseCase';
 import { GetDeviceIdentitySuggestionsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetDeviceIdentitySuggestionsUseCase';
+import { GetHardwareChangesUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetHardwareChangesUseCase';
 import { GetActiveWirelessAlertsUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetActiveWirelessAlertsUseCase';
 import { GetWirelessAlertHistoryUseCase } from '../../../../src/application/wireless-monitoring/use-cases/GetWirelessAlertHistoryUseCase';
 import { TriggerWirelessPollUseCase } from '../../../../src/application/wireless-monitoring/use-cases/TriggerWirelessPollUseCase';
@@ -76,6 +77,9 @@ const createMockGetDeviceIdentitySuggestionsUseCase = () =>
   ({
     execute: jest.fn()
   }) as unknown as GetDeviceIdentitySuggestionsUseCase;
+
+const createMockGetHardwareChangesUseCase = () =>
+  ({ execute: jest.fn() }) as unknown as GetHardwareChangesUseCase;
 
 const createMockGetActiveAlertsUseCase = () =>
   ({
@@ -202,6 +206,7 @@ describe('WirelessController', () => {
   let mockGetClientsUseCase: GetWirelessClientsUseCase;
   let mockGetApExpectedClientsUseCase: GetApExpectedClientsUseCase;
   let mockGetDeviceIdentitySuggestionsUseCase: GetDeviceIdentitySuggestionsUseCase;
+  let mockGetHardwareChangesUseCase: GetHardwareChangesUseCase;
   let mockGetActiveAlertsUseCase: GetActiveWirelessAlertsUseCase;
   let mockGetAlertHistoryUseCase: GetWirelessAlertHistoryUseCase;
   let mockTriggerPollUseCase: TriggerWirelessPollUseCase;
@@ -222,6 +227,8 @@ describe('WirelessController', () => {
       createMockGetApExpectedClientsUseCase();
     mockGetDeviceIdentitySuggestionsUseCase =
       createMockGetDeviceIdentitySuggestionsUseCase();
+    mockGetHardwareChangesUseCase =
+      createMockGetHardwareChangesUseCase();
     mockGetActiveAlertsUseCase = createMockGetActiveAlertsUseCase();
     mockGetAlertHistoryUseCase = createMockGetAlertHistoryUseCase();
     mockTriggerPollUseCase = createMockTriggerPollUseCase();
@@ -244,6 +251,7 @@ describe('WirelessController', () => {
       mockGetClientsUseCase,
       mockGetApExpectedClientsUseCase,
       mockGetDeviceIdentitySuggestionsUseCase,
+      mockGetHardwareChangesUseCase,
       mockGetActiveAlertsUseCase,
       mockGetAlertHistoryUseCase,
       mockTriggerPollUseCase,
@@ -1586,6 +1594,39 @@ describe('WirelessController', () => {
           error: 'Internal server error'
         });
       });
+    });
+  });
+
+  // =========================================================================
+  describe('getHardwareChanges (GET /api/wireless/hardware-changes)', () => {
+    it('should return 200 with the use case result directly', async () => {
+      const body = { devices: [] };
+      (
+        mockGetHardwareChangesUseCase.execute as jest.Mock
+      ).mockResolvedValue(Result.ok(body));
+      const { res, statusMock, jsonMock } = createMockResponse();
+
+      await controller.getHardwareChanges(
+        createMockRequest() as Request,
+        res as Response
+      );
+
+      expect(statusMock).toHaveBeenCalledWith(200);
+      expect(jsonMock).toHaveBeenCalledWith(body);
+    });
+
+    it('should return 500 when the use case fails', async () => {
+      (
+        mockGetHardwareChangesUseCase.execute as jest.Mock
+      ).mockResolvedValue(Result.fail('Database error'));
+      const { res, statusMock } = createMockResponse();
+
+      await controller.getHardwareChanges(
+        createMockRequest() as Request,
+        res as Response
+      );
+
+      expect(statusMock).toHaveBeenCalledWith(500);
     });
   });
 

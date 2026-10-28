@@ -1,6 +1,5 @@
 import { Result } from 'domain/shared/core';
 import { DeviceId } from 'domain/shared/ids';
-import { MACAddress } from 'domain/shared/value-objects';
 import {
   IWirelessDeviceConfigRepository,
   IWirelessSnapshotRepository,
@@ -10,27 +9,18 @@ import {
 import { UseCase } from 'application/shared/core';
 import { ILogger } from 'application/shared/interfaces';
 import {
-  DeviceHardware,
-  IDeviceHardwareLookup,
+  IDeviceHardwareQuery,
   IDeviceRepository
 } from '../interfaces';
 import {
-  matchReportedModel,
-  normalizeModelName,
+  HardwareChangeAssessor,
   resolveReportedAp
 } from '../services';
 import {
-  DeviceIdentitySuggestionAction,
   DeviceIdentitySuggestionDTO,
   DeviceIdentitySuggestionsResponseDTO,
-  GetWirelessClientsRequestDTO,
-  SwapCandidateDTO
+  GetWirelessClientsRequestDTO
 } from '../dtos';
-
-function normalizeMac(mac: string): string {
-  const result = MACAddress.create(mac);
-  return result.isSuccess ? result.value.value : mac.toUpperCase();
-}
 
 export class GetDeviceIdentitySuggestionsUseCase extends UseCase<
   GetWirelessClientsRequestDTO,
@@ -40,7 +30,8 @@ export class GetDeviceIdentitySuggestionsUseCase extends UseCase<
     private readonly snapshotRepo: IWirelessSnapshotRepository,
     private readonly configRepo: IWirelessDeviceConfigRepository,
     private readonly deviceRepo: IDeviceRepository,
-    private readonly hardwareLookup: IDeviceHardwareLookup,
+    private readonly hardwareQuery: IDeviceHardwareQuery,
+    private readonly hardwareAssessor: HardwareChangeAssessor,
     logger: ILogger
   ) {
     super(logger, 'GetDeviceIdentitySuggestionsUseCase');
@@ -64,13 +55,13 @@ export class GetDeviceIdentitySuggestionsUseCase extends UseCase<
     }
     const deviceId = deviceIdResult.value;
 
-    const infoResult =
-      await this.deviceRepo.findBasicInfoById(deviceId);
-    if (infoResult.isFailure) {
-      return this.fail(infoResult.error);
+    const hardwareLookup =
+      await this.hardwareQuery.findHardware(deviceId);
+    if (hardwareLookup.isFailure) {
+      return this.fail(hardwareLookup.error);
     }
-    const info = infoResult.value;
-    if (!info) {
+    const hardware = hardwareLookup.value;
+    if (!hardware) {
       return this.fail('Device not found');
     }
 
@@ -98,11 +89,11 @@ export class GetDeviceIdentitySuggestionsUseCase extends UseCase<
     if (
       polledName &&
       polledName.trim().toLowerCase() !==
-        info.name.trim().toLowerCase()
+        hardware.name.trim().toLowerCase()
     ) {
       suggestions.push({
         field: 'name',
-        currentValue: info.name,
+        currentValue: hardware.name,
         suggestedValue: polledName.trim(),
         currentLabel: null,
         suggestedLabel: null,
@@ -111,53 +102,19 @@ export class GetDeviceIdentitySuggestionsUseCase extends UseCase<
       });
     }
 
-    const hardwareResult =
-      await this.hardwareLookup.findHardware(deviceId);
+    const hardwareResult = await this.hardwareAssessor.assess([
+      {
+        hardware,
+        macAddress: snapshot.metrics.macAddress,
+        deviceModel: snapshot.metrics.deviceModel
+      }
+    ]);
     if (hardwareResult.isFailure) {
       return this.fail(hardwareResult.error);
     }
-    const hardware = hardwareResult.value;
-
-    let swapWith: SwapCandidateDTO | null = null;
-    const polledMac = snapshot.metrics.macAddress;
-    if (polledMac) {
-      const normalizedPolledMac = normalizeMac(polledMac);
-      const normalizedCurrentMac = info.macAddress
-        ? normalizeMac(info.macAddress)
-        : null;
-      if (normalizedPolledMac !== normalizedCurrentMac) {
-        swapWith = await this.findSwapCandidate(
-          deviceId,
-          normalizedPolledMac
-        );
-        suggestions.push({
-          field: 'macAddress',
-          currentValue: info.macAddress,
-          suggestedValue: normalizedPolledMac,
-          currentLabel: null,
-          suggestedLabel: null,
-          actions: swapWith
-            ? ['SWAP']
-            : this.macActions(normalizedCurrentMac, hardware),
-          swapWith
-        });
-      }
-    }
-
-    const polledModel = snapshot.metrics.deviceModel?.trim();
-    if (polledModel && hardware) {
-      const modelSuggestion = await this.suggestModel(
-        polledModel,
-        hardware,
-        swapWith
-      );
-      if (modelSuggestion.isFailure) {
-        return this.fail(modelSuggestion.error);
-      }
-      if (modelSuggestion.value) {
-        suggestions.push(modelSuggestion.value);
-      }
-    }
+    suggestions.push(
+      ...(hardwareResult.value.get(hardware.deviceId) ?? [])
+    );
 
     const configResult =
       await this.configRepo.findByDeviceId(deviceId);
@@ -175,82 +132,6 @@ export class GetDeviceIdentitySuggestionsUseCase extends UseCase<
       polled: true,
       collectedAt: snapshot.collectedAt.toISOString(),
       suggestions
-    });
-  }
-
-  // A unit in service that reports a different MAC is most likely a swapped
-  // box, but could be a typo when the MAC was entered — so both are offered,
-  // replacement first.
-  private macActions(
-    currentMac: string | null,
-    hardware: DeviceHardware | null
-  ): DeviceIdentitySuggestionAction[] {
-    if (currentMac === null || !hardware || hardware.inInventory) {
-      return ['UPDATE'];
-    }
-    return ['REPLACE', 'UPDATE'];
-  }
-
-  // The radio's MAC is on another inventory record: the two units traded
-  // places, which swap-hardware handles and replace would refuse (the MAC is
-  // taken).
-  private async findSwapCandidate(
-    deviceId: DeviceId,
-    polledMac: string
-  ): Promise<SwapCandidateDTO | null> {
-    const ownerResult =
-      await this.deviceRepo.findIdByMacAddress(polledMac);
-    if (ownerResult.isFailure) {
-      this.logger.warn('Device lookup by MAC failed', {
-        deviceId: deviceId.toString(),
-        error: ownerResult.error
-      });
-      return null;
-    }
-    const owner = ownerResult.value;
-    if (!owner || owner.equals(deviceId)) return null;
-
-    const ownerInfo = await this.deviceRepo.findBasicInfoById(owner);
-    if (ownerInfo.isFailure || !ownerInfo.value) return null;
-
-    return { deviceId: owner.toString(), name: ownerInfo.value.name };
-  }
-
-  private async suggestModel(
-    polledModel: string,
-    hardware: DeviceHardware,
-    swapWith: SwapCandidateDTO | null
-  ): Promise<Result<DeviceIdentitySuggestionDTO | null>> {
-    if (
-      normalizeModelName(polledModel) ===
-      normalizeModelName(hardware.modelName)
-    ) {
-      return Result.ok(null);
-    }
-
-    const catalogResult =
-      await this.hardwareLookup.findCatalogModels();
-    if (catalogResult.isFailure) {
-      return Result.fail(catalogResult.error);
-    }
-    const match = matchReportedModel(
-      polledModel,
-      catalogResult.value,
-      hardware.vendorId
-    );
-
-    return Result.ok({
-      field: 'deviceModel',
-      currentValue: hardware.deviceModelId,
-      suggestedValue: match?.id ?? null,
-      currentLabel: hardware.modelName,
-      suggestedLabel: match?.model ?? polledModel,
-      actions: swapWith
-        ? ['SWAP']
-        : hardware.inInventory
-          ? ['UPDATE']
-          : ['REPLACE'],
-      swapWith
     });
   }
 

@@ -47,6 +47,7 @@ import {
  * - POST   /api/devices/:id/wireless/reboot        - Reboot the device
  * - GET    /api/wireless/alerts/history            - All alert history
  * - GET    /api/wireless/alerts                    - All active alerts
+ * - GET    /api/wireless/hardware-changes          - Radios that no longer match inventory
  */
 export function createWirelessRoutes(
   controller: WirelessController
@@ -191,6 +192,13 @@ export function createWirelessRoutes(
     createRateLimiter('read'),
     validateRequest(getAllActiveAlertsSchema),
     controller.getAllActiveAlerts
+  );
+
+  router.get(
+    '/wireless/hardware-changes',
+    authorize('read'),
+    createRateLimiter('read'),
+    controller.getHardwareChanges
   );
 
   return router;

@@ -6,6 +6,7 @@ export * from './GetWirelessDeviceHistoryUseCase';
 export * from './GetWirelessClientsUseCase';
 export * from './GetApExpectedClientsUseCase';
 export * from './GetDeviceIdentitySuggestionsUseCase';
+export * from './GetHardwareChangesUseCase';
 export * from './GetActiveWirelessAlertsUseCase';
 export * from './GetWirelessAlertHistoryUseCase';
 export * from './ClearWirelessAlertUseCase';
