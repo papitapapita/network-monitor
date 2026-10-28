@@ -372,6 +372,7 @@ import {
   ListSpeedTestsUseCase,
   WatchRouterTrafficUseCase,
   ListRouterPortSpeedsUseCase,
+  GetRouterPortSpeedsUseCase,
   SetPortExpectedSpeedUseCase,
   AcceptCurrentPortSpeedsUseCase,
   CheckPortSpeedsUseCase
@@ -1730,6 +1731,11 @@ export class DependencyContainer {
         portSpeedTargets,
         routerPortInspector,
         portExpectedSpeeds,
+        this.logger
+      ),
+      new GetRouterPortSpeedsUseCase(
+        portSpeedTargets,
+        routerPortInspector,
         this.logger
       ),
       this.logger

@@ -14,6 +14,8 @@ export interface RouterPortDTO {
   rateMbps: number | null;
   fullDuplex: boolean | null;
   expectedMbps: number | null;
+  // MON-149: false without an expected speed
+  alertOnNoLink: boolean;
   verdict: PortSpeedVerdict;
 }
 
@@ -35,17 +37,29 @@ export interface PortSpeedsResponseDTO {
   routers: RouterPortSpeedsDTO[];
 }
 
+export interface GetRouterPortSpeedsRequestDTO {
+  deviceId: string;
+}
+
+export interface RouterPortSpeedsResponseDTO {
+  checkedAt: string;
+  router: RouterPortSpeedsDTO;
+}
+
 export interface SetPortExpectedSpeedRequestDTO {
   deviceId: string;
   portName: string;
   // null clears it
   expectedMbps: number | null;
+  // omitted keeps what the port had; a new one starts off
+  alertOnNoLink?: boolean;
 }
 
 export interface PortExpectedSpeedDTO {
   deviceId: string;
   portName: string;
   expectedMbps: number | null;
+  alertOnNoLink: boolean;
 }
 
 export interface AcceptCurrentPortSpeedsRequestDTO {

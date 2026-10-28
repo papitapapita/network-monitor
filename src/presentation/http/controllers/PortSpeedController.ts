@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { ILogger } from 'application/shared/interfaces';
 import {
   AcceptCurrentPortSpeedsUseCase,
+  GetRouterPortSpeedsUseCase,
   ListRouterPortSpeedsUseCase,
   PORT_SPEED_ROUTER_DID_NOT_ANSWER,
   PORT_SPEED_ROUTER_NOT_FOUND,
@@ -14,6 +15,7 @@ export class PortSpeedController {
     private readonly listRouterPortSpeedsUseCase: ListRouterPortSpeedsUseCase,
     private readonly setPortExpectedSpeedUseCase: SetPortExpectedSpeedUseCase,
     private readonly acceptCurrentPortSpeedsUseCase: AcceptCurrentPortSpeedsUseCase,
+    private readonly getRouterPortSpeedsUseCase: GetRouterPortSpeedsUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -38,6 +40,26 @@ export class PortSpeedController {
     }
   };
 
+  public get = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const result = await this.getRouterPortSpeedsUseCase.execute({
+        deviceId: req.params.id
+      });
+      if (result.isFailure) {
+        res
+          .status(this.getErrorStatusCode(result.error!))
+          .json({ success: false, error: result.error });
+        return;
+      }
+      res
+        .status(200)
+        .set('Cache-Control', 'no-store')
+        .json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
   public setExpected = async (
     req: Request,
     res: Response
@@ -46,7 +68,8 @@ export class PortSpeedController {
       const result = await this.setPortExpectedSpeedUseCase.execute({
         deviceId: req.params.id,
         portName: req.body.portName,
-        expectedMbps: req.body.expectedMbps
+        expectedMbps: req.body.expectedMbps,
+        alertOnNoLink: req.body.alertOnNoLink
       });
       if (result.isFailure) {
         res

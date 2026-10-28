@@ -161,6 +161,33 @@ describe('CheckPortSpeedsUseCase — integration', () => {
     });
   });
 
+  it('[MON-149] should alert on a lost link for a port set to, and recover when it is back', async () => {
+    await seedExpectedSpeed(prisma, coreId, 'ether1', 1000, true);
+    reader.serve('10.0.0.1', [unlinkedPort('ether1')]);
+
+    await check(T1);
+    await check(T2);
+    expect(publisher.sent).toEqual([
+      expect.objectContaining({
+        resolved: false,
+        summary:
+          'El puerto ether1 de "Core" está sin enlace, debería estar a 1 Gbps'
+      })
+    ]);
+    expect(await checkStateOf(prisma, coreId, 'ether1')).toEqual({
+      slowChecks: 2,
+      alertedAt: T2
+    });
+
+    reader.serve('10.0.0.1', [linkedPort('ether1', 1000)]);
+    await check(T3);
+
+    expect(publisher.sent[1]).toMatchObject({
+      resolved: true,
+      summary: 'El puerto ether1 de "Core" volvió a 1 Gbps'
+    });
+  });
+
   it('[MON-147] should keep the state of a router that does not answer', async () => {
     await seedExpectedSpeed(prisma, coreId, 'ether1', 1000);
     reader.serve('10.0.0.1', [linkedPort('ether1', 100)]);

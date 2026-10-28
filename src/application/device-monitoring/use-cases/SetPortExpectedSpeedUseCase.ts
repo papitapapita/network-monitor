@@ -12,8 +12,9 @@ import {
 
 export const PORT_SPEED_ROUTER_NOT_FOUND = 'Router not found';
 
-// MON-142: sets, changes or clears the speed one port should link at. The
-// router is not read, so a port can be set while it is unreachable.
+// MON-142: sets, changes or clears the speed one port should link at, and
+// whether no link alerts (MON-149). The router is not read, so a port can be
+// set while it is unreachable.
 export class SetPortExpectedSpeedUseCase extends UseCase<
   SetPortExpectedSpeedRequestDTO,
   PortExpectedSpeedDTO
@@ -50,7 +51,8 @@ export class SetPortExpectedSpeedUseCase extends UseCase<
       return this.ok({
         deviceId: deviceId.value.toString(),
         portName,
-        expectedMbps: null
+        expectedMbps: null,
+        alertOnNoLink: false
       });
     }
 
@@ -64,12 +66,16 @@ export class SetPortExpectedSpeedUseCase extends UseCase<
     if (existing.value) {
       const changed = existing.value.changeTo(request.expectedMbps);
       if (changed.isFailure) return this.fail(changed.error);
+      if (request.alertOnNoLink !== undefined) {
+        existing.value.changeAlertOnNoLink(request.alertOnNoLink);
+      }
       speed = existing.value;
     } else {
       const created = PortExpectedSpeed.create({
         deviceId: deviceId.value,
         portName,
-        expectedMbps: request.expectedMbps
+        expectedMbps: request.expectedMbps,
+        alertOnNoLink: request.alertOnNoLink
       });
       if (created.isFailure) return this.fail(created.error);
       speed = created.value;
@@ -81,7 +87,8 @@ export class SetPortExpectedSpeedUseCase extends UseCase<
     return this.ok({
       deviceId: speed.deviceId.toString(),
       portName: speed.portName,
-      expectedMbps: speed.expected.mbps
+      expectedMbps: speed.expected.mbps,
+      alertOnNoLink: speed.alertOnNoLink
     });
   }
 }

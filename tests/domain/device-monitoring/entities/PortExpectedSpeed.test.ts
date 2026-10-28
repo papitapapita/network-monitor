@@ -92,6 +92,28 @@ describe('PortExpectedSpeed', () => {
     });
   });
 
+  describe('alertOnNoLink', () => {
+    it('[MON-149] should start off unless asked for', () => {
+      expect(makeSpeed().alertOnNoLink).toBe(false);
+      expect(makeSpeed({ alertOnNoLink: true }).alertOnNoLink).toBe(
+        true
+      );
+    });
+
+    it('[MON-149] should turn on and off without touching the speed or the streak', () => {
+      const speed = makeSpeed();
+      speed.recordCheck('SHORT', new Date());
+
+      speed.changeAlertOnNoLink(true);
+      expect(speed.alertOnNoLink).toBe(true);
+      speed.changeAlertOnNoLink(false);
+
+      expect(speed.alertOnNoLink).toBe(false);
+      expect(speed.expected.mbps).toBe(1000);
+      expect(speed.slowChecks).toBe(1);
+    });
+  });
+
   describe('isMetBy', () => {
     it('[MON-143] should be met at the expected rate, full duplex', () => {
       expect(

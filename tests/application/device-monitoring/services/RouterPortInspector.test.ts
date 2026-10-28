@@ -176,6 +176,7 @@ describe('RouterPortInspector', () => {
             rateMbps: 1000,
             fullDuplex: true,
             expectedMbps: 1000,
+            alertOnNoLink: false,
             verdict: 'OK'
           },
           {
@@ -185,6 +186,7 @@ describe('RouterPortInspector', () => {
             rateMbps: 100,
             fullDuplex: true,
             expectedMbps: 1000,
+            alertOnNoLink: false,
             verdict: 'SLOW'
           },
           {
@@ -194,6 +196,7 @@ describe('RouterPortInspector', () => {
             rateMbps: null,
             fullDuplex: true,
             expectedMbps: null,
+            alertOnNoLink: false,
             verdict: 'NO_LINK'
           }
         ]
@@ -224,6 +227,7 @@ describe('RouterPortInspector', () => {
       rateMbps: null,
       fullDuplex: null,
       expectedMbps: 1000,
+      alertOnNoLink: false,
       verdict: 'PORT_MISSING'
     });
   });

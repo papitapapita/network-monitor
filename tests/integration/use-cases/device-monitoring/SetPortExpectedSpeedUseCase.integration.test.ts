@@ -61,7 +61,8 @@ describe('SetPortExpectedSpeedUseCase — integration', () => {
     expect(result.value).toEqual({
       deviceId: coreId,
       portName: 'ether2',
-      expectedMbps: 1000
+      expectedMbps: 1000,
+      alertOnNoLink: false
     });
     expect(await expectedSpeedsOf(prisma, coreId)).toEqual({
       ether2: 1000
@@ -129,6 +130,36 @@ describe('SetPortExpectedSpeedUseCase — integration', () => {
     expect((await set(GHOST_ID, 'ether1', 100)).error).toBe(
       PORT_SPEED_ROUTER_NOT_FOUND
     );
+  });
+
+  it('[MON-149] should store the no-link alert and keep it when only the speed changes', async () => {
+    const setup = buildPortSpeeds(prisma, reader).setExpected;
+    await setup.execute({
+      deviceId: coreId,
+      portName: 'ether1',
+      expectedMbps: 1000,
+      alertOnNoLink: true
+    });
+    await set(coreId, 'ether1', 100);
+
+    const row = await prisma.portExpectedSpeed.findFirstOrThrow({
+      where: { deviceId: coreId, portName: 'ether1' }
+    });
+    expect([row.expectedMbps, row.alertOnNoLink]).toEqual([
+      100,
+      true
+    ]);
+
+    await setup.execute({
+      deviceId: coreId,
+      portName: 'ether1',
+      expectedMbps: 100,
+      alertOnNoLink: false
+    });
+    const off = await prisma.portExpectedSpeed.findFirstOrThrow({
+      where: { deviceId: coreId, portName: 'ether1' }
+    });
+    expect(off.alertOnNoLink).toBe(false);
   });
 
   it('should refuse a malformed device id', async () => {

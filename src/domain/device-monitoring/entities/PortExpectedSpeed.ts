@@ -6,8 +6,9 @@ import { PortSpeed } from '../value-objects';
 export const PORT_NAME_MAX_LENGTH = 64;
 export const SLOW_CHECKS_BEFORE_ALERT = 2;
 
-// SHORT: linked below the expected speed or at half duplex. UNJUDGED: read,
-// but nothing to judge (no link, no rate, the port is gone).
+// SHORT: linked below the expected speed or at half duplex, or no link on a
+// port that alerts on it (MON-149). UNJUDGED: read, but nothing to judge (no
+// link, no rate, the port is gone).
 export type PortCheckOutcome = 'MET' | 'SHORT' | 'UNJUDGED';
 export type PortAlertChange = 'RAISED' | 'RECOVERED' | null;
 
@@ -15,6 +16,7 @@ export interface PortExpectedSpeedInput {
   deviceId: DeviceId;
   portName: string;
   expectedMbps: number;
+  alertOnNoLink?: boolean;
 }
 
 export interface PortLink {
@@ -47,6 +49,10 @@ export class PortExpectedSpeed extends Entity<
     return this.props.expected;
   }
 
+  get alertOnNoLink(): boolean {
+    return this.props.alertOnNoLink;
+  }
+
   get slowChecks(): number {
     return this.props.slowChecks;
   }
@@ -76,6 +82,7 @@ export class PortExpectedSpeed extends Entity<
       deviceId: input.deviceId,
       portName: input.portName.trim(),
       expected: expected.value,
+      alertOnNoLink: input.alertOnNoLink ?? false,
       slowChecks: 0,
       alertedAt: null
     };
@@ -101,6 +108,12 @@ export class PortExpectedSpeed extends Entity<
     if (problem) return Result.fail(problem);
     this.props = next;
     return Result.ok();
+  }
+
+  // MON-149: turned off, a port with no link breaks its streak at the next
+  // check rather than here.
+  public changeAlertOnNoLink(on: boolean): void {
+    this.props = { ...this.props, alertOnNoLink: on };
   }
 
   // MON-143: slower than expected, or at half duplex, falls short.

@@ -64,7 +64,10 @@ export class PrismaPortExpectedSpeedRepository
               }
             },
             create: data,
-            update: { expectedMbps: data.expectedMbps }
+            update: {
+              expectedMbps: data.expectedMbps,
+              alertOnNoLink: data.alertOnNoLink
+            }
           });
         })
       );

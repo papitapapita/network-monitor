@@ -1979,6 +1979,7 @@ interface RouterPortDTO {
   rateMbps: number | null; // 10, 100, 1000, 2500, 10000…; null with no link
   fullDuplex: boolean | null; // null when the router did not say
   expectedMbps: number | null;
+  alertOnNoLink: boolean; // MON-149; false without an expected speed
   verdict: PortSpeedVerdict;
 }
 
@@ -2020,7 +2021,30 @@ does not answer.
 Show `SLOW` red, `OK` green, `NO_LINK` grey, `NO_EXPECTATION` neutral with a
 "set" action, `PORT_MISSING` amber ("the router has no port by that name, so
 remove it or rename it back"). Each row needs a speed picker that calls `PUT …/expected`,
-and each card an "Accept current speeds" button.
+and each card an "Accept current speeds" button and a "Check now" button
+(`GET /api/routers/:id/port-speeds`, below) that refreshes only that card.
+
+---
+
+### `GET /api/routers/:id/port-speeds` — One MikroTik's ports, read now
+
+**Status:** 200 | 400 | 401 | 404
+**Roles:** all (`read`) · `Cache-Control: no-store`
+**Since:** 2026-10-28
+
+```ts
+// data
+{
+  checkedAt: string; // ISO
+  router: RouterPortSpeedsDTO; // as in the list
+}
+```
+
+Reads only this router (MON-150), so it answers in about a second instead of
+waiting for the slowest router. A router that cannot be read or does not
+answer is still `200`, with its `reason` or `error`. `404` `Router not found`
+when the device is not one of the routers above. It only reads: alerts are
+raised and recovered by the scheduled check, not by this button.
 
 ---
 
@@ -2034,6 +2058,7 @@ and each card an "Accept current speeds" button.
 {
   portName: string; // as the router names it, 1–64 chars
   expectedMbps: number | null; // one of the allowed speeds; null clears it
+  alertOnNoLink?: boolean; // MON-149; omitted keeps it (a new port starts false)
 }
 
 // data
@@ -2041,8 +2066,13 @@ and each card an "Accept current speeds" button.
   deviceId: string;
   portName: string;
   expectedMbps: number | null;
+  alertOnNoLink: boolean; // false once cleared
 }
 ```
+
+**Frontend:** next to the speed picker, a switch "Avisar si pierde enlace"
+that sends the port's current `expectedMbps` with `alertOnNoLink`. Only
+enabled once the port has an expected speed.
 
 The router is not read, so a port can be set while the router is down.
 `400` for a speed not in the list
@@ -2081,7 +2111,8 @@ router above that has at least one expected speed (MON-147):
   again while the port stays slow.
 - When it is back to `OK`, a recovery is sent (`resolved: true`).
 - `NO_LINK`, `UNKNOWN`, `PORT_MISSING`, or a router that does not answer,
-  sends nothing.
+  sends nothing, except a port with `alertOnNoLink: true`, whose lost link
+  counts as `SLOW` (MON-149).
 
 One notice per router per check, type `port_speed_low`, severity
 `WARNING`, through the usual chain: Telegram, phones and the inbox (category
@@ -2089,7 +2120,8 @@ One notice per router per check, type `port_speed_low`, severity
 Examples:
 
 - `El puerto ether3 (Backhaul) de "Core" está a 100 Mbps, debería estar a 1 Gbps`
-- `2 puertos de "Core" están más lentos de lo que deberían` (`body` lists them)
+- `El puerto ether3 (Backhaul) de "Core" está sin enlace, debería estar a 1 Gbps`
+- `2 puertos de "Core" están más lentos de lo que deberían` (`body` lists them; `… sin enlace o más lentos …` when one has no link)
 - `El puerto ether3 de "Core" volvió a 1 Gbps`
 
 It is a notification only and does not appear in `GET /api/alerts`. Mute it

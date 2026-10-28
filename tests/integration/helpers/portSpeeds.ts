@@ -7,6 +7,7 @@ import { RouterPortInspector } from '../../../src/application/device-monitoring/
 import {
   AcceptCurrentPortSpeedsUseCase,
   CheckPortSpeedsUseCase,
+  GetRouterPortSpeedsUseCase,
   ListRouterPortSpeedsUseCase,
   SetPortExpectedSpeedUseCase
 } from '../../../src/application/device-monitoring/use-cases';
@@ -103,10 +104,11 @@ export async function seedExpectedSpeed(
   prisma: PrismaClient,
   deviceId: string,
   portName: string,
-  expectedMbps: number
+  expectedMbps: number,
+  alertOnNoLink = false
 ): Promise<void> {
   await prisma.portExpectedSpeed.create({
-    data: { deviceId, portName, expectedMbps }
+    data: { deviceId, portName, expectedMbps, alertOnNoLink }
   });
 }
 
@@ -153,6 +155,7 @@ export function buildPortSpeeds(
   const inspector = new RouterPortInspector(reader, repository);
   return {
     list: new ListRouterPortSpeedsUseCase(targets, inspector, logger),
+    get: new GetRouterPortSpeedsUseCase(targets, inspector, logger),
     setExpected: new SetPortExpectedSpeedUseCase(
       targets,
       repository,

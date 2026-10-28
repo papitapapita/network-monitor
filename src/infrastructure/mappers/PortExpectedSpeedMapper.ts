@@ -7,6 +7,7 @@ type PrismaPortExpectedSpeedRecord = {
   deviceId: string;
   portName: string;
   expectedMbps: number;
+  alertOnNoLink: boolean;
   slowChecks: number;
   alertedAt: Date | null;
 };
@@ -27,6 +28,7 @@ export class PortExpectedSpeedMapper {
       deviceId: deviceId.value,
       portName: raw.portName,
       expected: PortSpeed.reconstitute({ mbps: raw.expectedMbps }),
+      alertOnNoLink: raw.alertOnNoLink,
       slowChecks: raw.slowChecks,
       alertedAt: raw.alertedAt
     });
@@ -40,6 +42,7 @@ export class PortExpectedSpeedMapper {
       deviceId: entity.deviceId.toString(),
       portName: entity.portName,
       expectedMbps: entity.expected.mbps,
+      alertOnNoLink: entity.alertOnNoLink,
       slowChecks: entity.slowChecks,
       alertedAt: entity.alertedAt
     };

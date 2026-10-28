@@ -1,8 +1,9 @@
 // Source: src/application/device-monitoring/use-cases/ListRouterPortSpeedsUseCase.ts,
 // SetPortExpectedSpeedUseCase.ts, AcceptCurrentPortSpeedsUseCase.ts,
-// CheckPortSpeedsUseCase.ts
+// CheckPortSpeedsUseCase.ts, GetRouterPortSpeedsUseCase.ts
 
 import { ListRouterPortSpeedsUseCase } from '../../../../src/application/device-monitoring/use-cases/ListRouterPortSpeedsUseCase';
+import { GetRouterPortSpeedsUseCase } from '../../../../src/application/device-monitoring/use-cases/GetRouterPortSpeedsUseCase';
 import {
   PORT_SPEED_ROUTER_NOT_FOUND,
   SetPortExpectedSpeedUseCase
@@ -75,11 +76,16 @@ function makePort(
   };
 }
 
-function makeExpected(portName: string, expectedMbps: number) {
+function makeExpected(
+  portName: string,
+  expectedMbps: number,
+  alertOnNoLink = false
+) {
   return PortExpectedSpeed.create({
     deviceId: DeviceId.parse(ROUTER_ID).value,
     portName,
-    expectedMbps
+    expectedMbps,
+    alertOnNoLink
   }).value;
 }
 
@@ -203,6 +209,74 @@ describe('ListRouterPortSpeedsUseCase', () => {
   });
 });
 
+describe('GetRouterPortSpeedsUseCase', () => {
+  const make = (targets = makeTargets()) => {
+    const reader = makeReader([makePort({ rateMbps: 100 })]);
+    return {
+      reader,
+      targets,
+      useCase: new GetRouterPortSpeedsUseCase(
+        targets,
+        new RouterPortInspector(
+          reader,
+          new InMemoryPortExpectedSpeeds([
+            makeExpected('ether1', 1000)
+          ])
+        ),
+        makeLogger(),
+        () => NOW
+      )
+    };
+  };
+
+  it('[MON-150] should read that one router now and judge its ports', async () => {
+    const { useCase, targets } = make();
+
+    const result = await useCase.execute({ deviceId: ROUTER_ID });
+
+    expect(targets.findRouter).toHaveBeenCalledWith(ROUTER_ID);
+    expect(targets.listRouters).not.toHaveBeenCalled();
+    expect(result.value.checkedAt).toBe(NOW.toISOString());
+    expect(result.value.router).toMatchObject({
+      deviceId: ROUTER_ID,
+      identity: 'Core-Insetel',
+      readable: true
+    });
+    expect(result.value.router.ports[0]!.verdict).toBe('SLOW');
+  });
+
+  it('[MON-150] should list a router it cannot read with the reason', async () => {
+    const { useCase, reader } = make(
+      makeTargets(makeCandidate({ login: null }))
+    );
+
+    const result = await useCase.execute({ deviceId: ROUTER_ID });
+
+    expect(result.value.router).toMatchObject({
+      readable: false,
+      reason: 'The router has no username and password saved'
+    });
+    expect(reader.read).not.toHaveBeenCalled();
+  });
+
+  it('should refuse a device that is not one of the MikroTiks', async () => {
+    const { useCase } = make(makeTargets(null));
+
+    const result = await useCase.execute({ deviceId: ROUTER_ID });
+
+    expect(result.error).toBe(PORT_SPEED_ROUTER_NOT_FOUND);
+  });
+
+  it('should refuse a malformed device id', async () => {
+    const { useCase, targets } = make();
+
+    const result = await useCase.execute({ deviceId: 'nope' });
+
+    expect(result.error).toMatch(/^Invalid device ID/);
+    expect(targets.findRouter).not.toHaveBeenCalled();
+  });
+});
+
 describe('SetPortExpectedSpeedUseCase', () => {
   const make = (
     repository = new InMemoryPortExpectedSpeeds(),
@@ -229,9 +303,46 @@ describe('SetPortExpectedSpeedUseCase', () => {
     expect(result.value).toEqual({
       deviceId: ROUTER_ID,
       portName: 'ether3',
-      expectedMbps: 1000
+      expectedMbps: 1000,
+      alertOnNoLink: false
     });
     expect(repository.mbpsOf('ether3')).toBe(1000);
+  });
+
+  it('[MON-149] should turn the no-link alert on with a new speed', async () => {
+    const { useCase } = make();
+
+    const result = await useCase.execute({
+      deviceId: ROUTER_ID,
+      portName: 'ether3',
+      expectedMbps: 1000,
+      alertOnNoLink: true
+    });
+
+    expect(result.value.alertOnNoLink).toBe(true);
+  });
+
+  it('[MON-149] should keep the no-link alert when it is not given, and turn it off when told', async () => {
+    const existing = makeExpected('ether3', 1000, true);
+    const { useCase } = make(
+      new InMemoryPortExpectedSpeeds([existing])
+    );
+
+    const kept = await useCase.execute({
+      deviceId: ROUTER_ID,
+      portName: 'ether3',
+      expectedMbps: 100
+    });
+    const off = await useCase.execute({
+      deviceId: ROUTER_ID,
+      portName: 'ether3',
+      expectedMbps: 100,
+      alertOnNoLink: false
+    });
+
+    expect(kept.value.alertOnNoLink).toBe(true);
+    expect(off.value.alertOnNoLink).toBe(false);
+    expect(existing.alertOnNoLink).toBe(false);
   });
 
   it('[MON-142] should change a speed already set, keeping its row', async () => {
@@ -598,6 +709,84 @@ describe('CheckPortSpeedsUseCase', () => {
 
     expect(publisher.publish).not.toHaveBeenCalled();
     expect(expected.alertedAt).toEqual(NOW);
+  });
+
+  it('[MON-149] should alert on a port that lost its link when it alerts on no link', async () => {
+    const repository = new InMemoryPortExpectedSpeeds([
+      makeExpected('ether3', 1000, true)
+    ]);
+    const publisher = makePublisher();
+    const useCase = makeUseCase(
+      makeReader([
+        makePort({
+          name: 'ether3',
+          comment: 'Backhaul',
+          linked: false,
+          rateMbps: null,
+          fullDuplex: null
+        })
+      ]),
+      repository,
+      publisher
+    );
+
+    await useCase.execute({ now: NOW });
+    expect(publisher.publish).not.toHaveBeenCalled();
+    await useCase.execute({ now: LATER });
+
+    expect(publisher.sent).toEqual([
+      expect.objectContaining({
+        resolved: false,
+        type: PORT_SPEED_LOW_ALERT_TYPE,
+        summary:
+          'El puerto ether3 (Backhaul) de "RB4011 Core" está sin enlace, debería estar a 1 Gbps'
+      })
+    ]);
+  });
+
+  it('[MON-149] should recover once the link is back at its speed', async () => {
+    const expected = makeExpected('ether1', 1000, true);
+    expected.recordCheck('SHORT', NOW);
+    expected.recordCheck('SHORT', NOW);
+    const publisher = makePublisher();
+
+    await makeUseCase(
+      makeReader([makePort()]),
+      new InMemoryPortExpectedSpeeds([expected]),
+      publisher
+    ).execute({ now: LATER });
+
+    expect(publisher.sent[0]).toMatchObject({
+      resolved: true,
+      summary: 'El puerto ether1 de "RB4011 Core" volvió a 1 Gbps'
+    });
+  });
+
+  it('[MON-149] should name a port without link among several in one notice', async () => {
+    const repository = new InMemoryPortExpectedSpeeds([
+      makeExpected('ether1', 1000),
+      makeExpected('ether2', 1000, true)
+    ]);
+    const publisher = makePublisher();
+    const useCase = makeUseCase(
+      makeReader([
+        makePort({ rateMbps: 100 }),
+        makePort({ name: 'ether2', linked: false, rateMbps: null })
+      ]),
+      repository,
+      publisher
+    );
+
+    await useCase.execute({ now: NOW });
+    await useCase.execute({ now: LATER });
+
+    expect(publisher.sent).toHaveLength(1);
+    expect(publisher.sent[0]).toMatchObject({
+      summary:
+        '2 puertos de "RB4011 Core" están sin enlace o más lentos de lo que deberían',
+      detail:
+        '• ether1: 100 Mbps, debería estar a 1 Gbps\n• ether2: sin enlace, debería estar a 1 Gbps'
+    });
   });
 
   it('[MON-147] should break the streak when a check has nothing to judge', async () => {

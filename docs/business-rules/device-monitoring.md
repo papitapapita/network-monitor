@@ -1143,7 +1143,8 @@ expected speed is judged as in MON-143:
   sent and the alert is closed.
 - **No link, no rate, or no such port on the router** ends the streak but
   leaves a raised alert open: nothing is sent either way. An unplugged port
-  may be on purpose, and the device-down alerts cover the far end.
+  may be on purpose, and the device-down alerts cover the far end. A port
+  set to alert on no link counts no link as SLOW instead (MON-149).
 - **A router that cannot be read** (no answer, no address, no login, off
   site) changes nothing for its ports. It is logged.
 
@@ -1177,8 +1178,10 @@ appear in `GET /api/alerts`.
   `port_speed_low` silences both.
 - One notice per router per check. With a single port it names it:
   `El puerto ether3 (Backhaul) de "Core" está a 100 Mbps, debería estar a 1 Gbps`
-  (`… a 1 Gbps en half duplex, …` for half duplex). With several it says
-  `2 puertos de "Core" están más lentos de lo que deberían` and lists each.
+  (`… a 1 Gbps en half duplex, …` for half duplex, `… está sin enlace, …`
+  for a lost link, MON-149). With several it says
+  `2 puertos de "Core" están más lentos de lo que deberían` (`… están sin
+  enlace o más lentos …` when one of them has no link) and lists each.
   A recovery reads `El puerto ether3 de "Core" volvió a 1 Gbps`.
 - A notice held back (quiet hours, muted) or that fails to send is not
   retried: the alert counts as raised, and the inbox still has it.
@@ -1190,3 +1193,55 @@ outage to page someone about at night.
 
 **Enforced at:** `src/application/device-monitoring/use-cases/CheckPortSpeedsUseCase.ts`
 **Tests:** `tests/application/device-monitoring/use-cases/PortSpeedUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/CheckPortSpeedsUseCase.integration.test.ts`
+
+### MON-149 — A port can be set to alert when it loses its link
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+Each expected speed has an "alert on no link" switch, off unless an
+operator turns it on with `alertOnNoLink: true` when setting the speed
+(MON-142). A new expected speed, including one stored by "accept current",
+starts with it off; changing only the speed keeps it as it was; clearing the
+speed drops it.
+
+With it on, the scheduled check (MON-147) counts a port with no link as
+SLOW: two checks in a row without link raise one `port_speed_low` alert,
+`El puerto ether3 (Backhaul) de "Core" está sin enlace, debería estar a 1 Gbps`,
+and the recovery is sent once the port links at its speed again. A link
+that comes back slower than expected keeps the alert open, as any slow port.
+A port the router no longer has still sends nothing. The list keeps showing
+such a port as `NO_LINK`; the switch is shown beside it.
+
+Turning it off while a no-link alert is open leaves that alert open until
+the port links at its speed again; the streak ends at the next check.
+
+**Why:** An unplugged port is often on purpose, so no link stays silent by
+default. On a backhaul or an uplink to another tower, a lost link is the
+fault itself, and the device-down alert for the far end may come late or
+name the wrong device.
+
+**Enforced at:** `src/domain/device-monitoring/entities/PortExpectedSpeed.ts` (`alertOnNoLink`, `changeAlertOnNoLink`), `src/application/device-monitoring/use-cases/CheckPortSpeedsUseCase.ts`, `src/application/device-monitoring/use-cases/SetPortExpectedSpeedUseCase.ts`, `src/presentation/http/validation/port-speed.schemas.ts`
+**Tests:** `tests/domain/device-monitoring/entities/PortExpectedSpeed.test.ts`, `tests/application/device-monitoring/use-cases/PortSpeedUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/SetPortExpectedSpeedUseCase.integration.test.ts`, `tests/integration/use-cases/device-monitoring/CheckPortSpeedsUseCase.integration.test.ts`, `tests/integration/port-speed.routes.test.ts`
+
+### MON-150 — One router's ports can be read on their own, now
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+`GET /api/routers/:id/port-speeds` reads one router of MON-140 live and
+answers it exactly as the list shows it, with the time it was read, without
+waiting for the other routers. A router that cannot be read is answered with
+its reason (MON-145), one that does not answer with its error, both `200`.
+A device that is not one of those routers is `404 Router not found`. Anyone
+may look (MON-146).
+
+It only reads: the scheduled check's streaks and open alerts are not
+touched, so checking a port again and again after changing a cable neither
+raises nor recovers an alert. The next scheduled check does that.
+
+**Why:** After swapping a cable the operator wants to see that port now. The
+list reads every router and waits for the slowest one.
+
+**Enforced at:** `src/application/device-monitoring/use-cases/GetRouterPortSpeedsUseCase.ts`, `src/presentation/http/routes/port-speed.routes.ts`
+**Tests:** `tests/application/device-monitoring/use-cases/PortSpeedUseCases.test.ts`, `tests/integration/use-cases/device-monitoring/GetRouterPortSpeedsUseCase.integration.test.ts`, `tests/integration/port-speed.routes.test.ts`

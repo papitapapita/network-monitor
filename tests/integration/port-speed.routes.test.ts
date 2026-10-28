@@ -21,6 +21,7 @@ import { DependencyContainer } from '../../src/infrastructure/di/container';
 import { PortSpeedController } from '../../src/presentation/http/controllers/PortSpeedController';
 
 const LIST_PATH = '/api/routers/port-speeds';
+const routerPath = (id: string) => `/api/routers/${id}/port-speeds`;
 const expectedPath = (id: string) =>
   `/api/routers/${id}/port-speeds/expected`;
 const acceptPath = (id: string) =>
@@ -43,6 +44,7 @@ describe('Port speed routes', () => {
         stack.list,
         stack.setExpected,
         stack.acceptCurrent,
+        stack.get,
         c.getLogger()
       );
     }));
@@ -110,6 +112,64 @@ describe('Port speed routes', () => {
     });
   });
 
+  describe('GET /api/routers/:id/port-speeds', () => {
+    const get = (id: string, token = viewerToken) =>
+      request(app)
+        .get(routerPath(id))
+        .set('Authorization', `Bearer ${token}`);
+
+    it('[MON-150] should answer 200 with that router read now to a viewer', async () => {
+      const res = await get(coreId);
+
+      expect(res.status).toBe(200);
+      expect(res.headers['cache-control']).toBe('no-store');
+      expect(res.body.data.checkedAt).toEqual(expect.any(String));
+      expect(res.body.data.router).toMatchObject({
+        deviceId: coreId,
+        identity: 'Core-Insetel',
+        readable: true,
+        error: null
+      });
+      expect(res.body.data.router.ports).toHaveLength(2);
+      expect(reader.reads.map((r) => r.host)).toEqual(['10.0.0.1']);
+    });
+
+    it('[MON-150] should answer 200 with the error when the router does not answer', async () => {
+      reader.answer(
+        '10.0.0.1',
+        Result.fail('RouterOS API error: timeout')
+      );
+
+      const res = await get(coreId);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.router).toMatchObject({
+        readable: true,
+        error: 'RouterOS API error: timeout',
+        ports: []
+      });
+    });
+
+    it('should answer 401 without a token', async () => {
+      const res = await request(app).get(routerPath(coreId));
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should answer 400 for a malformed id', async () => {
+      const res = await get(INVALID_ID);
+
+      expect(res.status).toBe(400);
+    });
+
+    it('should answer 404 for a device that is not one of the MikroTiks', async () => {
+      const res = await get(GHOST_ID);
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Router not found');
+    });
+  });
+
   describe('PUT /api/routers/:id/port-speeds/expected', () => {
     const put = (id: string, body: object, token = operatorToken) =>
       request(app)
@@ -129,11 +189,31 @@ describe('Port speed routes', () => {
         data: {
           deviceId: coreId,
           portName: 'ether2',
-          expectedMbps: 1000
+          expectedMbps: 1000,
+          alertOnNoLink: false
         }
       });
       expect(await expectedSpeedsOf(prisma, coreId)).toEqual({
         ether2: 1000
+      });
+    });
+
+    it('[MON-149] should answer 200 and turn on the no-link alert, then keep it when only the speed changes', async () => {
+      const on = await put(coreId, {
+        portName: 'ether2',
+        expectedMbps: 1000,
+        alertOnNoLink: true
+      });
+      const changed = await put(coreId, {
+        portName: 'ether2',
+        expectedMbps: 100
+      });
+
+      expect(on.status).toBe(200);
+      expect(on.body.data.alertOnNoLink).toBe(true);
+      expect(changed.body.data).toMatchObject({
+        expectedMbps: 100,
+        alertOnNoLink: true
       });
     });
 
@@ -200,6 +280,14 @@ describe('Port speed routes', () => {
       [
         'a speed as text',
         { portName: 'ether2', expectedMbps: '1000' }
+      ],
+      [
+        'a no-link alert as text',
+        {
+          portName: 'ether2',
+          expectedMbps: 1000,
+          alertOnNoLink: 'yes'
+        }
       ]
     ])('should answer 400 for %s', async (_case, body) => {
       const res = await put(coreId, body);

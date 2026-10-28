@@ -150,8 +150,10 @@ export class CheckPortSpeedsUseCase extends UseCase<
       await this.publish(outcome.candidate, at, false, {
         summary:
           outcome.raised.length === 1
-            ? `El puerto ${portLabel(outcome.raised[0].port)} de "${router}" está a ${linkText(outcome.raised[0].port)}, debería estar a ${outcome.raised[0].expected.expected.toString()}`
-            : `${outcome.raised.length} puertos de "${router}" están más lentos de lo que deberían`,
+            ? `El puerto ${portLabel(outcome.raised[0].port)} de "${router}" está ${outcome.raised[0].port.linked ? 'a ' : ''}${linkText(outcome.raised[0].port)}, debería estar a ${outcome.raised[0].expected.expected.toString()}`
+            : outcome.raised.some((c) => !c.port.linked)
+              ? `${outcome.raised.length} puertos de "${router}" están sin enlace o más lentos de lo que deberían`
+              : `${outcome.raised.length} puertos de "${router}" están más lentos de lo que deberían`,
         detail:
           outcome.raised.length === 1
             ? null
@@ -235,6 +237,8 @@ function toOutcome(
   const verdict = judgePort(port, expected);
   if (verdict === 'OK') return 'MET';
   if (verdict === 'SLOW') return 'SHORT';
+  // MON-149
+  if (verdict === 'NO_LINK' && expected.alertOnNoLink) return 'SHORT';
   return 'UNJUDGED';
 }
 
@@ -243,6 +247,7 @@ function portLabel(port: EthernetPortReading): string {
 }
 
 function linkText(port: EthernetPortReading): string {
+  if (!port.linked) return 'sin enlace';
   const rate = PortSpeed.reconstitute({
     mbps: port.rateMbps ?? 0
   }).toString();

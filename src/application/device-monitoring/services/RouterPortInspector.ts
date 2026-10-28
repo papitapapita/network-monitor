@@ -107,6 +107,7 @@ export function toRouterDTO(
         rateMbps: null,
         fullDuplex: null,
         expectedMbps: e.expected.mbps,
+        alertOnNoLink: e.alertOnNoLink,
         verdict: 'PORT_MISSING'
       })
     );
@@ -130,6 +131,7 @@ function toPortDTO(
     rateMbps: port.rateMbps,
     fullDuplex: port.fullDuplex,
     expectedMbps: expected?.expected.mbps ?? null,
+    alertOnNoLink: expected?.alertOnNoLink ?? false,
     verdict: judgePort(port, expected)
   };
 }
