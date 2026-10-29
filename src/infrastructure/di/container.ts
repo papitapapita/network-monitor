@@ -154,6 +154,7 @@ import {
   PrismaDiscoveredDeviceRepository,
   PrismaDiscoverySettingsRepository,
   PrismaKnownDeviceLookup,
+  PrismaDeviceAddressQuery,
   PrismaDiscoveredDeviceListQuery,
   PrismaDiscoveryPrefillQuery,
   PrismaInboxRecipientsQuery,
@@ -345,6 +346,8 @@ import {
   GetTopologyUseCase,
   ListUpstreamSuggestionsUseCase,
   GetRouterNeighborsUseCase,
+  GetDeviceNetworkLocationUseCase,
+  ListAddressMismatchesUseCase,
   AcceptUpstreamSuggestionsUseCase,
   GetDeviceDescendantsUseCase,
   DeleteLocationUseCase
@@ -380,6 +383,10 @@ import {
   RouterOsNeighborReader
 } from '../monitoring/router-neighbors';
 import {
+  RouterHostQueryAdapter,
+  RouterOsHostReader
+} from '../monitoring/router-hosts';
+import {
   RunNetworkSweepUseCase,
   RunSpeedTestUseCase,
   RunPingToolUseCase,
@@ -402,7 +409,7 @@ import {
   PortHealthNotifier,
   RouterSystemRecorder,
   RouterSystemNotifier,
-  RouterNeighborSurvey
+  RouterSurvey
 } from 'application/device-monitoring/services';
 import { PrismaNetworkSweepTargetsQuery } from '../monitoring/network-sweep';
 import { CloudflareSpeedTester } from '../monitoring/speed-test';
@@ -1788,9 +1795,18 @@ export class DependencyContainer {
     // MON-200, MON-201: what each MikroTik hears, lent to device inventory
     // for discovery, upstream suggestions and port labels.
     const routerNeighborQuery = new RouterNeighborQueryAdapter(
-      new RouterNeighborSurvey(
+      new RouterSurvey(
         portSpeedTargets,
         new RouterOsNeighborReader(routerOsPrinter)
+      )
+    );
+    // MON-202: who each MikroTik sees behind its ports and at which
+    // address, lent to device inventory for locating devices, discovery
+    // and the address check.
+    const routerHostQuery = new RouterHostQueryAdapter(
+      new RouterSurvey(
+        portSpeedTargets,
+        new RouterOsHostReader(routerOsPrinter)
       )
     );
     const routerHealthThresholds =
@@ -2290,7 +2306,8 @@ export class DependencyContainer {
         segmentScanner,
         this.deviceSightingRecorder,
         this.serverOnSite,
-        routerNeighborQuery
+        routerNeighborQuery,
+        routerHostQuery
       ),
       {},
       this.logger
@@ -2971,6 +2988,9 @@ export class DependencyContainer {
       this.prisma,
       this.serverOnSite
     );
+    const deviceAddressQuery = new PrismaDeviceAddressQuery(
+      this.prisma
+    );
     this.topologyController = new TopologyController(
       new GetTopologyUseCase(topologyQuery, this.logger),
       new GetDeviceDescendantsUseCase(topologyQuery, this.logger),
@@ -2992,6 +3012,16 @@ export class DependencyContainer {
         routerNeighborQuery,
         knownDeviceLookup,
         topologyQuery,
+        this.logger
+      ),
+      new GetDeviceNetworkLocationUseCase(
+        deviceAddressQuery,
+        routerHostQuery,
+        this.logger
+      ),
+      new ListAddressMismatchesUseCase(
+        deviceAddressQuery,
+        routerHostQuery,
         this.logger
       ),
       this.logger

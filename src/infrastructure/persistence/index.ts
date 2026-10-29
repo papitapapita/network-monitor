@@ -32,3 +32,4 @@ export * from './PrismaRouterPortCountersRepository';
 export * from './PrismaRouterHealthThresholdsRepository';
 export * from './PrismaReportedOutageQuery';
 export * from './PrismaDeviceHardwareQuery';
+export * from './PrismaDeviceAddressQuery';

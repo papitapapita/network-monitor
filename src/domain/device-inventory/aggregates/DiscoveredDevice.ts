@@ -160,7 +160,7 @@ export class DiscoveredDevice extends AggregateRoot<
 
     if (!Object.values(DiscoverySource).includes(sighting.source)) {
       return Result.fail(
-        'source must be SCAN, AP_STATION or ROUTER_NEIGHBOR'
+        'source must be SCAN, AP_STATION, ROUTER_NEIGHBOR or ROUTER_ARP'
       );
     }
     if (Number.isNaN(sighting.seenAt.getTime())) {

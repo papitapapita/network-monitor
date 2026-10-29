@@ -3,16 +3,19 @@ import {
   IRouterNeighborQuery,
   RouterNeighborsRead
 } from 'application/device-inventory/interfaces';
+import { RouterNeighborsReading } from 'application/device-monitoring/interfaces';
 import {
-  RouterNeighborSurvey,
-  RouterNeighborSurveyResult
+  RouterSurvey,
+  RouterSurveyResult
 } from 'application/device-monitoring/services';
 
 // Lends device monitoring's live neighbour read to device inventory.
 export class RouterNeighborQueryAdapter
   implements IRouterNeighborQuery
 {
-  constructor(private readonly survey: RouterNeighborSurvey) {}
+  constructor(
+    private readonly survey: RouterSurvey<RouterNeighborsReading>
+  ) {}
 
   async findRouterNeighbors(): Promise<Result<RouterNeighborsRead>> {
     const result = await this.survey.survey();
@@ -30,14 +33,14 @@ export class RouterNeighborQueryAdapter
 }
 
 function toRead(
-  result: RouterNeighborSurveyResult
+  result: RouterSurveyResult<RouterNeighborsReading>
 ): RouterNeighborsRead {
   return {
     routers: result.routers.map((r) => ({
       routerDeviceId: r.deviceId,
       routerName: r.deviceName,
-      ports: r.ports.map((p) => ({ ...p })),
-      neighbors: r.neighbors.map((n) => ({ ...n }))
+      ports: r.reading.ports.map((p) => ({ ...p })),
+      neighbors: r.reading.neighbors.map((n) => ({ ...n }))
     })),
     unreadRouters: result.unreadRouters.map((u) => ({ ...u }))
   };

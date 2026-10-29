@@ -5,7 +5,9 @@ import {
   GetDeviceDescendantsUseCase,
   ListUpstreamSuggestionsUseCase,
   AcceptUpstreamSuggestionsUseCase,
-  GetRouterNeighborsUseCase
+  GetRouterNeighborsUseCase,
+  GetDeviceNetworkLocationUseCase,
+  ListAddressMismatchesUseCase
 } from 'application/device-inventory/use-cases';
 
 export class TopologyController {
@@ -15,6 +17,8 @@ export class TopologyController {
     private readonly listSuggestionsUseCase: ListUpstreamSuggestionsUseCase,
     private readonly acceptSuggestionsUseCase: AcceptUpstreamSuggestionsUseCase,
     private readonly getRouterNeighborsUseCase: GetRouterNeighborsUseCase,
+    private readonly getNetworkLocationUseCase: GetDeviceNetworkLocationUseCase,
+    private readonly listAddressMismatchesUseCase: ListAddressMismatchesUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -110,6 +114,44 @@ export class TopologyController {
         res
           .status(this.getErrorStatusCode(result.error))
           .json({ success: false, error: result.error });
+        return;
+      }
+      res.status(200).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public getNetworkLocation = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.getNetworkLocationUseCase.execute({
+        deviceId: req.params.deviceId
+      });
+      if (result.isFailure) {
+        res
+          .status(this.getErrorStatusCode(result.error))
+          .json({ success: false, error: result.error });
+        return;
+      }
+      res.status(200).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  public listAddressMismatches = async (
+    _req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.listAddressMismatchesUseCase.execute(
+        {}
+      );
+      if (result.isFailure) {
+        res.status(500).json({ success: false, error: result.error });
         return;
       }
       res.status(200).json({ success: true, data: result.value });

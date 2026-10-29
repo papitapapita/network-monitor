@@ -11,6 +11,9 @@ export const MIN_SEGMENT_PREFIX = 22;
 export const MAX_SEGMENT_PREFIX = 30;
 
 const OCTET = '(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|\\d)';
+const IPV4 = new RegExp(
+  `^${OCTET}\\.${OCTET}\\.${OCTET}\\.${OCTET}$`
+);
 const CIDR = new RegExp(
   `^${OCTET}\\.${OCTET}\\.${OCTET}\\.${OCTET}/(\\d{1,2})$`
 );
@@ -28,6 +31,17 @@ export class DiscoverySettings extends ValueObject<DiscoverySettingsProps> {
 
   get segments(): DiscoverySegment[] {
     return this._props.segments.map((s) => ({ ...s }));
+  }
+  // DEV-218: whether an IPv4 address lies inside one of the segments.
+  covers(ipAddress: string): boolean {
+    const address = toInt(ipAddress);
+    if (address === null) return false;
+    return this._props.segments.some((segment) => {
+      const [base, prefix] = segment.cidr.split('/');
+      const network = toInt(base!);
+      const mask = (~0 << (32 - Number(prefix))) >>> 0;
+      return network !== null && (address & mask) >>> 0 === network;
+    });
   }
 
   private constructor(props: DiscoverySettingsProps) {
@@ -142,4 +156,12 @@ export class DiscoverySettings extends ValueObject<DiscoverySettingsProps> {
 
     return Result.ok({ cidr: `${base}/${prefix}`, agentId });
   }
+}
+
+function toInt(ipAddress: string): number | null {
+  const match = IPV4.exec(ipAddress);
+  if (!match) return null;
+  return match
+    .slice(1, 5)
+    .reduce((acc, octet) => ((acc << 8) | Number(octet)) >>> 0, 0);
 }

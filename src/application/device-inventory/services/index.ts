@@ -6,3 +6,4 @@ export * from './DeviceSightingRecorder';
 export * from './matchReportedModel';
 export * from './HardwareChangeAssessor';
 export * from './RouterNeighborMap';
+export * from './NetworkLocator';

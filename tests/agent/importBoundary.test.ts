@@ -97,6 +97,7 @@ describe('agent import boundary', () => {
       'src/infrastructure/monitoring/port-speeds/RouterOsPortReader.ts',
       'src/infrastructure/monitoring/router-traffic/RouterOsTrafficReader.ts',
       'src/infrastructure/monitoring/routeros/RouterOsApiPrinter.ts',
+      'src/infrastructure/monitoring/routeros/routerOsApi.ts',
       'src/infrastructure/monitoring/routeros/routerOsText.ts',
       'src/infrastructure/service-enforcement/RouterOsQueueService.ts',
       'src/infrastructure/wireless-monitoring/collectors/AirOsHttpClient.ts',

@@ -22,7 +22,7 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 | `MON-170` – `MON-179` | MikroTik reboots and health          |
 | `MON-180` – `MON-189` | MikroTik audit                       |
 | `MON-190` – `MON-199` | MikroTik port errors and fibre       |
-| `MON-200` – `MON-209` | MikroTik neighbours                  |
+| `MON-200` – `MON-209` | MikroTik neighbours, hosts and ARP   |
 
 This file covers the reachability lifecycle only. The rules that decide **which**
 devices may be monitored at all live with the device itself — see DEV-057
@@ -1844,7 +1844,7 @@ once, and an agent mid-update must not lose the port speeds.
 **Enforced at:** `src/presentation/ws/agent/agentMessageSchema.ts`, `src/presentation/ws/agent/ConnectedAgents.ts`, `src/agent/protocol/messages.ts`
 **Tests:** `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/integration/agent-ports.test.ts`
 
-## MikroTik neighbours
+## MikroTik neighbours, hosts and ARP
 
 ### MON-200 — A MikroTik is read for its neighbour table and port comments, and its text as UTF-8
 
@@ -1875,22 +1875,63 @@ are common in Insetel's identities and comments, and were arriving garbled.
 **Enforced at:** `src/infrastructure/monitoring/router-neighbors/RouterOsNeighborReader.ts`, `src/infrastructure/monitoring/routeros/routerOsText.ts`, `src/infrastructure/monitoring/routeros/RouterOsApiPrinter.ts`, `src/infrastructure/monitoring/port-speeds/RouterOsPortReader.ts`
 **Tests:** `tests/infrastructure/monitoring/router-neighbors/RouterOsNeighborReader.test.ts`, `tests/infrastructure/monitoring/routeros/routerOsText.test.ts`
 
-### MON-201 — The neighbour tables of every MikroTik are read live, at once, and an unread one is reported
+### MON-201 — Every MikroTik is read live, at once, and an unread one is reported
 
 **Type:** Policy · **Status:** Active
-**Since:** 2026-10-28
+**Since:** 2026-10-28 · **Revised:** 2026-10-29 (host and ARP tables, MON-202)
 
 The same MikroTiks as the port check (MON-140) are read, all at once, with the
 same reasons for skipping one (no IP, no login, off site without an agent,
-MON-145). A router that can't be read is reported with its reason, and only a
-failure to list the routers fails the read. One router can also be read on its
-own; a device that is not one of those MikroTiks answers "none". Nothing is
-stored: device inventory reads them for upstream suggestions and port labels
-on demand, and for discovery on the scheduled run.
+MON-145). One survey serves both live reads: the neighbour tables (MON-200) and
+the host and ARP tables (MON-202). A router that can't be read is reported with
+its reason, and only a failure to list the routers fails the read. One router
+can also be read on its own; a device that is not one of those MikroTiks
+answers "none". Nothing is stored. Device inventory reads them on demand for
+upstream suggestions, port labels, device locations and the address check, and
+on the scheduled run for discovery.
 
-**Why:** Neighbour tables change whenever something is re-cabled, so a stored
-copy would mislead. One unreachable router should not hide what the others
-hear.
+**Why:** These tables change whenever something is re-cabled or re-addressed,
+so a stored copy would mislead. One unreachable router should not hide what the
+others see.
 
-**Enforced at:** `src/application/device-monitoring/services/RouterNeighborSurvey.ts`, `src/infrastructure/monitoring/router-neighbors/RouterNeighborQueryAdapter.ts`
-**Tests:** `tests/application/device-monitoring/services/RouterNeighborSurvey.test.ts`, `tests/integration/use-cases/device-inventory/ListUpstreamSuggestionsUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/GetRouterNeighborsUseCase.integration.test.ts`
+**Enforced at:** `src/application/device-monitoring/services/RouterSurvey.ts`, `src/infrastructure/monitoring/router-neighbors/RouterNeighborQueryAdapter.ts`, `src/infrastructure/monitoring/router-hosts/RouterHostQueryAdapter.ts`
+**Tests:** `tests/application/device-monitoring/services/RouterSurvey.test.ts`, `tests/integration/use-cases/device-inventory/ListUpstreamSuggestionsUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/GetRouterNeighborsUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/GetDeviceNetworkLocationUseCase.integration.test.ts`
+
+### MON-202 — A MikroTik is read for who sits behind each port and at which address
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-29
+
+One login through the RouterOS printer (AGT-123) runs four reads, all on the
+agent's allow-list already: the Ethernet port names and comments, the bridge
+host table, the ARP table and the DHCP server leases.
+
+- **Bridge host:** each MAC the bridge has learned and the port it came in on
+  (`interface` on RouterOS 7, `on-interface` on 6). The router's own MACs are
+  kept, flagged `local`. Disabled and invalid entries, and entries without a
+  valid MAC or a port, are dropped.
+- **ARP:** each IPv4 address with its MAC. Disabled, invalid and published
+  (proxy) entries are dropped. So are those RouterOS 7 marks `failed` or
+  `incomplete`, and those without a MAC or with `00:00:00:00:00:00`. A `stale`
+  entry is kept, because its MAC was seen.
+- **Leases:** only `bound` leases, with the active address and MAC when given,
+  and the host name.
+
+MACs are upper case. Text is cut to 100 characters. Each table the router
+refuses (no DHCP server, a user without the right) is answered as unread.
+Only a failed login fails the read.
+
+RouterOS 7.18 and later answer a table with no rows `!empty` before `!done`.
+The RouterOS library doesn't know that reply and threw where nothing could
+catch it, which ended the whole process. Every RouterOS read (the printer, port,
+traffic and PoE readers, and the enforcement queues) now skips `!empty`, so an
+empty table reads as no rows. Found on the RB5009 (7.23.5) on 2026-10-29.
+
+**Why:** The neighbour table only lists what announces itself. The bridge host
+and ARP tables list everything that sends traffic: cameras, customer routers
+and radios with discovery off. That makes them the network's own record of
+where a device is cabled (DEV-199) and which MAC holds which address (DEV-218,
+DEV-219).
+
+**Enforced at:** `src/infrastructure/monitoring/router-hosts/RouterOsHostReader.ts`, `src/infrastructure/monitoring/routeros/routerOsApi.ts`
+**Tests:** `tests/infrastructure/monitoring/router-hosts/RouterOsHostReader.test.ts`, `tests/infrastructure/monitoring/routeros/routerOsApi.test.ts`

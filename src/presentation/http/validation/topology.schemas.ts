@@ -12,6 +12,10 @@ export const getRouterNeighborsSchema = z.object({
   params: z.object({ deviceId: z.string().uuid() })
 });
 
+export const getDeviceNetworkLocationSchema = z.object({
+  params: z.object({ deviceId: z.string().uuid() })
+});
+
 export const listUpstreamSuggestionsSchema = z.object({
   query: z.object({ locationId: z.string().uuid().optional() })
 });

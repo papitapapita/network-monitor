@@ -80,6 +80,19 @@ export class DiscoveryScanOrchestrator {
           );
         }
       }
+      for (const router of result.value.arp) {
+        if (router.error === null) {
+          this.logger.info(
+            '[DiscoveryScanOrchestrator] Router ARP table read',
+            { ...router }
+          );
+        } else {
+          this.logger.warn(
+            '[DiscoveryScanOrchestrator] Router ARP table not read',
+            { ...router }
+          );
+        }
+      }
     } catch (error) {
       this.logger.error(
         '[DiscoveryScanOrchestrator] Unexpected error',

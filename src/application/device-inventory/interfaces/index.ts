@@ -13,3 +13,5 @@ export * from './ISegmentScanner';
 export * from './IAgentHostDiscovery';
 export * from './IDeviceHardwareQuery';
 export * from './IRouterNeighborQuery';
+export * from './IRouterHostQuery';
+export * from './IDeviceAddressQuery';

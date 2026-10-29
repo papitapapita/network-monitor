@@ -296,6 +296,7 @@ enum DiscoverySource {
   SCAN
   AP_STATION
   ROUTER_NEIGHBOR
+  ROUTER_ARP
 
   @@map("discovery_source")
 }

@@ -7,7 +7,7 @@ import {
   PoweredDeviceSurvey,
   SitePoeInspector
 } from 'application/power-control';
-import { RouterNeighborSurvey } from 'application/device-monitoring/services';
+import { RouterSurvey } from 'application/device-monitoring/services';
 import {
   PrismaKnownDeviceLookup,
   PrismaReportedApQuery,
@@ -73,7 +73,7 @@ describe('ListUpstreamSuggestionsUseCase — integration', () => {
         )
       ),
       new RouterNeighborQueryAdapter(
-        new RouterNeighborSurvey(
+        new RouterSurvey(
           new PrismaPortSpeedTargetsQuery(prisma, true),
           neighbors
         )

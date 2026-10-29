@@ -39,12 +39,12 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Domain**                            |    50 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162, DEV-164, DEV-169, DEV-180, DEV-181, DEV-202, DEV-204, DEV-210 |
-| **Application**                       |    63 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-134, DEV-135, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172, DEV-173, DEV-184, DEV-191, DEV-192, DEV-193, DEV-195, DEV-196, DEV-197, DEV-205, DEV-207, DEV-211, DEV-217 |
+| **Application**                       |    64 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-134, DEV-135, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172, DEV-173, DEV-184, DEV-191, DEV-192, DEV-193, DEV-195, DEV-196, DEV-197, DEV-205, DEV-207, DEV-211, DEV-217, DEV-218 |
 | **Application + Domain**              |    12 | DEV-031, DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160, DEV-182, DEV-183, DEV-185, DEV-194, DEV-200 |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
 | **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
 | **Infrastructure + Application**      |    13 | DEV-072, DEV-084, DEV-148, DEV-149, DEV-186, DEV-190, DEV-201, DEV-203, DEV-206, DEV-208, DEV-209, DEV-212, DEV-214 |
-| **Presentation**                      |     5 | DEV-140, DEV-146, DEV-170, DEV-198, DEV-213                                                                                                                                                                                                                                                                                                                                                                        |
+| **Presentation**                      |     7 | DEV-140, DEV-146, DEV-170, DEV-198, DEV-199, DEV-213, DEV-219                                                                                                                                                                                                                                                                                                                                                      |
 
 **Half the book sits outside the domain, and most of it belongs there.** The
 three clusters are worth naming, because they are not the same kind of
@@ -3438,13 +3438,53 @@ keeps the app read-only on routers.
 **Message:** `MikroTik router not found: <id>`
 **Tests:** `tests/application/device-inventory/use-cases/GetRouterNeighborsUseCase.test.ts`, `tests/application/device-inventory/services/RouterNeighborMap.test.ts`, `tests/integration/use-cases/device-inventory/GetRouterNeighborsUseCase.integration.test.ts`, `tests/integration/topology.routes.test.ts`
 
+### DEV-199 — A device can be located behind the router port it is cabled to
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application + Presentation
+**Since:** 2026-10-29
+
+`GET /api/topology/:deviceId/location` reads the bridge host table of every
+MikroTik of MON-140 now (MON-202). The device is looked for under each of its
+MACs:
+
+- the MAC on file;
+- the one its radio last reported (its wireless MAC);
+- the one its RouterBOARD last reported;
+- any MAC the routers' ARP tables or bound leases give for its IP. A MAC
+  answering for several addresses is skipped (DEV-207).
+
+Each router whose bridge learned one of them, on a port other than its own
+MACs, is a sighting with the port and its comment.
+
+On a flat bridge every router on the way sees the device, so each sighting is
+marked `closest` unless another router that also sees the device sits behind
+that same port. "Sits behind" means one of that router's own MACs was learned
+on the port. In that case the device is further down, behind that other router.
+`location` is the one closest sighting. It is null when no router sees the
+device, or when more than one sighting is closest.
+
+Routers that could not be read, or that refused their bridge host table, are
+listed in `unreadRouters`. A device that is not in inventory (or is in the
+recycle bin) answers `404`, and a malformed id `400`.
+
+**Why:** Finding which port a camera or customer router hangs from used to
+mean walking the tower or unplugging cables. Every MikroTik already knows which
+port each MAC came in on. The bridge forgets a MAC a few minutes after its last
+frame, so a quiet device may not be found. That is why the answer is read now
+and never stored.
+
+**Enforced at:** `src/application/device-inventory/services/NetworkLocator.ts`, `src/application/device-inventory/use-cases/GetDeviceNetworkLocationUseCase.ts`, `src/infrastructure/persistence/PrismaDeviceAddressQuery.ts`, `src/presentation/http/routes/topology.routes.ts`
+**Message:** `Device not found: <id>`
+**Tests:** `tests/application/device-inventory/services/NetworkLocator.test.ts`, `tests/application/device-inventory/use-cases/GetDeviceNetworkLocationUseCase.test.ts`, `tests/integration/use-cases/device-inventory/GetDeviceNetworkLocationUseCase.integration.test.ts`, `tests/integration/topology.routes.test.ts`
+
 ## Discovery
 
 Hosts the network shows that inventory lacks, kept as suggestions to create a
 device (`/api/network/discovered`). Every source of sightings — a manual scan,
 the scheduled scan (DEV-210 – DEV-213) and each AP's station list — goes
-through the same recorder, as do the MikroTik neighbour tables (DEV-217), so
-they all agree on what is new.
+through the same recorder, as do the MikroTik neighbour tables (DEV-217) and
+their ARP tables and DHCP leases (DEV-218), so they all agree on what is new.
 
 ### DEV-200 — A host inventory lacks becomes a suggestion, keyed by its MAC
 
@@ -3453,7 +3493,7 @@ they all agree on what is new.
 **Since:** 2026-10-27
 
 A sighting whose MAC no live device owns (DEV-201) is stored as one discovered
-device per MAC, with its IP, OUI manufacturer, source (`SCAN`, `AP_STATION` or `ROUTER_NEIGHBOR`)
+device per MAC, with its IP, OUI manufacturer, source (`SCAN`, `AP_STATION`, `ROUTER_NEIGHBOR` or `ROUTER_ARP`)
 and the segment or AP it was seen on. The MAC is normalized like a device's
 (DEV-046). A host with no readable MAC, which is the case on a routed segment
 where the server's ARP table cannot see it, is never stored.
@@ -3671,10 +3711,11 @@ means an upgrade never starts pinging a network nobody configured.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-10-27 · **Revised:** 2026-10-28 (router neighbours, DEV-217)
+**Since:** 2026-10-27 · **Revised:** 2026-10-29 (router ARP tables, DEV-218)
 
 The server checks every 5 minutes. While the scan is on (with segments, or with
-MikroTik neighbour tables to read, DEV-217), a run
+MikroTik neighbour tables to read, DEV-217; ARP tables need segments,
+DEV-218), a run
 starts when no run has happened yet, or when the interval has passed since the
 last run started. The run's start is recorded before anything is swept. The
 segments are swept one after the other, never at once. Each segment is recorded
@@ -3947,3 +3988,63 @@ sweep.
 
 **Enforced at:** `src/application/device-inventory/use-cases/RunScheduledDiscoveryUseCase.ts`
 **Tests:** `tests/application/device-inventory/use-cases/RunScheduledDiscoveryUseCase.test.ts`, `tests/integration/use-cases/device-inventory/RunScheduledDiscoveryUseCase.integration.test.ts`, `tests/infrastructure/monitoring/orchestrator/DiscoveryScanOrchestrator.test.ts`
+
+### DEV-218 — Each MikroTik's ARP table and DHCP leases are sightings on the scheduled run
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-29
+
+After the neighbour tables (DEV-217), each scheduled run reads the ARP table
+and DHCP leases of every MikroTik of MON-140 (MON-202). Only addresses inside
+one of the scan segments count. With no segments, the tables are not read at
+all, and they never start a run on their own. Each router is
+recorded as its own batch with source `ROUTER_ARP`, no segment, and the
+router's name as where it was seen. Every IP and MAC pair counts once. A lease's
+host name becomes the hostname. There is no model or manufacturer. Pairs are
+not merged by MAC, so a MAC answering for several addresses (proxy ARP) still
+identifies none of them (DEV-207).
+
+A router that can't be read, that refuses both tables, or whose batch can't be
+recorded is reported, and the run goes on. The run's result lists each router
+under `arp` with `addressCount`, `newCount` or `error`. This happens at the
+discovery interval, not at every router check.
+
+**Why:** The ARP table holds everything that has talked to the router lately,
+including devices that block ping and never announce themselves. It also gives
+their MACs, which a routed scan cannot see. It holds much more besides: on
+Insetel's RB5009 there were 224 addresses, including the ISP side of its WAN
+ports. Keeping to the segments the administrator chose to scan keeps the
+suggestions to the networks they care about (user decision, 2026-10-29).
+
+**Enforced at:** `src/application/device-inventory/use-cases/RunScheduledDiscoveryUseCase.ts`
+**Tests:** `tests/application/device-inventory/use-cases/RunScheduledDiscoveryUseCase.test.ts`, `tests/integration/use-cases/device-inventory/RunScheduledDiscoveryUseCase.integration.test.ts`, `tests/infrastructure/monitoring/orchestrator/DiscoveryScanOrchestrator.test.ts`
+
+### DEV-219 — A device whose IP the routers give to another MAC is listed
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application + Presentation
+**Since:** 2026-10-29
+
+`GET /api/topology/address-mismatches` reads the ARP tables and bound leases of
+every MikroTik of MON-140 now (MON-202). It checks every live device in
+service (`ACTIVE` or `COMMISSIONING`) that has an IP and at least one known MAC.
+A device's MACs are the one on file, the one its radio last reported and the one
+its RouterBOARD last reported. The device is listed when a router gives its IP
+to a MAC that is none of these:
+
+- `OTHER_DEVICE` when inventory has that MAC on another device, which is named;
+- `UNKNOWN_MAC` when no device has it.
+
+A MAC answering for several addresses is skipped (DEV-207). One entry is made
+per device and MAC, with every router that gave it in `seenBy`. Routers that
+could not be read, or that refused both tables, are listed in `unreadRouters`.
+
+**Why:** A wrong IP on file sends the ping, the polling and the alerts to some
+other box. Two devices sharing an IP flap in a way that looks like a bad link.
+Both are invisible from inventory alone, and the routers' ARP tables show them
+directly. The radio's own wireless MAC counts as the device's, so a station in
+router mode, answering ARP from its wireless side, is not flagged.
+
+**Enforced at:** `src/application/device-inventory/services/NetworkLocator.ts`, `src/application/device-inventory/use-cases/ListAddressMismatchesUseCase.ts`, `src/infrastructure/persistence/PrismaDeviceAddressQuery.ts`, `src/presentation/http/routes/topology.routes.ts`
+**Tests:** `tests/application/device-inventory/services/NetworkLocator.test.ts`, `tests/application/device-inventory/use-cases/ListAddressMismatchesUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ListAddressMismatchesUseCase.integration.test.ts`, `tests/integration/topology.routes.test.ts`

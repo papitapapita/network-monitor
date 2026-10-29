@@ -3,7 +3,7 @@
 import { PrismaClient } from '../../../../src/generated/prisma/client';
 import { Result } from '../../../../src/domain/shared/core';
 import { GetRouterNeighborsUseCase } from 'application/device-inventory/use-cases';
-import { RouterNeighborSurvey } from 'application/device-monitoring/services';
+import { RouterSurvey } from 'application/device-monitoring/services';
 import {
   PrismaKnownDeviceLookup,
   PrismaTopologyQuery
@@ -39,7 +39,7 @@ describe('GetRouterNeighborsUseCase — integration', () => {
     prisma = createTestPrisma();
     useCase = new GetRouterNeighborsUseCase(
       new RouterNeighborQueryAdapter(
-        new RouterNeighborSurvey(
+        new RouterSurvey(
           new PrismaPortSpeedTargetsQuery(prisma, true),
           reader
         )

@@ -21,7 +21,9 @@ import { PrismaDiscoverySettingsRepository } from 'infrastructure/persistence';
 import { SegmentScanner } from 'infrastructure/monitoring/network-scanner';
 import { PrismaPortSpeedTargetsQuery } from 'infrastructure/monitoring/port-speeds';
 import { RouterNeighborQueryAdapter } from 'infrastructure/monitoring/router-neighbors';
-import { RouterNeighborSurvey } from 'application/device-monitoring/services';
+import { RouterHostQueryAdapter } from 'infrastructure/monitoring/router-hosts';
+import { RouterSurvey } from 'application/device-monitoring/services';
+import { FakeRouterHostReader } from '../../helpers/FakeRouterHostReader';
 import {
   FakeRouterNeighborReader,
   neighbor
@@ -41,10 +43,12 @@ describe('RunScheduledDiscoveryUseCase — integration', () => {
   let notifier: FakeDiscoveryNotifier;
 
   const neighbors = new FakeRouterNeighborReader();
+  const hosts = new FakeRouterHostReader();
 
   function makeUseCase(
     serverOnSite = true,
-    readRouters = false
+    readRouters = false,
+    readArp = false
   ): RunScheduledDiscoveryUseCase {
     return new RunScheduledDiscoveryUseCase(
       new PrismaDiscoverySettingsRepository(prisma),
@@ -53,9 +57,17 @@ describe('RunScheduledDiscoveryUseCase — integration', () => {
       serverOnSite,
       readRouters
         ? new RouterNeighborQueryAdapter(
-            new RouterNeighborSurvey(
+            new RouterSurvey(
               new PrismaPortSpeedTargetsQuery(prisma, serverOnSite),
               neighbors
+            )
+          )
+        : null,
+      readArp
+        ? new RouterHostQueryAdapter(
+            new RouterSurvey(
+              new PrismaPortSpeedTargetsQuery(prisma, serverOnSite),
+              hosts
             )
           )
         : null
@@ -94,6 +106,7 @@ describe('RunScheduledDiscoveryUseCase — integration', () => {
   beforeEach(async () => {
     await cleanDatabase(prisma);
     neighbors.reset();
+    hosts.reset();
     scanner.reset();
     agents.reset();
     notifier.reset();
@@ -119,7 +132,8 @@ describe('RunScheduledDiscoveryUseCase — integration', () => {
     expect(result.value).toEqual({
       ran: false,
       segments: [],
-      routers: []
+      routers: [],
+      arp: []
     });
     expect(scanner.callCount).toBe(0);
   });
@@ -264,7 +278,8 @@ describe('RunScheduledDiscoveryUseCase — integration', () => {
             newCount: 1,
             error: null
           }
-        ]
+        ],
+        arp: []
       });
       const stored = await prisma.discoveredDevice.findMany();
       expect(stored).toHaveLength(1);
@@ -306,6 +321,142 @@ describe('RunScheduledDiscoveryUseCase — integration', () => {
         }
       ]);
       expect(neighbors.reads).toHaveLength(0);
+    });
+  });
+
+  describe('router ARP tables (DEV-218)', () => {
+    beforeEach(() => {
+      scanner.setHosts([]);
+    });
+
+    it('[DEV-218] an address in a segment a router knows and inventory lacks becomes a suggestion', async () => {
+      await saveSettings({
+        segments: [{ cidr: '10.0.7.0/24', agentId: null }]
+      });
+      const modelId = await seedMikrotikModel(prisma);
+      const core = await seedRouter(prisma, {
+        name: 'Core',
+        deviceModelId: modelId,
+        ip: '10.0.7.254'
+      });
+      await seedOwnedDevice(prisma, await seedDeviceModel(prisma), {
+        macAddress: 'AA:BB:CC:00:00:21'
+      });
+      hosts.serve('10.0.7.254', {
+        arp: [
+          // the ISP side, outside the segment
+          {
+            ipAddress: '181.49.0.1',
+            macAddress: 'AA:BB:CC:00:00:01',
+            interface: 'ether1'
+          },
+          {
+            ipAddress: '10.0.7.21',
+            macAddress: 'AA:BB:CC:00:00:21',
+            interface: 'bridge-lan'
+          },
+          {
+            ipAddress: '10.0.7.50',
+            macAddress: 'AA:BB:CC:00:00:50',
+            interface: 'bridge-lan'
+          }
+        ],
+        leases: [
+          {
+            ipAddress: '10.0.7.50',
+            macAddress: 'AA:BB:CC:00:00:50',
+            hostname: 'camara-patio'
+          }
+        ]
+      });
+
+      const result = await makeUseCase(true, false, true).execute({
+        now: NOW
+      });
+
+      expect(result.value.arp).toEqual([
+        {
+          deviceId: core,
+          name: 'Core',
+          addressCount: 2,
+          newCount: 1,
+          error: null
+        }
+      ]);
+      const stored = await prisma.discoveredDevice.findMany();
+      expect(stored).toHaveLength(1);
+      expect(stored[0]).toMatchObject({
+        macAddress: 'AA:BB:CC:00:00:50',
+        ipAddress: '10.0.7.50',
+        source: 'ROUTER_ARP',
+        segment: null,
+        hostname: 'camara-patio',
+        model: null,
+        lastSeenAt: NOW
+      });
+      expect(notifier.notices).toEqual([
+        { count: 1, where: 'Core', occurredAt: NOW }
+      ]);
+    });
+
+    it('[DEV-218] a router doing proxy ARP suggests none of its addresses', async () => {
+      await saveSettings({
+        segments: [{ cidr: '10.0.7.0/24', agentId: null }]
+      });
+      await seedRouter(prisma, {
+        name: 'Core',
+        deviceModelId: await seedMikrotikModel(prisma),
+        ip: '10.0.7.254'
+      });
+      hosts.serve('10.0.7.254', {
+        arp: [
+          {
+            ipAddress: '10.0.7.81',
+            macAddress: 'AA:BB:CC:00:00:99',
+            interface: 'ether3'
+          },
+          {
+            ipAddress: '10.0.7.82',
+            macAddress: 'AA:BB:CC:00:00:99',
+            interface: 'ether3'
+          }
+        ]
+      });
+
+      const result = await makeUseCase(true, false, true).execute({
+        now: NOW
+      });
+
+      expect(result.value.arp[0]).toMatchObject({ newCount: 0 });
+      expect(await prisma.discoveredDevice.count()).toBe(0);
+    });
+
+    it('[DEV-218] a router that refuses both tables is reported, the run goes on', async () => {
+      await saveSettings({
+        segments: [{ cidr: '10.0.7.0/24', agentId: null }]
+      });
+      const core = await seedRouter(prisma, {
+        name: 'Core',
+        deviceModelId: await seedMikrotikModel(prisma),
+        ip: '10.0.7.254'
+      });
+      hosts.serve('10.0.7.254', { arp: null, leases: null });
+
+      const result = await makeUseCase(true, false, true).execute({
+        now: NOW
+      });
+
+      expect(result.value).toMatchObject({ ran: true });
+      expect(result.value.arp).toEqual([
+        {
+          deviceId: core,
+          name: 'Core',
+          addressCount: null,
+          newCount: null,
+          error:
+            'The router did not answer its ARP table or DHCP leases'
+        }
+      ]);
     });
   });
 });

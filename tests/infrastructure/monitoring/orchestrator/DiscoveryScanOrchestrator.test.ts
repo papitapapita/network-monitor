@@ -17,7 +17,12 @@ describe('DiscoveryScanOrchestrator', () => {
       execute: jest
         .fn()
         .mockResolvedValue(
-          Result.ok({ ran: false, segments: [], routers: [] })
+          Result.ok({
+            ran: false,
+            segments: [],
+            routers: [],
+            arp: []
+          })
         )
     };
     logger = makeLogger();
@@ -44,7 +49,12 @@ describe('DiscoveryScanOrchestrator', () => {
         new Promise((resolve) => {
           finish = () =>
             resolve(
-              Result.ok({ ran: true, segments: [], routers: [] })
+              Result.ok({
+                ran: true,
+                segments: [],
+                routers: [],
+                arp: []
+              })
             );
         })
     );
@@ -70,7 +80,8 @@ describe('DiscoveryScanOrchestrator', () => {
             error: 'Scan failed: boom'
           }
         ],
-        routers: []
+        routers: [],
+        arp: []
       })
     );
 
@@ -95,7 +106,8 @@ describe('DiscoveryScanOrchestrator', () => {
             newCount: null,
             error: 'timeout'
           }
-        ]
+        ],
+        arp: []
       })
     );
 
@@ -103,6 +115,32 @@ describe('DiscoveryScanOrchestrator', () => {
 
     expect(logger.warn).toHaveBeenCalledWith(
       '[DiscoveryScanOrchestrator] Router neighbours not read',
+      expect.objectContaining({ name: 'Hex Norte', error: 'timeout' })
+    );
+  });
+
+  it('[DEV-218] logs a router whose ARP table could not be read', async () => {
+    useCase.execute.mockResolvedValue(
+      Result.ok({
+        ran: true,
+        segments: [],
+        routers: [],
+        arp: [
+          {
+            deviceId: 'hex-1',
+            name: 'Hex Norte',
+            addressCount: null,
+            newCount: null,
+            error: 'timeout'
+          }
+        ]
+      })
+    );
+
+    await orchestrator.tick();
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[DiscoveryScanOrchestrator] Router ARP table not read',
       expect.objectContaining({ name: 'Hex Norte', error: 'timeout' })
     );
   });

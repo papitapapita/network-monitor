@@ -1,4 +1,4 @@
-import { RouterOSAPI } from 'node-routeros';
+import { RouterOSAPI } from '../routeros/routerOsApi';
 import { Result } from 'domain/shared/core';
 import type {
   EthernetPortReading,

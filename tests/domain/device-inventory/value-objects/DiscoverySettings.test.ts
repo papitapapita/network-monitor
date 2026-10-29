@@ -146,4 +146,29 @@ describe('DiscoverySettings', () => {
 
     expect(result.error).toBe('enabled must be true or false');
   });
+
+  describe('[DEV-218] covers', () => {
+    const settings = DiscoverySettings.reconstitute({
+      enabled: true,
+      intervalHours: 24,
+      segments: [
+        { cidr: '10.0.7.0/24', agentId: null },
+        { cidr: '172.16.48.0/22', agentId: null }
+      ]
+    });
+
+    it.each(['10.0.7.0', '10.0.7.255', '172.16.51.20'])(
+      'takes %s, inside a segment',
+      (ip) => {
+        expect(settings.covers(ip)).toBe(true);
+      }
+    );
+
+    it.each(['10.0.8.1', '172.16.52.1', '181.49.0.1', 'nonsense'])(
+      'leaves out %s',
+      (ip) => {
+        expect(settings.covers(ip)).toBe(false);
+      }
+    );
+  });
 });

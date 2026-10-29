@@ -1536,6 +1536,98 @@ interface RouterNeighborDTO {
 > set show "Comentario sugerido: <name>" so the technician can copy it onto
 > the router.
 
+### `GET /api/topology/:deviceId/location` — Which router port a device sits behind
+
+**Status:** 200 | 400 | 401 | 404 · **Role:** any (`read`) · **New (2026-10-29)**
+
+Reads the bridge host table of every MikroTik router or switch the port speed
+check covers (not SwOS) **now**, and says which router and port the device's
+MAC came in on (DEV-199). Nothing is stored and nothing is written to the
+routers. Takes as long as the slowest router (a few seconds).
+
+```ts
+// Response
+{
+  success: true,
+  data: {
+    deviceId: string
+    deviceName: string
+    // the MACs looked for: on file, the radio's reported (wireless) MAC, the
+    // RouterBOARD's reported MAC, and any MAC the routers' ARP gives its IP
+    macAddresses: string[]
+    location: NetworkSightingDTO | null  // the one closest sighting; null when not
+                                         // seen, or when it cannot be told
+    sightings: NetworkSightingDTO[]      // every router that sees the device
+    unreadRouters: { deviceId: string; name: string; reason: string }[]
+  }
+}
+
+interface NetworkSightingDTO {
+  routerDeviceId: string
+  routerName: string
+  port: string                 // "ether2"
+  portComment: string | null   // the port's comment on the router now
+  macAddress: string           // which of the device's MACs was learned there
+  closest: boolean             // no other router that sees it sits behind this port
+}
+```
+
+- On the flat bridge every router on the way sees the device; the router
+  furthest down is the one marked `closest`.
+- A device quiet for a few minutes drops out of the bridge tables: `location`
+  null with `sightings: []` means "not seen now", not "not connected".
+- A router that refused its bridge host table is in `unreadRouters` with
+  `The router did not answer its bridge host table`.
+- `404` — not in inventory, or in the recycle bin (`Device not found: <id>`).
+- `400` — malformed UUID.
+
+> **Frontend:** a "¿Dónde está conectado?" button on the device page. Show
+> `location` as "<routerName> · <port> (<portComment>)", the other sightings
+> collapsed below, and list `unreadRouters` as a warning that the answer may be
+> incomplete.
+
+### `GET /api/topology/address-mismatches` — Devices whose IP the routers give to another MAC
+
+**Status:** 200 | 401 · **Role:** any (`read`) · **New (2026-10-29)**
+
+Reads the ARP tables and bound DHCP leases of the same MikroTiks **now**. It
+lists every device in service (`ACTIVE` or `COMMISSIONING`) whose IP a router
+gives to a MAC that is not the device's own (DEV-219). That means the IP on file
+is wrong, or two devices share the address.
+
+```ts
+// Response
+{
+  success: true,
+  data: {
+    mismatches: AddressMismatchDTO[]
+    unreadRouters: { deviceId: string; name: string; reason: string }[]
+  }
+}
+
+interface AddressMismatchDTO {
+  deviceId: string
+  deviceName: string
+  ipAddress: string
+  macAddressesOnFile: string[]   // on file + the radio's / RouterBOARD's reported MAC
+  seenMacAddress: string         // the MAC the routers give for that IP
+  kind: 'OTHER_DEVICE' | 'UNKNOWN_MAC'
+  otherDeviceId: string | null   // OTHER_DEVICE: the device that has that MAC
+  otherDeviceName: string | null
+  seenBy: { routerDeviceId: string; routerName: string }[]
+}
+```
+
+- Devices without an IP, or without any known MAC, are not checked.
+- A MAC answering for several addresses (proxy ARP) is ignored.
+- A router that refused both tables is in `unreadRouters` with
+  `The router did not answer its ARP table or DHCP leases`.
+
+> **Frontend:** a "Conflictos de IP" list under Topology. `OTHER_DEVICE`: "La
+> IP de <deviceName> la tiene <otherDeviceName>"; `UNKNOWN_MAC`: "La IP de
+> <deviceName> responde con otra MAC (<seenMacAddress>)". Link each row to the
+> device's edit form.
+
 ### `POST /api/topology/suggestions/accept` — Make the chosen links
 
 **Status:** 200 | 400 | 401 | 403 · **Role:** `update` (operator, admin) · **New (2026-10-29)**
@@ -4243,7 +4335,7 @@ interface AlertListItemDTO extends AlertDTO {
 
 ## Discovered Devices `/api/network/discovered`
 
-Hosts the network shows that inventory lacks, as suggestions to create a device (DEV-200 – DEV-209). They come from network scans, from every polled access point's station list (DEV-208), and from the neighbour tables of the MikroTiks on each scheduled run (DEV-217, new 2026-10-28). Standard `{ success, data }` envelope.
+Hosts the network shows that inventory lacks, as suggestions to create a device (DEV-200 – DEV-209). They come from network scans, from every polled access point's station list (DEV-208), from the neighbour tables of the MikroTiks on each scheduled run (DEV-217, new 2026-10-28), and from their ARP tables and DHCP leases on the same run (`ROUTER_ARP`, DEV-218, new 2026-10-29: MAC + IP, the lease's host name, no model; only addresses inside the scan segments, so nothing without segments). Standard `{ success, data }` envelope.
 
 ```ts
 type DiscoveredDevice = {
@@ -4251,9 +4343,9 @@ type DiscoveredDevice = {
   macAddress: string            // upper-case, colons — the suggestion's identity
   ipAddress: string | null      // where it was seen last
   manufacturer: string | null   // from the MAC's OUI, e.g. "Ubiquiti Inc"
-  source: 'SCAN' | 'AP_STATION' | 'ROUTER_NEIGHBOR' // what saw it last
+  source: 'SCAN' | 'AP_STATION' | 'ROUTER_NEIGHBOR' | 'ROUTER_ARP' // what saw it last
   segment: string | null        // the CIDR a scan last saw it on; null if only APs or routers saw it
-  hostname: string | null       // AP_STATION: the radio's own name; ROUTER_NEIGHBOR: its identity
+  hostname: string | null       // AP_STATION: the radio's own name; ROUTER_NEIGHBOR: its identity; ROUTER_ARP: the DHCP lease's host name
   model: string | null          // AP_STATION: AirOS platform, e.g. "LiteBeam 5AC Gen2"; ROUTER_NEIGHBOR: board, else platform
   accessPointId: string | null  // the AP whose station list showed it
   accessPointName: string | null // that AP's name; list only, null once the AP is deleted

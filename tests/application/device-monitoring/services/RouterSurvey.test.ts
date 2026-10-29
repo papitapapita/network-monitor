@@ -1,6 +1,6 @@
-// Source: src/application/device-monitoring/services/RouterNeighborSurvey.ts
+// Source: src/application/device-monitoring/services/RouterSurvey.ts
 
-import { RouterNeighborSurvey } from '../../../../src/application/device-monitoring/services';
+import { RouterSurvey } from '../../../../src/application/device-monitoring/services';
 import {
   IPortSpeedTargetsQuery,
   IRouterNeighborReader,
@@ -39,10 +39,10 @@ const READING: RouterNeighborsReading = {
   ]
 };
 
-describe('RouterNeighborSurvey', () => {
+describe('RouterSurvey', () => {
   let targets: jest.Mocked<IPortSpeedTargetsQuery>;
   let reader: jest.Mocked<IRouterNeighborReader>;
-  let survey: RouterNeighborSurvey;
+  let survey: RouterSurvey<RouterNeighborsReading>;
 
   beforeEach(() => {
     targets = {
@@ -69,14 +69,14 @@ describe('RouterNeighborSurvey', () => {
             : Result.ok(READING)
       )
     };
-    survey = new RouterNeighborSurvey(targets, reader);
+    survey = new RouterSurvey(targets, reader);
   });
 
   it('[MON-201] reads every router and reports the ones it could not', async () => {
     const result = await survey.survey();
 
     expect(result.value.routers).toEqual([
-      { deviceId: 'a', deviceName: 'Router a', ...READING }
+      { deviceId: 'a', deviceName: 'Router a', reading: READING }
     ]);
     expect(result.value.unreadRouters).toEqual([
       {

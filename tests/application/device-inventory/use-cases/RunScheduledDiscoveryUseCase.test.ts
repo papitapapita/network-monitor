@@ -6,6 +6,7 @@ import {
 } from '../../../../src/application/device-inventory/use-cases';
 import {
   DiscoveredHost,
+  IRouterHostQuery,
   IRouterNeighborQuery,
   ISegmentScanner
 } from '../../../../src/application/device-inventory/interfaces';
@@ -50,14 +51,16 @@ describe('RunScheduledDiscoveryUseCase', () => {
 
   function makeUseCase(
     serverOnSite = true,
-    routerNeighbors: IRouterNeighborQuery | null = null
+    routerNeighbors: IRouterNeighborQuery | null = null,
+    routerHosts: IRouterHostQuery | null = null
   ): RunScheduledDiscoveryUseCase {
     return new RunScheduledDiscoveryUseCase(
       repository,
       scanner,
       recorder,
       serverOnSite,
-      routerNeighbors
+      routerNeighbors,
+      routerHosts
     );
   }
 
@@ -102,7 +105,8 @@ describe('RunScheduledDiscoveryUseCase', () => {
       expect(result.value).toEqual({
         ran: false,
         segments: [],
-        routers: []
+        routers: [],
+        arp: []
       });
       expect(scanner.scan).not.toHaveBeenCalled();
     });
@@ -411,6 +415,183 @@ describe('RunScheduledDiscoveryUseCase', () => {
       );
 
       expect(result.error).toContain('db down');
+    });
+  });
+
+  describe('[DEV-218] router ARP tables', () => {
+    let routerHosts: jest.Mocked<IRouterHostQuery>;
+
+    beforeEach(() => {
+      repository.get.mockResolvedValue(
+        Result.ok(
+          makeSettings([{ cidr: '10.0.7.0/24', agentId: null }])
+        )
+      );
+      routerHosts = {
+        findRouterHosts: jest.fn().mockResolvedValue(
+          Result.ok({
+            routers: [
+              {
+                routerDeviceId: 'core',
+                routerName: 'Core',
+                ports: [],
+                bridgeHosts: [],
+                arp: [
+                  {
+                    ipAddress: '10.0.7.30',
+                    macAddress: 'AA:00:00:00:00:30'
+                  },
+                  {
+                    ipAddress: '10.0.7.31',
+                    macAddress: 'AA:00:00:00:00:31'
+                  }
+                ],
+                leases: [
+                  {
+                    ipAddress: '10.0.7.31',
+                    macAddress: 'AA:00:00:00:00:31',
+                    hostname: 'camara-patio'
+                  },
+                  {
+                    ipAddress: '10.0.7.32',
+                    macAddress: 'AA:00:00:00:00:32',
+                    hostname: null
+                  }
+                ]
+              },
+              {
+                routerDeviceId: 'hex-1',
+                routerName: 'Hex Norte',
+                ports: [],
+                bridgeHosts: [],
+                arp: null,
+                leases: null
+              }
+            ],
+            unreadRouters: [
+              {
+                deviceId: 'hex-2',
+                name: 'Hex Sur',
+                reason: 'timeout'
+              }
+            ]
+          })
+        )
+      };
+    });
+
+    it('records each address inside the segments once, named by its lease', async () => {
+      const result = await makeUseCase(
+        true,
+        null,
+        routerHosts
+      ).execute({
+        now: NOW
+      });
+
+      const batch = recorder.record.mock.calls
+        .map((c) => c[0])
+        .find((b) => b.source === DiscoverySource.ROUTER_ARP)!;
+      expect(batch).toMatchObject({
+        source: DiscoverySource.ROUTER_ARP,
+        segment: null,
+        where: 'Core',
+        seenAt: NOW
+      });
+      expect(batch.hosts).toEqual([
+        {
+          macAddress: 'AA:00:00:00:00:30',
+          ipAddress: '10.0.7.30',
+          manufacturer: null,
+          hostname: null,
+          model: null
+        },
+        {
+          macAddress: 'AA:00:00:00:00:31',
+          ipAddress: '10.0.7.31',
+          manufacturer: null,
+          hostname: 'camara-patio',
+          model: null
+        },
+        {
+          macAddress: 'AA:00:00:00:00:32',
+          ipAddress: '10.0.7.32',
+          manufacturer: null,
+          hostname: null,
+          model: null
+        }
+      ]);
+      expect(result.value.arp).toEqual([
+        {
+          deviceId: 'core',
+          name: 'Core',
+          addressCount: 3,
+          newCount: 3,
+          error: null
+        },
+        {
+          deviceId: 'hex-1',
+          name: 'Hex Norte',
+          addressCount: null,
+          newCount: null,
+          error:
+            'The router did not answer its ARP table or DHCP leases'
+        },
+        {
+          deviceId: 'hex-2',
+          name: 'Hex Sur',
+          addressCount: null,
+          newCount: null,
+          error: 'timeout'
+        }
+      ]);
+    });
+
+    it('runs with no segments when ARP tables are read', async () => {
+      const result = await makeUseCase(
+        true,
+        null,
+        routerHosts
+      ).execute({
+        now: NOW
+      });
+
+      expect(result.value.ran).toBe(true);
+    });
+
+    it('reports a router whose addresses cannot be recorded', async () => {
+      recorder.record.mockResolvedValue(Result.fail('disk full'));
+
+      const result = await makeUseCase(
+        true,
+        null,
+        routerHosts
+      ).execute({
+        now: NOW
+      });
+
+      expect(result.value.arp[0]).toMatchObject({
+        deviceId: 'core',
+        error: 'disk full'
+      });
+    });
+
+    it('fails when the routers cannot be listed', async () => {
+      routerHosts.findRouterHosts.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await makeUseCase(
+        true,
+        null,
+        routerHosts
+      ).execute({
+        now: NOW
+      });
+
+      expect(result.error).toBe(
+        "Failed to read the routers' ARP tables: db down"
+      );
     });
   });
 });

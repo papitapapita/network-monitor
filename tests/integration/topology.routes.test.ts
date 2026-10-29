@@ -340,4 +340,104 @@ describe('Topology routes', () => {
       expect(res.status).toBe(401);
     });
   });
+
+  describe('GET /api/topology/:deviceId/location', () => {
+    it('200 — answers where the device was seen and which routers were not read', async () => {
+      const hex = await seedRouter(prisma, {
+        name: 'Hex Norte',
+        deviceModelId: await seedMikrotikModel(prisma),
+        login: null
+      });
+      const ap = await seedNetworkDevice(
+        prisma,
+        await seedWirelessDeviceModel(prisma),
+        { name: 'AP Torre Norte', ipAddress: '10.0.3.2' }
+      );
+
+      const res = await request(app)
+        .get(`/api/topology/${ap}/location`)
+        .set('Authorization', `Bearer ${viewerToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: {
+          deviceId: ap,
+          deviceName: 'AP Torre Norte',
+          macAddresses: [],
+          location: null,
+          sightings: [],
+          unreadRouters: [
+            {
+              deviceId: hex,
+              name: 'Hex Norte',
+              reason: 'The router has no username and password saved'
+            }
+          ]
+        }
+      });
+    });
+
+    it('404 — for a device not in inventory', async () => {
+      const res = await request(app)
+        .get(`/api/topology/${GHOST_ID}/location`)
+        .set('Authorization', `Bearer ${viewerToken}`);
+
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('400 — for a malformed id', async () => {
+      const res = await request(app)
+        .get(`/api/topology/${INVALID_ID}/location`)
+        .set('Authorization', `Bearer ${viewerToken}`);
+
+      expect(res.status).toBe(400);
+    });
+
+    it('401 — without a token', async () => {
+      const res = await request(app).get(
+        `/api/topology/${GHOST_ID}/location`
+      );
+
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('GET /api/topology/address-mismatches', () => {
+    it('200 — lists the mismatches and the routers it could not read', async () => {
+      const hex = await seedRouter(prisma, {
+        name: 'Hex Norte',
+        deviceModelId: await seedMikrotikModel(prisma),
+        login: null
+      });
+
+      const res = await request(app)
+        .get('/api/topology/address-mismatches')
+        .set('Authorization', `Bearer ${viewerToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: {
+          mismatches: [],
+          unreadRouters: [
+            {
+              deviceId: hex,
+              name: 'Hex Norte',
+              reason: 'The router has no username and password saved'
+            }
+          ]
+        }
+      });
+    });
+
+    it('401 — without a token', async () => {
+      const res = await request(app).get(
+        '/api/topology/address-mismatches'
+      );
+
+      expect(res.status).toBe(401);
+    });
+  });
 });

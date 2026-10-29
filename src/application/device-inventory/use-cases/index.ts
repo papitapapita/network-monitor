@@ -35,6 +35,8 @@ export * from './GetTopologyUseCase';
 export * from './GetDeviceDescendantsUseCase';
 export * from './ListUpstreamSuggestionsUseCase';
 export * from './GetRouterNeighborsUseCase';
+export * from './GetDeviceNetworkLocationUseCase';
+export * from './ListAddressMismatchesUseCase';
 export * from './AcceptUpstreamSuggestionsUseCase';
 export * from './ListDiscoveredDevicesUseCase';
 export * from './IgnoreDiscoveredDeviceUseCase';

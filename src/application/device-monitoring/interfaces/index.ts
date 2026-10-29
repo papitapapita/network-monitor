@@ -15,3 +15,4 @@ export * from './IRouterOsPrinter';
 export * from './IRouterSystemReader';
 export * from './IReportedOutageQuery';
 export * from './IRouterNeighborReader';
+export * from './IRouterHostReader';

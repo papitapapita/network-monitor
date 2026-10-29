@@ -1,4 +1,4 @@
-import { RouterOSAPI } from 'node-routeros';
+import { RouterOSAPI } from './routerOsApi';
 import { Result } from 'domain/shared/core';
 import type {
   IRouterOsPrinter,
