@@ -108,7 +108,9 @@ describe('DiscoveredDevice', () => {
       );
 
       expect(result.isFailure).toBe(true);
-      expect(result.error).toBe('source must be SCAN or AP_STATION');
+      expect(result.error).toBe(
+        'source must be SCAN, AP_STATION or ROUTER_NEIGHBOR'
+      );
     });
   });
 

@@ -67,6 +67,19 @@ export class DiscoveryScanOrchestrator {
           );
         }
       }
+      for (const router of result.value.routers) {
+        if (router.error === null) {
+          this.logger.info(
+            '[DiscoveryScanOrchestrator] Router neighbours read',
+            { ...router }
+          );
+        } else {
+          this.logger.warn(
+            '[DiscoveryScanOrchestrator] Router neighbours not read',
+            { ...router }
+          );
+        }
+      }
     } catch (error) {
       this.logger.error(
         '[DiscoveryScanOrchestrator] Unexpected error',

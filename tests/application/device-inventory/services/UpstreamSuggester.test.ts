@@ -56,6 +56,7 @@ describe('UpstreamSuggester', () => {
     const result = suggester.suggest(
       [reported('sta', 'ap', 'IP')],
       [],
+      [],
       null
     );
 
@@ -87,6 +88,7 @@ describe('UpstreamSuggester', () => {
     const [suggestion] = suggester.suggest(
       [reported('sta', 'ap2')],
       [],
+      [],
       null
     );
 
@@ -101,7 +103,7 @@ describe('UpstreamSuggester', () => {
     const suggester = new UpstreamSuggester([row('sta')]);
 
     expect(
-      suggester.suggest([reported('sta', null)], [], null)
+      suggester.suggest([reported('sta', null)], [], [], null)
     ).toEqual([]);
   });
 
@@ -111,6 +113,7 @@ describe('UpstreamSuggester', () => {
     const [suggestion] = suggester.suggest(
       [],
       [powered('ap', 'sw')],
+      [],
       null
     );
 
@@ -130,6 +133,7 @@ describe('UpstreamSuggester', () => {
     const result = suggester.suggest(
       [reported('sta', null)],
       [powered('sta', 'sw')],
+      [],
       null
     );
 
@@ -147,6 +151,7 @@ describe('UpstreamSuggester', () => {
     const result = suggester.suggest(
       [reported('sta', 'ap')],
       [powered('ap2', 'sw')],
+      [],
       null
     );
 
@@ -164,6 +169,7 @@ describe('UpstreamSuggester', () => {
     const result = suggester.suggest(
       [reported('sta', 'ap'), reported('sta2', 'sw')],
       [powered('ap2', 'sw'), powered('ghost', 'sw')],
+      [],
       null
     );
 
@@ -174,7 +180,7 @@ describe('UpstreamSuggester', () => {
     const suggester = new UpstreamSuggester([row('sta')]);
 
     expect(
-      suggester.suggest([reported('sta', 'sta')], [], null)
+      suggester.suggest([reported('sta', 'sta')], [], [], null)
     ).toEqual([]);
   });
 
@@ -186,7 +192,7 @@ describe('UpstreamSuggester', () => {
     ]);
 
     expect(
-      suggester.suggest([], [powered('ap', 'sw')], null)
+      suggester.suggest([], [powered('ap', 'sw')], [], null)
     ).toEqual([]);
   });
 
@@ -199,6 +205,7 @@ describe('UpstreamSuggester', () => {
 
     const result = suggester.suggest(
       [reported('sta1', 'ap'), reported('sta2', 'ap')],
+      [],
       [],
       'loc-b'
     );
@@ -216,9 +223,90 @@ describe('UpstreamSuggester', () => {
     const result = suggester.suggest(
       [],
       [powered('ap2', 'sw'), powered('ap1', 'sw')],
+      [],
       null
     );
 
     expect(result.map((s) => s.deviceId)).toEqual(['ap1', 'ap2']);
+  });
+
+  describe('router neighbours', () => {
+    const cabled = (deviceId: string, routerDeviceId: string) => ({
+      deviceId,
+      routerDeviceId,
+      port: 'ether2 AP 32'
+    });
+
+    it('[DEV-196] suggests the router port a device is cabled to', () => {
+      const suggester = new UpstreamSuggester([
+        row('hex'),
+        row('ap')
+      ]);
+
+      const [suggestion] = suggester.suggest(
+        [],
+        [],
+        [cabled('ap', 'hex')],
+        null
+      );
+
+      expect(suggestion).toMatchObject({
+        deviceId: 'ap',
+        suggestedUpstreamDeviceId: 'hex',
+        suggestedUpstreamDeviceName: 'Name hex',
+        source: 'ROUTER_NEIGHBOR',
+        matchedBy: null,
+        observedAt: null,
+        port: 'ether2 AP 32'
+      });
+    });
+
+    it('[DEV-196] prefers the PoE port over the router port', () => {
+      const suggester = new UpstreamSuggester([
+        row('hex'),
+        row('sw'),
+        row('ap')
+      ]);
+
+      const [suggestion] = suggester.suggest(
+        [],
+        [powered('ap', 'sw')],
+        [cabled('ap', 'hex')],
+        null
+      );
+
+      expect(suggestion).toMatchObject({
+        suggestedUpstreamDeviceId: 'sw',
+        source: 'POE'
+      });
+    });
+
+    it('[DEV-196] leaves a station to what its radio reports', () => {
+      const suggester = new UpstreamSuggester([
+        row('hex'),
+        row('ap'),
+        row('sta')
+      ]);
+
+      const result = suggester.suggest(
+        [reported('sta', null)],
+        [],
+        [cabled('sta', 'hex')],
+        null
+      );
+
+      expect(result).toEqual([]);
+    });
+
+    it('[DEV-193] skips a router port that would close a loop', () => {
+      const suggester = new UpstreamSuggester([
+        row('core'),
+        row('hex', 'core')
+      ]);
+
+      expect(
+        suggester.suggest([], [], [cabled('core', 'hex')], null)
+      ).toEqual([]);
+    });
   });
 });

@@ -295,6 +295,7 @@ model Device {
 enum DiscoverySource {
   SCAN
   AP_STATION
+  ROUTER_NEIGHBOR
 
   @@map("discovery_source")
 }

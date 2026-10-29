@@ -19,6 +19,17 @@ import {
 } from 'application/device-inventory/use-cases';
 import { PrismaDiscoverySettingsRepository } from 'infrastructure/persistence';
 import { SegmentScanner } from 'infrastructure/monitoring/network-scanner';
+import { PrismaPortSpeedTargetsQuery } from 'infrastructure/monitoring/port-speeds';
+import { RouterNeighborQueryAdapter } from 'infrastructure/monitoring/router-neighbors';
+import { RouterNeighborSurvey } from 'application/device-monitoring/services';
+import {
+  FakeRouterNeighborReader,
+  neighbor
+} from '../../helpers/FakeRouterNeighborReader';
+import {
+  seedMikrotikModel,
+  seedRouter
+} from '../../helpers/portSpeeds';
 
 const NOW = new Date('2026-11-03T12:00:00Z');
 const AGENT = '0b9c6f0e-3f4a-4c55-9a51-6f7d2a1c8e10';
@@ -29,14 +40,25 @@ describe('RunScheduledDiscoveryUseCase — integration', () => {
   let agents: FakeAgentHostDiscovery;
   let notifier: FakeDiscoveryNotifier;
 
+  const neighbors = new FakeRouterNeighborReader();
+
   function makeUseCase(
-    serverOnSite = true
+    serverOnSite = true,
+    readRouters = false
   ): RunScheduledDiscoveryUseCase {
     return new RunScheduledDiscoveryUseCase(
       new PrismaDiscoverySettingsRepository(prisma),
       new SegmentScanner(scanner, agents),
       makeSightingRecorder(prisma, notifier),
-      serverOnSite
+      serverOnSite,
+      readRouters
+        ? new RouterNeighborQueryAdapter(
+            new RouterNeighborSurvey(
+              new PrismaPortSpeedTargetsQuery(prisma, serverOnSite),
+              neighbors
+            )
+          )
+        : null
     );
   }
 
@@ -71,6 +93,7 @@ describe('RunScheduledDiscoveryUseCase — integration', () => {
 
   beforeEach(async () => {
     await cleanDatabase(prisma);
+    neighbors.reset();
     scanner.reset();
     agents.reset();
     notifier.reset();
@@ -93,7 +116,11 @@ describe('RunScheduledDiscoveryUseCase — integration', () => {
   it('[DEV-211] does nothing before the settings are saved', async () => {
     const result = await makeUseCase().execute({ now: NOW });
 
-    expect(result.value).toEqual({ ran: false, segments: [] });
+    expect(result.value).toEqual({
+      ran: false,
+      segments: [],
+      routers: []
+    });
     expect(scanner.callCount).toBe(0);
   });
 
@@ -200,5 +227,85 @@ describe('RunScheduledDiscoveryUseCase — integration', () => {
       SCAN_NEEDS_SERVER_ON_SITE
     );
     expect(scanner.callCount).toBe(0);
+  });
+
+  describe('router neighbours (DEV-217)', () => {
+    it('[DEV-217] what a router hears and inventory lacks becomes a suggestion', async () => {
+      await saveSettings({ segments: [] });
+      const modelId = await seedMikrotikModel(prisma);
+      const hex = await seedRouter(prisma, {
+        name: 'Hex Norte',
+        deviceModelId: modelId,
+        ip: '10.0.7.1'
+      });
+      neighbors.serve('10.0.7.1', [
+        neighbor('ether2 AP 32', {
+          macAddress: '24:A4:3C:00:00:01',
+          ipAddress: '10.0.7.21',
+          identity: 'Virgüez',
+          platform: 'LiteBeam M5'
+        }),
+        // the router itself, heard back over the bridge: inventory has it
+        neighbor('ether1', { ipAddress: '10.0.7.1' })
+      ]);
+
+      const result = await makeUseCase(true, true).execute({
+        now: NOW
+      });
+
+      expect(result.value).toEqual({
+        ran: true,
+        segments: [],
+        routers: [
+          {
+            deviceId: hex,
+            name: 'Hex Norte',
+            neighborCount: 2,
+            newCount: 1,
+            error: null
+          }
+        ]
+      });
+      const stored = await prisma.discoveredDevice.findMany();
+      expect(stored).toHaveLength(1);
+      expect(stored[0]).toMatchObject({
+        macAddress: '24:A4:3C:00:00:01',
+        ipAddress: '10.0.7.21',
+        source: 'ROUTER_NEIGHBOR',
+        segment: null,
+        hostname: 'Virgüez',
+        model: 'LiteBeam M5',
+        lastSeenAt: NOW
+      });
+      expect(notifier.notices).toEqual([
+        { count: 1, where: 'Hex Norte', occurredAt: NOW }
+      ]);
+    });
+
+    it('[DEV-217] a router that cannot be read is reported, the run goes on', async () => {
+      await saveSettings({});
+      const modelId = await seedMikrotikModel(prisma);
+      const hex = await seedRouter(prisma, {
+        name: 'Hex Norte',
+        deviceModelId: modelId,
+        login: null
+      });
+
+      const result = await makeUseCase(true, true).execute({
+        now: NOW
+      });
+
+      expect(result.value.segments[0]!.error).toBeNull();
+      expect(result.value.routers).toEqual([
+        {
+          deviceId: hex,
+          name: 'Hex Norte',
+          neighborCount: null,
+          newCount: null,
+          error: 'The router has no username and password saved'
+        }
+      ]);
+      expect(neighbors.reads).toHaveLength(0);
+    });
   });
 });

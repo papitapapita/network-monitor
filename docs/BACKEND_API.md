@@ -1433,6 +1433,9 @@ operator accepts** (see the next endpoint).
     // PoE switches that could not be read: POE suggestions for antennas they
     // power are missing. Show a notice when non-empty.
     unreadSwitches: { deviceId: string; name: string; reason: string }[]
+    // MikroTiks whose neighbour table could not be read: ROUTER_NEIGHBOR
+    // suggestions may be missing. Show a notice when non-empty. New 2026-10-28.
+    unreadRouters: { deviceId: string; name: string; reason: string }[]
   }
 }
 
@@ -1445,10 +1448,11 @@ interface UpstreamSuggestionDTO {
   currentUpstreamDeviceName: string | null
   suggestedUpstreamDeviceId: string
   suggestedUpstreamDeviceName: string
-  source: 'WIRELESS' | 'POE'
+  source: 'WIRELESS' | 'POE' | 'ROUTER_NEIGHBOR'
   matchedBy: 'MAC' | 'IP' | null   // WIRELESS only
   observedAt: string | null        // WIRELESS only: ISO 8601 of the radio reading
-  port: string | null              // POE only: the switch port, e.g. "ether3"
+  port: string | null              // POE: the switch port, e.g. "ether3";
+                                   // ROUTER_NEIGHBOR: the router port, e.g. "ether2 AP 32"
 }
 ```
 
@@ -1456,20 +1460,81 @@ interface UpstreamSuggestionDTO {
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `WIRELESS` | A STATION radio's latest reading names its AP: by the AP's MAC (`matchedBy: 'MAC'`) or, failing that, by its IP (`'IP'`, less certain) (DEV-190)                                                                               |
 | `POE`      | A PoE switch port at the device's own location is labelled with the device's IP, and no other port is (DEV-191). Never offered for a STATION: at the far end of a backhaul the switch hangs off the station, not the other way |
+| `ROUTER_NEIGHBOR` | A MikroTik port that is not its uplink hears exactly one device over its cable (stations heard through an AP don't count), and that device is in inventory (DEV-196, DEV-197). Weighed last: never offered when the radio or a PoE port already places the device, nor for a STATION. New 2026-10-28 |
 
 - At most **one suggestion per device**. A device already linked to the
   suggested upstream, a proposal that would close a loop, and devices or
   upstreams that are not `ACTIVE`/`COMMISSIONING` are left out (DEV-192,
   DEV-193). When `currentUpstreamDeviceId` is set, the suggestion is a
   **change**, so show both names.
-- The PoE switches are **read live** (DEV-195), so without `locationId` the call
-  can take a few seconds on a large network. Sorted by device IP.
+- The PoE switches are **read live** (DEV-195), and so are the neighbour tables
+  of every MikroTik router and switch (always all of them, whatever the
+  `locationId`), so the call can take a few seconds on a large network. Sorted
+  by device IP.
 - `400` — malformed `locationId`.
 
 > **Frontend:** a review table with a checkbox per row (default checked for
 > `matchedBy: 'MAC'` and `POE` rows with no current upstream; unchecked for
 > `IP` matches and for changes), a location filter, and an "Aceptar
 > seleccionados" button that posts the checked rows to the endpoint below.
+
+### `GET /api/topology/routers/:deviceId/neighbors` — What each port of a MikroTik hears
+
+**Status:** 200 | 400 | 401 | 404 · **Role:** any (`read`) · **New (2026-10-28)**
+
+Reads one MikroTik router or switch (the ones the port speed check covers, not
+SwOS) **now**: its neighbour table (MNDP/CDP/LLDP) and its port comments. Each
+port says what it hears, matched with inventory, and the comment it could
+carry. Nothing is written to the router (DEV-198).
+
+```ts
+// Response
+{
+  success: true,
+  data: {
+    deviceId: string
+    deviceName: string
+    reason: string | null   // why the router could not be read; ports is then []
+    ports: RouterPortNeighborsDTO[]   // Ethernet ports in router order, then any
+                                      // other interface something was heard on
+  }
+}
+
+interface RouterPortNeighborsDTO {
+  port: string               // "ether2 AP 32"
+  comment: string | null     // the port's comment on the router now
+  uplink: boolean            // the port toward the gateway: it hears the whole flat network
+  neighbors: RouterNeighborDTO[]
+  // the inventory name of the one device clearly cabled to this port; null when
+  // unclear, on the uplink, or the comment already contains that name
+  suggestedComment: string | null
+}
+
+interface RouterNeighborDTO {
+  macAddress: string | null
+  ipAddress: string | null
+  identity: string | null        // the neighbour's own name
+  platform: string | null        // AirOS: the model, e.g. "LiteBeam M5"; MikroTik: "MikroTik"
+  board: string | null           // MikroTik: e.g. "RB960PGS"
+  version: string | null
+  remoteInterface: string | null // the neighbour's interface: "br0", "ath0", "bridge-lan/ether4"
+  wireless: boolean              // heard through an AP over its own radio (ath*, wlan*, wifi*)
+  knownDeviceId: string | null   // the inventory device with that MAC, else that IP
+  knownDeviceName: string | null
+}
+```
+
+- A port says who is plugged in only when it is not the uplink and hears
+  exactly one device that isn't `wireless`, and inventory has that device
+  (DEV-197). The same device can appear under several entries.
+- `200` with `reason` — no login saved, off site without an agent, timeout.
+- `404` — the device is not one of those MikroTiks (`MikroTik router not found: <id>`).
+- `400` — malformed UUID.
+
+> **Frontend:** a "Vecinos" tab on a MikroTik's page, one card per port. Grey
+> out `wireless` neighbours, badge the uplink, and when `suggestedComment` is
+> set show "Comentario sugerido: <name>" so the technician can copy it onto
+> the router.
 
 ### `POST /api/topology/suggestions/accept` — Make the chosen links
 
@@ -4178,7 +4243,7 @@ interface AlertListItemDTO extends AlertDTO {
 
 ## Discovered Devices `/api/network/discovered`
 
-Hosts the network shows that inventory lacks, as suggestions to create a device (DEV-200 – DEV-209). They come from network scans and from every polled access point's station list (DEV-208). Standard `{ success, data }` envelope.
+Hosts the network shows that inventory lacks, as suggestions to create a device (DEV-200 – DEV-209). They come from network scans, from every polled access point's station list (DEV-208), and from the neighbour tables of the MikroTiks on each scheduled run (DEV-217, new 2026-10-28). Standard `{ success, data }` envelope.
 
 ```ts
 type DiscoveredDevice = {
@@ -4186,10 +4251,10 @@ type DiscoveredDevice = {
   macAddress: string            // upper-case, colons — the suggestion's identity
   ipAddress: string | null      // where it was seen last
   manufacturer: string | null   // from the MAC's OUI, e.g. "Ubiquiti Inc"
-  source: 'SCAN' | 'AP_STATION' // what saw it last
-  segment: string | null        // the CIDR a scan last saw it on; null if only APs saw it
-  hostname: string | null       // AP_STATION: the radio's own name
-  model: string | null          // AP_STATION: AirOS platform, e.g. "LiteBeam 5AC Gen2"
+  source: 'SCAN' | 'AP_STATION' | 'ROUTER_NEIGHBOR' // what saw it last
+  segment: string | null        // the CIDR a scan last saw it on; null if only APs or routers saw it
+  hostname: string | null       // AP_STATION: the radio's own name; ROUTER_NEIGHBOR: its identity
+  model: string | null          // AP_STATION: AirOS platform, e.g. "LiteBeam 5AC Gen2"; ROUTER_NEIGHBOR: board, else platform
   accessPointId: string | null  // the AP whose station list showed it
   accessPointName: string | null // that AP's name; list only, null once the AP is deleted
   firstSeenAt: string           // ISO 8601

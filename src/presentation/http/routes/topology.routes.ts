@@ -8,6 +8,7 @@ import {
 import {
   acceptUpstreamSuggestionsSchema,
   getDeviceDescendantsSchema,
+  getRouterNeighborsSchema,
   listUpstreamSuggestionsSchema
 } from '../validation';
 
@@ -18,6 +19,7 @@ import {
  * GET /api/topology/:deviceId/descendants  — one device and everything below it
  * GET /api/topology/suggestions            — upstream links the network suggests
  * POST /api/topology/suggestions/accept    — make the chosen links
+ * GET /api/topology/routers/:deviceId/neighbors — what each port of a MikroTik hears, read now
  */
 export function createTopologyRoutes(
   controller: TopologyController
@@ -43,6 +45,13 @@ export function createTopologyRoutes(
     createRateLimiter('write'),
     validateRequest(acceptUpstreamSuggestionsSchema),
     controller.acceptSuggestions
+  );
+  router.get(
+    '/routers/:deviceId/neighbors',
+    authorize('read'),
+    createRateLimiter('read'),
+    validateRequest(getRouterNeighborsSchema),
+    controller.getRouterNeighbors
   );
   router.get(
     '/:deviceId/descendants',

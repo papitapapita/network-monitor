@@ -159,7 +159,9 @@ export class DiscoveredDevice extends AggregateRoot<
     }
 
     if (!Object.values(DiscoverySource).includes(sighting.source)) {
-      return Result.fail('source must be SCAN or AP_STATION');
+      return Result.fail(
+        'source must be SCAN, AP_STATION or ROUTER_NEIGHBOR'
+      );
     }
     if (Number.isNaN(sighting.seenAt.getTime())) {
       return Result.fail('seenAt must be a valid date');

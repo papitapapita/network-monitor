@@ -8,6 +8,7 @@ import type {
   SfpReading
 } from 'application/device-monitoring/interfaces';
 import type { ILogger } from 'application/shared/interfaces';
+import { fromRouterOsText } from '../routeros/routerOsText';
 
 type Row = Record<string, string | undefined>;
 
@@ -91,7 +92,7 @@ async function readPorts(
     const live = monitor.get(r.name!) ?? {};
     return {
       name: r.name!,
-      comment: r.comment?.trim() || null,
+      comment: fromRouterOsText(r.comment ?? '').trim() || null,
       linked: live.status === 'link-ok',
       rateMbps: parseRate(live.rate),
       fullDuplex: parseFlag(live['full-duplex']),

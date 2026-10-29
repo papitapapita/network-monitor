@@ -344,6 +344,7 @@ import {
   GetMapLocationsUseCase,
   GetTopologyUseCase,
   ListUpstreamSuggestionsUseCase,
+  GetRouterNeighborsUseCase,
   AcceptUpstreamSuggestionsUseCase,
   GetDeviceDescendantsUseCase,
   DeleteLocationUseCase
@@ -375,6 +376,10 @@ import {
 import { RouterOsApiPrinter } from '../monitoring/routeros';
 import { RouterOsSystemReader } from '../monitoring/router-system';
 import {
+  RouterNeighborQueryAdapter,
+  RouterOsNeighborReader
+} from '../monitoring/router-neighbors';
+import {
   RunNetworkSweepUseCase,
   RunSpeedTestUseCase,
   RunPingToolUseCase,
@@ -396,7 +401,8 @@ import {
   RouterPortInspector,
   PortHealthNotifier,
   RouterSystemRecorder,
-  RouterSystemNotifier
+  RouterSystemNotifier,
+  RouterNeighborSurvey
 } from 'application/device-monitoring/services';
 import { PrismaNetworkSweepTargetsQuery } from '../monitoring/network-sweep';
 import { CloudflareSpeedTester } from '../monitoring/speed-test';
@@ -1772,13 +1778,20 @@ export class DependencyContainer {
     // MON-160..MON-163: what each MikroTik says about itself, read with
     // allowed RouterOS commands; off site through the router's agent
     // (AGT-123).
+    const routerOsPrinter = this.serverOnSite
+      ? new RouterOsApiPrinter(this.logger)
+      : new AgentChannelRouterOsPrinter(connectedAgents);
     const routerSystemRecorder = new RouterSystemRecorder(
-      new RouterOsSystemReader(
-        this.serverOnSite
-          ? new RouterOsApiPrinter(this.logger)
-          : new AgentChannelRouterOsPrinter(connectedAgents)
-      ),
+      new RouterOsSystemReader(routerOsPrinter),
       new PrismaRouterSystemStateRepository(this.prisma)
+    );
+    // MON-200, MON-201: what each MikroTik hears, lent to device inventory
+    // for discovery, upstream suggestions and port labels.
+    const routerNeighborQuery = new RouterNeighborQueryAdapter(
+      new RouterNeighborSurvey(
+        portSpeedTargets,
+        new RouterOsNeighborReader(routerOsPrinter)
+      )
     );
     const routerHealthThresholds =
       new PrismaRouterHealthThresholdsRepository(this.prisma);
@@ -2202,9 +2215,12 @@ export class DependencyContainer {
     // DEV-200..207: hosts the network shows that inventory lacks.
     const discoveredDeviceRepository =
       new PrismaDiscoveredDeviceRepository(this.prisma);
+    const knownDeviceLookup = new PrismaKnownDeviceLookup(
+      this.prisma
+    );
     this.deviceSightingRecorder = new DeviceSightingRecorder(
       discoveredDeviceRepository,
-      new PrismaKnownDeviceLookup(this.prisma),
+      knownDeviceLookup,
       new InboxDiscoveryNotifier(
         recordInboxNotificationUseCase,
         this.logger
@@ -2273,7 +2289,8 @@ export class DependencyContainer {
         discoverySettingsRepository,
         segmentScanner,
         this.deviceSightingRecorder,
-        this.serverOnSite
+        this.serverOnSite,
+        routerNeighborQuery
       ),
       {},
       this.logger
@@ -2963,10 +2980,18 @@ export class DependencyContainer {
         new PoweringSwitchQueryAdapter(
           new PoweredDeviceSurvey(poeSwitchTargets, sitePoeInspector)
         ),
+        routerNeighborQuery,
+        knownDeviceLookup,
         this.logger
       ),
       new AcceptUpstreamSuggestionsUseCase(
         this.deviceRepository,
+        this.logger
+      ),
+      new GetRouterNeighborsUseCase(
+        routerNeighborQuery,
+        knownDeviceLookup,
+        topologyQuery,
         this.logger
       ),
       this.logger

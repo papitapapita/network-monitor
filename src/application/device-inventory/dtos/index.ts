@@ -49,3 +49,4 @@ export * from './DiscoveredDeviceDTOs';
 export * from './DiscoverySettingsDTOs';
 export * from './HardwareSuggestionDTO';
 export * from './HardwareChangesResponseDTO';
+export * from './RouterNeighborDTOs';

@@ -39,12 +39,12 @@ are wrong, but each is a deliberate choice that should stay deliberate.
 | Layer                                 | Rules | IDs                                                                                                                                                                                                                                                                                                                                                                                      |
 | ------------------------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Domain**                            |    50 | DEV-001, DEV-002, DEV-004, DEV-006, DEV-020, DEV-023, DEV-024, DEV-025, DEV-040, DEV-041, DEV-042, DEV-043, DEV-045, DEV-046, DEV-048, DEV-051, DEV-052, DEV-053, DEV-054, DEV-055, DEV-056, DEV-057, DEV-058, DEV-059, DEV-060, DEV-061, DEV-062, DEV-063, DEV-071, DEV-073, DEV-082, DEV-083, DEV-086, DEV-088, DEV-090, DEV-091, DEV-093, DEV-094, DEV-095, DEV-096, DEV-141, DEV-144, DEV-162, DEV-164, DEV-169, DEV-180, DEV-181, DEV-202, DEV-204, DEV-210 |
-| **Application**                       |    60 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-134, DEV-135, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172, DEV-173, DEV-184, DEV-191, DEV-192, DEV-193, DEV-195, DEV-205, DEV-207, DEV-211 |
+| **Application**                       |    63 | DEV-005, DEV-008, DEV-021, DEV-026, DEV-027, DEV-029, DEV-030, DEV-044, DEV-050, DEV-065, DEV-066, DEV-067, DEV-068, DEV-069, DEV-075, DEV-076, DEV-077, DEV-080, DEV-081, DEV-085, DEV-089, DEV-092, DEV-097, DEV-098, DEV-099, DEV-120, DEV-121, DEV-122, DEV-123, DEV-124, DEV-125, DEV-126, DEV-127, DEV-128, DEV-129, DEV-130, DEV-131, DEV-132, DEV-133, DEV-134, DEV-135, DEV-142, DEV-143, DEV-145, DEV-163, DEV-165, DEV-166, DEV-167, DEV-168, DEV-171, DEV-172, DEV-173, DEV-184, DEV-191, DEV-192, DEV-193, DEV-195, DEV-196, DEV-197, DEV-205, DEV-207, DEV-211, DEV-217 |
 | **Application + Domain**              |    12 | DEV-031, DEV-070, DEV-074, DEV-078, DEV-079, DEV-087, DEV-160, DEV-182, DEV-183, DEV-185, DEV-194, DEV-200 |
 | **Application + database constraint** |     5 | DEV-003, DEV-007, DEV-022, DEV-047, DEV-049                                                                                                                                                                                                                                                                                                                                              |
 | **Infrastructure + Domain**           |     2 | DEV-028, DEV-161 |
 | **Infrastructure + Application**      |    13 | DEV-072, DEV-084, DEV-148, DEV-149, DEV-186, DEV-190, DEV-201, DEV-203, DEV-206, DEV-208, DEV-209, DEV-212, DEV-214 |
-| **Presentation**                      |     4 | DEV-140, DEV-146, DEV-170, DEV-213                                                                                                                                                                                                                                                                                                                                                                         |
+| **Presentation**                      |     5 | DEV-140, DEV-146, DEV-170, DEV-198, DEV-213                                                                                                                                                                                                                                                                                                                                                                        |
 
 **Half the book sits outside the domain, and most of it belongs there.** The
 three clusters are worth naming, because they are not the same kind of
@@ -3358,12 +3358,93 @@ needs to know the PoE side may be incomplete.
 **Enforced at:** `src/application/power-control/services/PoweredDeviceSurvey.ts`, `src/application/device-inventory/use-cases/ListUpstreamSuggestionsUseCase.ts`
 **Tests:** `tests/application/power-control/services/PoweredDeviceSurvey.test.ts`, `tests/application/device-inventory/services/UpstreamSuggester.test.ts`, `tests/application/device-inventory/use-cases/ListUpstreamSuggestionsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ListUpstreamSuggestionsUseCase.integration.test.ts`
 
+### DEV-196 — A device is offered the MikroTik port it is clearly cabled to
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-28
+
+Each listing also reads the neighbour table of every MikroTik of MON-140 live
+(MON-201). A device is offered a router as its upstream when one of that
+router's ports clearly hears it (DEV-197). The suggestion has `source:
+'ROUTER_NEIGHBOR'` and `port` set to the router port. It is weighed last: a
+device the radio (DEV-190) or a PoE port (DEV-191) already places is not
+offered a router, and a station never is. A device that looks cabled to two
+ports, on one router or two, is left out. Two routers that each clearly hear
+the other are both left out, because which one leads up can't be told. A
+router that can't be read is listed in `unreadRouters`, and the listing still
+answers. DEV-192 and DEV-193 apply as for the other sources.
+
+**Why:** Wired devices that are neither stations nor PoE-powered (a switch, a
+second router, an AP on a separate injector) had no evidence at all. The
+router's neighbour table is the only place the network says where they plug
+in. It is weaker than a radio's own report or a labelled PoE port, so it only
+fills gaps.
+
+**Enforced at:** `src/application/device-inventory/services/RouterNeighborMap.ts`, `src/application/device-inventory/services/UpstreamSuggester.ts`, `src/application/device-inventory/use-cases/ListUpstreamSuggestionsUseCase.ts`
+**Tests:** `tests/application/device-inventory/services/RouterNeighborMap.test.ts`, `tests/application/device-inventory/services/UpstreamSuggester.test.ts`, `tests/application/device-inventory/use-cases/ListUpstreamSuggestionsUseCase.test.ts`, `tests/integration/use-cases/device-inventory/ListUpstreamSuggestionsUseCase.integration.test.ts`
+
+### DEV-197 — Only a port that hears exactly one device over its cable says who is plugged in
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-28
+
+A neighbour is matched with inventory by MAC, then by IP (DEV-201). The router
+itself is never matched. A neighbour is **wireless** when the interface it
+announced from starts with `ath`, `wlan` or `wifi` (the part after the last `/`,
+so `bridge1/wlan1` counts). Such a neighbour is heard through an AP, not over
+this port's cable. A port is the **uplink** when it hears the router's own
+upstream, anything above that in the tree, or a `GATEWAY` device.
+
+A port says who is plugged into it only when it is not the uplink and hears
+exactly one device that is not wireless. Several entries for the same device
+(MNDP and LLDP, the same MAC or IP) count as one. That device must also be in
+inventory.
+
+**Why:** The network is one flat bridge, so MNDP announcements cross every
+switch. On a hEX the uplink port heard about 36 devices from all over the
+network. A port toward an AP heard that AP over the cable plus the stations
+behind it over their radios (`ath0`). Being heard is not being next door. Only
+the case with a single wired voice is safe to read as a cable.
+
+**Enforced at:** `src/application/device-inventory/services/RouterNeighborMap.ts`
+**Tests:** `tests/application/device-inventory/services/RouterNeighborMap.test.ts`, `tests/integration/use-cases/device-inventory/ListUpstreamSuggestionsUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/GetRouterNeighborsUseCase.integration.test.ts`
+
+### DEV-198 — A MikroTik's ports can be read for what they hear, with the comment each could carry
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application + Presentation
+**Since:** 2026-10-28
+
+`GET /api/topology/routers/:deviceId/neighbors` reads one MikroTik of MON-140
+now. It lists every Ethernet port with its comment, followed by any other
+interface something was heard on. Each port carries `uplink`, its neighbours
+(matched with inventory and flagged `wireless`, DEV-197) and
+`suggestedComment`. That is the inventory name of the one device clearly cabled
+to the port (DEV-197), unless the port's comment already contains it (case
+ignored). The comment is only suggested: nothing is written to the router.
+
+A router that can't be read (no login, off site without an agent, timeout)
+answers `200` with `reason` and no ports. A device that is not one of MON-140's
+MikroTiks answers `404`, and a malformed id `400`.
+
+**Why:** Port comments are how technicians find a cable on site, and they go
+stale when gear is swapped. The router already knows what hangs off each port.
+Offering the name saves walking the tower, and leaving the write to a person
+keeps the app read-only on routers.
+
+**Enforced at:** `src/application/device-inventory/use-cases/GetRouterNeighborsUseCase.ts`, `src/application/device-inventory/services/RouterNeighborMap.ts`, `src/presentation/http/routes/topology.routes.ts`
+**Message:** `MikroTik router not found: <id>`
+**Tests:** `tests/application/device-inventory/use-cases/GetRouterNeighborsUseCase.test.ts`, `tests/application/device-inventory/services/RouterNeighborMap.test.ts`, `tests/integration/use-cases/device-inventory/GetRouterNeighborsUseCase.integration.test.ts`, `tests/integration/topology.routes.test.ts`
+
 ## Discovery
 
 Hosts the network shows that inventory lacks, kept as suggestions to create a
 device (`/api/network/discovered`). Every source of sightings — a manual scan,
 the scheduled scan (DEV-210 – DEV-213) and each AP's station list — goes
-through the same recorder, so they all agree on what is new.
+through the same recorder, as do the MikroTik neighbour tables (DEV-217), so
+they all agree on what is new.
 
 ### DEV-200 — A host inventory lacks becomes a suggestion, keyed by its MAC
 
@@ -3372,7 +3453,7 @@ through the same recorder, so they all agree on what is new.
 **Since:** 2026-10-27
 
 A sighting whose MAC no live device owns (DEV-201) is stored as one discovered
-device per MAC, with its IP, OUI manufacturer, source (`SCAN` or `AP_STATION`)
+device per MAC, with its IP, OUI manufacturer, source (`SCAN`, `AP_STATION` or `ROUTER_NEIGHBOR`)
 and the segment or AP it was seen on. The MAC is normalized like a device's
 (DEV-046). A host with no readable MAC, which is the case on a routed segment
 where the server's ARP table cannot see it, is never stored.
@@ -3590,9 +3671,10 @@ means an upgrade never starts pinging a network nobody configured.
 
 **Type:** Policy · **Status:** Active
 **Layer:** Application
-**Since:** 2026-10-27
+**Since:** 2026-10-27 · **Revised:** 2026-10-28 (router neighbours, DEV-217)
 
-The server checks every 5 minutes. While the scan is on and has segments, a run
+The server checks every 5 minutes. While the scan is on (with segments, or with
+MikroTik neighbour tables to read, DEV-217), a run
 starts when no run has happened yet, or when the interval has passed since the
 last run started. The run's start is recorded before anything is swept. The
 segments are swept one after the other, never at once. Each segment is recorded
@@ -3843,3 +3925,25 @@ swap-hardware handles and replace would refuse.
 **Enforced at:** `src/application/device-inventory/services/HardwareChangeAssessor.ts` (`findSwapCandidatesBySerial`, `differences`), `src/infrastructure/persistence/PrismaDeviceHardwareQuery.ts` (`findDevicesBySerial`)
 **Reached from:** `GET /api/wireless/hardware-changes`
 **Tests:** `tests/application/device-inventory/use-cases/GetHardwareChangesUseCase.test.ts`, `tests/infrastructure/persistence/PrismaDeviceHardwareQuery.test.ts`, `tests/integration/use-cases/device-inventory/GetHardwareChangesUseCase.integration.test.ts`
+
+### DEV-217 — What each MikroTik hears is a sighting on the scheduled run
+
+**Type:** Policy · **Status:** Active
+**Layer:** Application
+**Since:** 2026-10-28
+
+After the segments, each scheduled run reads the neighbour table of every
+MikroTik of MON-140 (MON-201). Each router is recorded as its own batch with
+source `ROUTER_NEIGHBOR`, no segment, and the router's name as where it was
+seen. The neighbour's identity becomes the hostname, and its board (or else its
+platform, which is where AirOS puts the model) becomes the model. A router that
+can't be read, or whose batch can't be recorded, is reported and the run goes
+on. The run's result lists each router with `neighborCount`, `newCount` or
+`error`.
+
+**Why:** MNDP crosses the flat bridge, so one router hears radios and switches
+from all over the network, with their names and models, and without a ping
+sweep.
+
+**Enforced at:** `src/application/device-inventory/use-cases/RunScheduledDiscoveryUseCase.ts`
+**Tests:** `tests/application/device-inventory/use-cases/RunScheduledDiscoveryUseCase.test.ts`, `tests/integration/use-cases/device-inventory/RunScheduledDiscoveryUseCase.integration.test.ts`, `tests/infrastructure/monitoring/orchestrator/DiscoveryScanOrchestrator.test.ts`

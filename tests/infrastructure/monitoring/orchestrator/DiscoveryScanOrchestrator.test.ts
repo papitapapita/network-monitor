@@ -16,7 +16,9 @@ describe('DiscoveryScanOrchestrator', () => {
     useCase = {
       execute: jest
         .fn()
-        .mockResolvedValue(Result.ok({ ran: false, segments: [] }))
+        .mockResolvedValue(
+          Result.ok({ ran: false, segments: [], routers: [] })
+        )
     };
     logger = makeLogger();
     orchestrator = new DiscoveryScanOrchestrator(
@@ -41,7 +43,9 @@ describe('DiscoveryScanOrchestrator', () => {
       () =>
         new Promise((resolve) => {
           finish = () =>
-            resolve(Result.ok({ ran: true, segments: [] }));
+            resolve(
+              Result.ok({ ran: true, segments: [], routers: [] })
+            );
         })
     );
 
@@ -65,7 +69,8 @@ describe('DiscoveryScanOrchestrator', () => {
             newCount: null,
             error: 'Scan failed: boom'
           }
-        ]
+        ],
+        routers: []
       })
     );
 
@@ -74,6 +79,31 @@ describe('DiscoveryScanOrchestrator', () => {
     expect(logger.warn).toHaveBeenCalledWith(
       '[DiscoveryScanOrchestrator] Segment not scanned',
       expect.objectContaining({ error: 'Scan failed: boom' })
+    );
+  });
+
+  it('[DEV-217] logs a router whose neighbours could not be read', async () => {
+    useCase.execute.mockResolvedValue(
+      Result.ok({
+        ran: true,
+        segments: [],
+        routers: [
+          {
+            deviceId: 'hex-1',
+            name: 'Hex Norte',
+            neighborCount: null,
+            newCount: null,
+            error: 'timeout'
+          }
+        ]
+      })
+    );
+
+    await orchestrator.tick();
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      '[DiscoveryScanOrchestrator] Router neighbours not read',
+      expect.objectContaining({ name: 'Hex Norte', error: 'timeout' })
     );
   });
 

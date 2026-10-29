@@ -14,6 +14,7 @@ import {
   MAX_ROUTEROS_VALUE_LENGTH,
   refuseRouterOsCommand
 } from 'agent/protocol';
+import { fromRouterOsText } from './routerOsText';
 
 type RawRow = Record<string, unknown>;
 
@@ -108,11 +109,15 @@ async function runAll(
 // The API answers strings, but a `!re` word without a value comes back as
 // undefined; it is dropped rather than sent as "undefined". Values are cut to
 // what an agent answer may carry, so one long comment cannot void the batch.
+// UTF-8 text is restored first (MON-200).
 function toRow(raw: RawRow): RouterOsRow {
   const row: RouterOsRow = {};
   for (const [key, value] of Object.entries(raw)) {
     if (typeof value === 'string') {
-      row[key] = value.slice(0, MAX_ROUTEROS_VALUE_LENGTH);
+      row[key] = fromRouterOsText(value).slice(
+        0,
+        MAX_ROUTEROS_VALUE_LENGTH
+      );
     }
   }
   return row;

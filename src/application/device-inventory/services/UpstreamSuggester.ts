@@ -4,6 +4,7 @@ import {
   TopologyDeviceRow
 } from '../interfaces';
 import { UpstreamSuggestionDTO } from '../dtos';
+import { RouterNeighborLink } from './RouterNeighborMap';
 
 const ON_NETWORK = new Set(['ACTIVE', 'COMMISSIONING']);
 
@@ -19,6 +20,7 @@ export class UpstreamSuggester {
   suggest(
     reportedAps: ReportedApRow[],
     poweringSwitches: PoweringSwitchRow[],
+    neighborLinks: RouterNeighborLink[],
     locationId: string | null
   ): UpstreamSuggestionDTO[] {
     const stations = new Set(reportedAps.map((r) => r.stationId));
@@ -55,6 +57,24 @@ export class UpstreamSuggester {
         ...suggestion,
         source: 'POE',
         port: powered.port
+      });
+    }
+
+    // DEV-196: the router port a device is cabled to, weighed last: the
+    // radio and the PoE port are surer.
+    for (const link of neighborLinks) {
+      if (stations.has(link.deviceId)) continue;
+      if (proposals.has(link.deviceId)) continue;
+      const suggestion = this.propose(
+        link.deviceId,
+        link.routerDeviceId,
+        locationId
+      );
+      if (!suggestion) continue;
+      proposals.set(link.deviceId, {
+        ...suggestion,
+        source: 'ROUTER_NEIGHBOR',
+        port: link.port
       });
     }
 

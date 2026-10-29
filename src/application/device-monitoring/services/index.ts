@@ -5,3 +5,4 @@ export * from './RouterPortInspector';
 export * from './RouterSystemRecorder';
 export * from './RouterSystemNotifier';
 export * from './PortHealthNotifier';
+export * from './RouterNeighborSurvey';

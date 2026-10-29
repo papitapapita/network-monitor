@@ -18,6 +18,11 @@ Conventions, rule types and the ID scheme are in [README.md](README.md).
 | `MON-100` – `MON-119` | Internet speed test                  |
 | `MON-120` – `MON-139` | Ping tool                            |
 | `MON-140` – `MON-159` | MikroTik port speeds                 |
+| `MON-160` – `MON-169` | MikroTik system and hardware read    |
+| `MON-170` – `MON-179` | MikroTik reboots and health          |
+| `MON-180` – `MON-189` | MikroTik audit                       |
+| `MON-190` – `MON-199` | MikroTik port errors and fibre       |
+| `MON-200` – `MON-209` | MikroTik neighbours                  |
 
 This file covers the reachability lifecycle only. The rules that decide **which**
 devices may be monitored at all live with the device itself — see DEV-057
@@ -1838,3 +1843,54 @@ once, and an agent mid-update must not lose the port speeds.
 
 **Enforced at:** `src/presentation/ws/agent/agentMessageSchema.ts`, `src/presentation/ws/agent/ConnectedAgents.ts`, `src/agent/protocol/messages.ts`
 **Tests:** `tests/presentation/ws/agent/agentMessageSchema.test.ts`, `tests/integration/agent-ports.test.ts`
+
+## MikroTik neighbours
+
+### MON-200 — A MikroTik is read for its neighbour table and port comments, and its text as UTF-8
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+One login through the RouterOS printer (AGT-123), so on site from this server
+and off site through the router's agent, runs `/ip/neighbor/print` and
+`/interface/ethernet/print` (name and comment). Each neighbour keeps the port
+it was heard on (the part before the comma, so `ether2,bridge` is `ether2`),
+its MAC (upper case, null unless valid), its IPv4 address (`address4`, else
+`address`, null unless a valid IPv4), identity, platform, board, version and
+the interface it announced from (`interface-name`). Text is cut to 100
+characters. An entry without a port is dropped. A refused port read leaves the
+ports empty; only a refused neighbour table, or a failed login, fails the read.
+
+The RouterOS library reads every reply as Windows-1252, but RouterOS keeps the
+bytes it was given, and WebFig, the terminal and AirOS hostnames give UTF-8.
+Every value the printer answers, and every port comment the port reader
+answers (MON-140), is read as UTF-8 when its bytes form valid UTF-8, and kept
+as read otherwise. So "Virgüez" is no longer "VirgÃ¼ez", and "Peña" typed in
+Winbox on Windows stays "Peña".
+
+**Why:** The neighbour table is the network's own account of what is plugged
+in where (DEV-196..198) and of devices inventory lacks (DEV-217). Spanish names
+are common in Insetel's identities and comments, and were arriving garbled.
+
+**Enforced at:** `src/infrastructure/monitoring/router-neighbors/RouterOsNeighborReader.ts`, `src/infrastructure/monitoring/routeros/routerOsText.ts`, `src/infrastructure/monitoring/routeros/RouterOsApiPrinter.ts`, `src/infrastructure/monitoring/port-speeds/RouterOsPortReader.ts`
+**Tests:** `tests/infrastructure/monitoring/router-neighbors/RouterOsNeighborReader.test.ts`, `tests/infrastructure/monitoring/routeros/routerOsText.test.ts`
+
+### MON-201 — The neighbour tables of every MikroTik are read live, at once, and an unread one is reported
+
+**Type:** Policy · **Status:** Active
+**Since:** 2026-10-28
+
+The same MikroTiks as the port check (MON-140) are read, all at once, with the
+same reasons for skipping one (no IP, no login, off site without an agent,
+MON-145). A router that can't be read is reported with its reason, and only a
+failure to list the routers fails the read. One router can also be read on its
+own; a device that is not one of those MikroTiks answers "none". Nothing is
+stored: device inventory reads them for upstream suggestions and port labels
+on demand, and for discovery on the scheduled run.
+
+**Why:** Neighbour tables change whenever something is re-cabled, so a stored
+copy would mislead. One unreachable router should not hide what the others
+hear.
+
+**Enforced at:** `src/application/device-monitoring/services/RouterNeighborSurvey.ts`, `src/infrastructure/monitoring/router-neighbors/RouterNeighborQueryAdapter.ts`
+**Tests:** `tests/application/device-monitoring/services/RouterNeighborSurvey.test.ts`, `tests/integration/use-cases/device-inventory/ListUpstreamSuggestionsUseCase.integration.test.ts`, `tests/integration/use-cases/device-inventory/GetRouterNeighborsUseCase.integration.test.ts`

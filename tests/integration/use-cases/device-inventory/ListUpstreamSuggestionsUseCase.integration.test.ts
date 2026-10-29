@@ -7,10 +7,14 @@ import {
   PoweredDeviceSurvey,
   SitePoeInspector
 } from 'application/power-control';
+import { RouterNeighborSurvey } from 'application/device-monitoring/services';
 import {
+  PrismaKnownDeviceLookup,
   PrismaReportedApQuery,
   PrismaTopologyQuery
 } from 'infrastructure/persistence';
+import { PrismaPortSpeedTargetsQuery } from 'infrastructure/monitoring/port-speeds';
+import { RouterNeighborQueryAdapter } from 'infrastructure/monitoring/router-neighbors';
 import {
   PoweringSwitchQueryAdapter,
   PrismaPoeSwitchTargetsQuery
@@ -34,6 +38,14 @@ import {
   seedSite,
   seedSiteDevice
 } from '../../helpers/powerControl';
+import {
+  FakeRouterNeighborReader,
+  neighbor
+} from '../../helpers/FakeRouterNeighborReader';
+import {
+  seedMikrotikModel,
+  seedRouter
+} from '../../helpers/portSpeeds';
 
 const LOGIN = { username: 'admin', password: 'secret' };
 
@@ -45,6 +57,7 @@ describe('ListUpstreamSuggestionsUseCase — integration', () => {
   let antennaModelId: string;
   let towerId: string;
   const reader = new FakePoeSwitchReader();
+  const neighbors = new FakeRouterNeighborReader();
 
   beforeAll(async () => {
     container = await setupDependencies();
@@ -59,6 +72,13 @@ describe('ListUpstreamSuggestionsUseCase — integration', () => {
           new SitePoeInspector(targets, reader)
         )
       ),
+      new RouterNeighborQueryAdapter(
+        new RouterNeighborSurvey(
+          new PrismaPortSpeedTargetsQuery(prisma, true),
+          neighbors
+        )
+      ),
+      new PrismaKnownDeviceLookup(prisma),
       new WinstonLogger()
     );
   });
@@ -69,6 +89,7 @@ describe('ListUpstreamSuggestionsUseCase — integration', () => {
 
   beforeEach(async () => {
     reader.reset();
+    neighbors.reset();
     await cleanDatabase(prisma);
     switchModelId = await seedPoeSwitchModel(prisma, 'ROUTEROS');
     antennaModelId = await seedWirelessDeviceModel(prisma);
@@ -292,13 +313,96 @@ describe('ListUpstreamSuggestionsUseCase — integration', () => {
     });
   });
 
+  describe('router neighbours (DEV-196, DEV-197)', () => {
+    let routerModelId: string;
+
+    beforeEach(async () => {
+      routerModelId = await seedMikrotikModel(prisma);
+    });
+
+    const seedHex = (name = 'Hex Norte', ip = '10.0.7.1') =>
+      seedRouter(prisma, { name, deviceModelId: routerModelId, ip });
+
+    it('[DEV-196] suggests the router port that hears one device over its cable', async () => {
+      const hex = await seedHex();
+      const ap = await seedAntenna('AP 32', '10.0.7.21');
+      neighbors.serve('10.0.7.1', [
+        neighbor('ether2 AP 32', { ipAddress: '10.0.7.21' }),
+        neighbor('ether2 AP 32', {
+          ipAddress: '10.0.7.99',
+          remoteInterface: 'ath0'
+        })
+      ]);
+
+      const result = await useCase.execute({});
+
+      expect(result.value.suggestions).toMatchObject([
+        {
+          deviceId: ap,
+          suggestedUpstreamDeviceId: hex,
+          suggestedUpstreamDeviceName: 'Hex Norte',
+          source: 'ROUTER_NEIGHBOR',
+          port: 'ether2 AP 32'
+        }
+      ]);
+      expect(result.value.unreadRouters).toEqual([]);
+    });
+
+    it('[DEV-197] offers nothing on a port that hears several devices', async () => {
+      await seedHex();
+      await seedAntenna('AP 32', '10.0.7.21');
+      await seedAntenna('AP 03', '10.0.7.22');
+      neighbors.serve('10.0.7.1', [
+        neighbor('ether1', { ipAddress: '10.0.7.21' }),
+        neighbor('ether1', { ipAddress: '10.0.7.22' })
+      ]);
+
+      const result = await useCase.execute({});
+
+      expect(result.value.total).toBe(0);
+    });
+
+    it('[DEV-197] offers nothing on the port that hears the gateway', async () => {
+      await seedHex();
+      const core = await seedRouter(prisma, {
+        name: 'Core',
+        deviceModelId: routerModelId,
+        ip: '10.0.7.254',
+        category: 'GATEWAY'
+      });
+      neighbors.serve('10.0.7.1', [
+        neighbor('ether1', { ipAddress: '10.0.7.254' })
+      ]);
+      neighbors.serve('10.0.7.254', []);
+
+      const result = await useCase.execute({});
+
+      expect(
+        result.value.suggestions.map((s) => s.deviceId)
+      ).not.toContain(core);
+      expect(result.value.total).toBe(0);
+    });
+
+    it('[DEV-196] lists a router that could not be read', async () => {
+      const hex = await seedHex();
+      neighbors.answer('10.0.7.1', Result.fail('timeout'));
+
+      const result = await useCase.execute({});
+
+      expect(result.value.unreadRouters).toEqual([
+        { deviceId: hex, name: 'Hex Norte', reason: 'timeout' }
+      ]);
+    });
+  });
+
   it('returns nothing on an empty network', async () => {
     const result = await useCase.execute({});
 
     expect(result.value).toEqual({
       suggestions: [],
       total: 0,
-      unreadSwitches: []
+      unreadSwitches: [],
+      unreadRouters: []
     });
   });
 });

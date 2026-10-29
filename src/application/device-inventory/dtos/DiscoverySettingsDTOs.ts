@@ -22,7 +22,17 @@ export type ScheduledSegmentOutcomeDTO = DiscoverySegmentDTO &
     | { responsiveCount: null; newCount: null; error: string }
   );
 
+// DEV-217: one MikroTik's neighbour table, read on the scheduled run.
+export type ScheduledRouterOutcomeDTO = {
+  deviceId: string;
+  name: string;
+} & (
+  | { neighborCount: number; newCount: number; error: null }
+  | { neighborCount: null; newCount: null; error: string }
+);
+
 export interface RunScheduledDiscoveryResultDTO {
   ran: boolean;
   segments: ScheduledSegmentOutcomeDTO[];
+  routers: ScheduledRouterOutcomeDTO[];
 }

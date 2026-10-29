@@ -4,7 +4,8 @@ import {
   GetTopologyUseCase,
   GetDeviceDescendantsUseCase,
   ListUpstreamSuggestionsUseCase,
-  AcceptUpstreamSuggestionsUseCase
+  AcceptUpstreamSuggestionsUseCase,
+  GetRouterNeighborsUseCase
 } from 'application/device-inventory/use-cases';
 
 export class TopologyController {
@@ -13,6 +14,7 @@ export class TopologyController {
     private readonly getDescendantsUseCase: GetDeviceDescendantsUseCase,
     private readonly listSuggestionsUseCase: ListUpstreamSuggestionsUseCase,
     private readonly acceptSuggestionsUseCase: AcceptUpstreamSuggestionsUseCase,
+    private readonly getRouterNeighborsUseCase: GetRouterNeighborsUseCase,
     private readonly logger: ILogger
   ) {}
 
@@ -87,6 +89,27 @@ export class TopologyController {
       });
       if (result.isFailure) {
         res.status(400).json({ success: false, error: result.error });
+        return;
+      }
+      res.status(200).json({ success: true, data: result.value });
+    } catch (error) {
+      this.handleUnexpectedError(error, res);
+    }
+  };
+
+  // 200 with a reason when the router could not be read (DEV-198).
+  public getRouterNeighbors = async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const result = await this.getRouterNeighborsUseCase.execute({
+        deviceId: req.params.deviceId
+      });
+      if (result.isFailure) {
+        res
+          .status(this.getErrorStatusCode(result.error))
+          .json({ success: false, error: result.error });
         return;
       }
       res.status(200).json({ success: true, data: result.value });

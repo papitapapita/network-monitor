@@ -1,4 +1,5 @@
 export enum DiscoverySource {
   SCAN = 'SCAN',
-  AP_STATION = 'AP_STATION'
+  AP_STATION = 'AP_STATION',
+  ROUTER_NEIGHBOR = 'ROUTER_NEIGHBOR'
 }

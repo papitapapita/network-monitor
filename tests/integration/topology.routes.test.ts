@@ -8,11 +8,13 @@ import {
   cleanDatabase,
   seedDeviceModel,
   seedNetworkDevice,
+  seedWirelessDeviceModel,
   GHOST_ID,
   INVALID_ID
 } from './helpers/db';
 import { seedAndGetToken } from './helpers/auth';
 import { DependencyContainer } from '../../src/infrastructure/di/container';
+import { seedMikrotikModel, seedRouter } from './helpers/portSpeeds';
 
 // Every role holds `read`, so only accepting suggestions has a 403 case.
 describe('Topology routes', () => {
@@ -278,6 +280,62 @@ describe('Topology routes', () => {
         .send({
           links: [{ deviceId: GHOST_ID, upstreamDeviceId: GHOST_ID }]
         });
+
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('GET /api/topology/routers/:deviceId/neighbors', () => {
+    it('200 — answers why a router without a login was not read', async () => {
+      const hex = await seedRouter(prisma, {
+        name: 'Hex Norte',
+        deviceModelId: await seedMikrotikModel(prisma),
+        login: null
+      });
+
+      const res = await request(app)
+        .get(`/api/topology/routers/${hex}/neighbors`)
+        .set('Authorization', `Bearer ${viewerToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        success: true,
+        data: {
+          deviceId: hex,
+          deviceName: 'Hex Norte',
+          reason: 'The router has no username and password saved',
+          ports: []
+        }
+      });
+    });
+
+    it('404 — for a device that is not a MikroTik router', async () => {
+      const ap = await seedNetworkDevice(
+        prisma,
+        await seedWirelessDeviceModel(prisma),
+        { name: 'AP Torre Norte', ipAddress: '10.0.3.2' }
+      );
+
+      const res = await request(app)
+        .get(`/api/topology/routers/${ap}/neighbors`)
+        .set('Authorization', `Bearer ${viewerToken}`);
+
+      expect(res.status).toBe(404);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('400 — for a malformed id', async () => {
+      const res = await request(app)
+        .get(`/api/topology/routers/${INVALID_ID}/neighbors`)
+        .set('Authorization', `Bearer ${viewerToken}`);
+
+      expect(res.status).toBe(400);
+    });
+
+    it('401 — without a token', async () => {
+      const res = await request(app).get(
+        `/api/topology/routers/${GHOST_ID}/neighbors`
+      );
 
       expect(res.status).toBe(401);
     });

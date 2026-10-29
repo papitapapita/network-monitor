@@ -6,6 +6,7 @@ import {
 } from '../../../../src/application/device-inventory/use-cases';
 import {
   DiscoveredHost,
+  IRouterNeighborQuery,
   ISegmentScanner
 } from '../../../../src/application/device-inventory/interfaces';
 import {
@@ -48,13 +49,15 @@ describe('RunScheduledDiscoveryUseCase', () => {
   let recorder: jest.Mocked<DeviceSightingRecorder>;
 
   function makeUseCase(
-    serverOnSite = true
+    serverOnSite = true,
+    routerNeighbors: IRouterNeighborQuery | null = null
   ): RunScheduledDiscoveryUseCase {
     return new RunScheduledDiscoveryUseCase(
       repository,
       scanner,
       recorder,
-      serverOnSite
+      serverOnSite,
+      routerNeighbors
     );
   }
 
@@ -96,7 +99,11 @@ describe('RunScheduledDiscoveryUseCase', () => {
 
       const result = await makeUseCase().execute({ now: NOW });
 
-      expect(result.value).toEqual({ ran: false, segments: [] });
+      expect(result.value).toEqual({
+        ran: false,
+        segments: [],
+        routers: []
+      });
       expect(scanner.scan).not.toHaveBeenCalled();
     });
 
@@ -267,6 +274,143 @@ describe('RunScheduledDiscoveryUseCase', () => {
       );
       expect(scanner.scan).toHaveBeenCalledTimes(1);
       expect(scanner.scan).toHaveBeenCalledWith('10.0.0.0/24', AGENT);
+    });
+  });
+
+  describe('[DEV-217] router neighbours', () => {
+    let routerNeighbors: jest.Mocked<IRouterNeighborQuery>;
+
+    beforeEach(() => {
+      routerNeighbors = {
+        findRouterNeighbors: jest.fn().mockResolvedValue(
+          Result.ok({
+            routers: [
+              {
+                routerDeviceId: 'hex-1',
+                routerName: 'Hex Norte',
+                ports: [],
+                neighbors: [
+                  {
+                    port: 'ether1',
+                    macAddress: '24:A4:3C:00:00:01',
+                    ipAddress: '10.0.7.21',
+                    identity: 'AP 32',
+                    platform: 'LiteBeam M5',
+                    board: null,
+                    version: 'XW.v6.3.6',
+                    remoteInterface: 'br0'
+                  },
+                  {
+                    port: 'ether1',
+                    macAddress: '48:8F:5A:00:00:02',
+                    ipAddress: '10.0.7.2',
+                    identity: 'Hex Sur',
+                    platform: 'MikroTik',
+                    board: 'RB960PGS',
+                    version: '6.48.6',
+                    remoteInterface: 'bridge/ether1'
+                  }
+                ]
+              }
+            ],
+            unreadRouters: [
+              { deviceId: 'core', name: 'Core', reason: 'timeout' }
+            ]
+          })
+        ),
+        findRouterNeighborsOf: jest.fn()
+      };
+    });
+
+    it('records each router as a batch of its neighbours', async () => {
+      const result = await makeUseCase(true, routerNeighbors).execute(
+        {
+          now: NOW
+        }
+      );
+
+      const batch = recorder.record.mock.calls[1]![0];
+      expect(batch).toMatchObject({
+        source: DiscoverySource.ROUTER_NEIGHBOR,
+        segment: null,
+        where: 'Hex Norte',
+        seenAt: NOW
+      });
+      expect(batch.hosts).toEqual([
+        {
+          macAddress: '24:A4:3C:00:00:01',
+          ipAddress: '10.0.7.21',
+          manufacturer: null,
+          hostname: 'AP 32',
+          model: 'LiteBeam M5'
+        },
+        {
+          macAddress: '48:8F:5A:00:00:02',
+          ipAddress: '10.0.7.2',
+          manufacturer: null,
+          hostname: 'Hex Sur',
+          model: 'RB960PGS'
+        }
+      ]);
+      expect(result.value.routers).toEqual([
+        {
+          deviceId: 'hex-1',
+          name: 'Hex Norte',
+          neighborCount: 2,
+          newCount: 2,
+          error: null
+        },
+        {
+          deviceId: 'core',
+          name: 'Core',
+          neighborCount: null,
+          newCount: null,
+          error: 'timeout'
+        }
+      ]);
+    });
+
+    it('runs with no segments when routers are read', async () => {
+      repository.get.mockResolvedValue(Result.ok(makeSettings([])));
+
+      const result = await makeUseCase(true, routerNeighbors).execute(
+        {
+          now: NOW
+        }
+      );
+
+      expect(result.value.ran).toBe(true);
+      expect(result.value.routers).toHaveLength(2);
+    });
+
+    it('reports a router whose neighbours cannot be recorded', async () => {
+      repository.get.mockResolvedValue(Result.ok(makeSettings([])));
+      recorder.record.mockResolvedValue(Result.fail('disk full'));
+
+      const result = await makeUseCase(true, routerNeighbors).execute(
+        {
+          now: NOW
+        }
+      );
+
+      expect(result.value.routers[0]).toMatchObject({
+        deviceId: 'hex-1',
+        error: 'disk full'
+      });
+    });
+
+    it('fails when the routers cannot be listed', async () => {
+      routerNeighbors.findRouterNeighbors.mockResolvedValue(
+        Result.fail('db down')
+      );
+
+      const result = await makeUseCase(true, routerNeighbors).execute(
+        {
+          now: NOW
+        }
+      );
+
+      expect(result.error).toContain('db down');
     });
   });
 });

@@ -11,11 +11,11 @@ different document for a different audience.
 
 | Context             | File                                             | Rules                 |
 | ------------------- | ------------------------------------------------ | --------------------- |
-| Device Inventory    | [device-inventory.md](device-inventory.md)       | `DEV-001` … `DEV-216` |
+| Device Inventory    | [device-inventory.md](device-inventory.md)       | `DEV-001` … `DEV-217` |
 | Customers           | [customers.md](customers.md)                     | `CUS-001` … `CUS-140` |
 | Billing             | [billing.md](billing.md)                         | `BIL-001` … `BIL-264` |
 | Quoting             | [quoting.md](quoting.md)                         | `QUO-001` … `QUO-142` |
-| Device Monitoring   | [device-monitoring.md](device-monitoring.md)     | `MON-001` … `MON-199` |
+| Device Monitoring   | [device-monitoring.md](device-monitoring.md)     | `MON-001` … `MON-201` |
 | Wireless Monitoring | [wireless-monitoring.md](wireless-monitoring.md) | `WLS-001` … `WLS-205` |
 | Service Enforcement | [service-enforcement.md](service-enforcement.md) | `SVC-001` … `SVC-120` |
 | Notifications       | [notifications.md](notifications.md)             | `NOT-001` … `NOT-229` |
